@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from fpdf import FPDF
 
 # --- CONFIG & DATABASE ---
-DATA_FILE = "ksd_master_final.csv"
+DATA_FILE = "ksd_master_final_v4.csv"
 VE_FILE = "ksd_fleet_db.csv"
 SHOP_NAME = "🏗️ K. SIRIWARDHANA SAND CONSTRUCTION PRO"
 
@@ -16,7 +16,7 @@ def load_data(file, cols):
         return d
     return pd.DataFrame(columns=cols)
 
-# --- PDF GENERATOR ---
+# PDF Generator (Same as before)
 def generate_trip_sheet(date, cust, vno, qty, amt, item):
     pdf = FPDF()
     pdf.add_page()
@@ -32,26 +32,17 @@ def generate_trip_sheet(date, cust, vno, qty, amt, item):
     pdf.ln(5)
     pdf.set_font("Arial", 'B', 14)
     pdf.cell(200, 10, txt=f"TOTAL AMOUNT: Rs. {amt:,.2f}", ln=True)
-    pdf.ln(20)
-    pdf.set_font("Arial", size=10)
-    pdf.cell(100, 10, txt="........................", ln=False)
-    pdf.cell(100, 10, txt="........................", ln=True)
-    pdf.cell(100, 10, txt="Authorized Signature", ln=False)
-    pdf.cell(100, 10, txt="Customer/Driver", ln=True)
-    fname = f"Trip_{vno}_{date}.pdf"
-    pdf.output(fname)
-    return fname
+    pdf.output(f"Trip_{vno}_{date}.pdf")
+    return f"Trip_{vno}_{date}.pdf"
 
 # --- UI SETUP ---
 st.set_page_config(page_title=SHOP_NAME, layout="wide")
 st.markdown(f"<h1 style='text-align: center; color: #E67E22;'>{SHOP_NAME}</h1>", unsafe_allow_html=True)
 
-# Load Databases
 df = load_data(DATA_FILE, ["ID", "Date", "Type", "Category", "Entity", "Note", "Amount", "Qty", "Fuel_Ltr", "Hours", "Status"])
 ve_db = load_data(VE_FILE, ["No", "Type", "Owner"])
 
 # --- SIDEBAR ---
-st.sidebar.header("🛠️ Navigation")
 menu = ["📊 Dashboard", "💰 Sales (Sand/Soil)", "🚿 Washing & Production", "⛽ Fuel Analytics", "🚜 Fleet & Work Entry", "💸 Expenses & Advances", "📑 Full Reports", "🛠️ System Setup"]
 choice = st.sidebar.selectbox("Main Menu", menu)
 
@@ -75,7 +66,6 @@ if choice == "📊 Dashboard":
     c3.metric("Total Income", f"Rs. {inc:,.0f}")
     c4.metric("Net Profit", f"Rs. {inc-exp:,.0f}")
     st.divider()
-    st.write("### Cash Flow Trend")
     st.line_chart(df.groupby("Date")["Amount"].sum())
 
 # --- 2. SALES ---
@@ -93,10 +83,7 @@ elif choice == "💰 Sales (Sand/Soil)":
             new_r = pd.DataFrame([[len(df)+1, d, "Income", item, cust, vno, amt, qty, 0, 0, stat]], columns=df.columns)
             df = pd.concat([df, new_r], ignore_index=True)
             df.to_csv(DATA_FILE, index=False)
-            f_pdf = generate_trip_sheet(d, cust, vno, qty, amt, item)
             st.success("Sale Recorded!")
-            with open(f_pdf, "rb") as f:
-                st.download_button("📩 Download PDF Trip Sheet", f, file_name=f_pdf)
 
 # --- 3. WASHING ---
 elif choice == "🚿 Washing & Production":
@@ -126,7 +113,6 @@ elif choice == "⛽ Fuel Analytics":
     
     st.metric(f"Total Fuel for {sel_v}", f"{fuel_df['Fuel_Ltr'].sum():,.2f} Liters")
     st.dataframe(fuel_df[["Date", "Entity", "Fuel_Ltr", "Amount", "Note"]], use_container_width=True)
-    if not fuel_df.empty: st.bar_chart(fuel_df.groupby("Date")["Fuel_Ltr"].sum())
 
 # --- 5. FLEET & WORK ENTRY ---
 elif choice == "🚜 Fleet & Work Entry":
@@ -145,20 +131,27 @@ elif choice == "🚜 Fleet & Work Entry":
             df.to_csv(DATA_FILE, index=False)
             st.success("Record Saved!")
 
-# --- 6. EXPENSES & ADVANCES ---
+# --- 6. EXPENSES & ADVANCES (FIXED SECTION) ---
 elif choice == "💸 Expenses & Advances":
     st.subheader("Payments & General Expenses")
     with st.form("exp_f", clear_on_submit=True):
         d = st.date_input("Date")
-        cat = st.selectbox("Category", ["Soil Purchase", "Salary", "Advance", "Food", "Office", "Other"])
-        ent = st.text_input("Name/Entity")
-        qty = st.number_input("Quantity (If Soil Purchase)", min_value=0.0)
-        amt = st.number_input("Amount (Rs.)", min_value=0.0)
+        cat = st.selectbox("Category", ["Soil Purchase", "Salary", "Advance", "Food", "Office", "Repair", "Other"])
+        ent = st.text_input("Name/Entity (Paid To)")
+        
+        # Quantity condition - highlight only if Soil Purchase
+        qty = 0.0
+        if cat == "Soil Purchase":
+            qty = st.number_input("Quantity (Cubes)", min_value=0.0, help="Stock එකට එකතු වෙන්න මෙතන කියුබ් ගණන දාන්න.")
+        
+        amt = st.number_input("Total Amount (Rs.)", min_value=0.0)
+        note = st.text_area("Note (Optional)")
+        
         if st.form_submit_button("Save Expense"):
-            new_r = pd.DataFrame([[len(df)+1, d, "Expense", cat, ent, "", amt, qty, 0, 0, "Paid"]], columns=df.columns)
+            new_r = pd.DataFrame([[len(df)+1, d, "Expense", cat, ent, note, amt, qty, 0, 0, "Paid"]], columns=df.columns)
             df = pd.concat([df, new_r], ignore_index=True)
             df.to_csv(DATA_FILE, index=False)
-            st.success("Expense Recorded!")
+            st.success(f"Record added: {cat}")
 
 # --- 7. REPORTS ---
 elif choice == "📑 Full Reports":
