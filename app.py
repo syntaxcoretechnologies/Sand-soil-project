@@ -5,9 +5,9 @@ from datetime import datetime, timedelta
 from fpdf import FPDF
 
 # --- CONFIG & FILENAMES ---
-DATA_FILE = "ksd_master_v14.csv"
-VE_FILE = "ksd_vehicles_v14.csv"
-DR_FILE = "ksd_drivers_v14.csv"
+DATA_FILE = "ksd_master_v15.csv"
+VE_FILE = "ksd_vehicles_v15.csv"
+DR_FILE = "ksd_drivers_v15.csv"
 SHOP_NAME = "K. SIRIWARDHANA SAND CONSTRUCTION PRO"
 
 # --- HELPER FUNCTIONS ---
@@ -62,14 +62,10 @@ df = load_data(DATA_FILE, ["ID", "Date", "Time", "Type", "Category", "Entity", "
 ve_db = load_data(VE_FILE, ["No", "Type", "Owner", "Current_Driver"])
 dr_db = load_data(DR_FILE, ["Name", "Phone", "Daily_Salary"])
 
-# --- 🚀 EXPANDED SIDEBAR MENU ---
-st.sidebar.image("https://cdn-icons-png.flaticon.com/512/4300/4300058.png", width=100)
+# --- EXPANDED SIDEBAR MENU ---
 st.sidebar.title("KSD NAVIGATION")
-
-# Step 1: Main Category
 main_mode = st.sidebar.radio("SELECT SECTOR", ["📊 Dashboard", "⚙️ Management", "🏗️ Operations", "📑 Reporting"])
 
-# Step 2: Sub Category logic
 choice = ""
 if main_mode == "📊 Dashboard":
     choice = "📊 Dashboard"
@@ -89,7 +85,7 @@ if choice == "📊 Dashboard":
     c1, c2, c3 = st.columns(3)
     c1.metric("Total Income", f"Rs. {inc:,.2f}")
     c2.metric("Total Expenses", f"Rs. {exp:,.2f}")
-    c3.metric("Net Profit", f"Rs. {inc-exp:,.2f}", delta=f"{inc-exp:,.0f}")
+    c3.metric("Net Profit", f"Rs. {inc-exp:,.2f}")
     if not df.empty: st.area_chart(df.groupby("Date")["Amount"].sum())
 
 # --- 2. DRIVER SETUP ---
@@ -121,9 +117,82 @@ elif choice == "⛽ Fuel Tracking":
         d = st.date_input("Date"); v = st.selectbox("Vehicle", ve_db["No"].tolist() if not ve_db.empty else ["No Vehicles"])
         l = st.number_input("Liters"); c = st.number_input("Cost")
         if st.form_submit_button("Record Fuel"):
-            new = pd.DataFrame([[len(df)+1, d, "", "Expense", "Fuel Entry", v, "Fuel", c, 0, l, 0, "Paid"]], columns=df.columns)
+            new = pd.DataFrame([[len(df)+1, d, "", "Expense", "Fuel Entry", v, "Fueling", c, 0, l, 0, "Paid"]], columns=df.columns)
             df = pd.concat([df, new], ignore_index=True); df.to_csv(DATA_FILE, index=False); st.success("Saved!"); st.rerun()
 
 # --- 5. STOCK IN ---
 elif choice == "🚚 Stock In (Soil)":
-    with
+    with st.form("stock_f", clear_on_submit=True):
+        d = st.date_input("Date"); v_sup = st.text_input("Supplier Vehicle"); q = st.number_input("Cubes")
+        if st.form_submit_button("Add Stock"):
+            new = pd.DataFrame([[len(df)+1, d, "", "Process", "Soil In", v_sup, "In", 0, q, 0, 0, "Done"]], columns=df.columns)
+            df = pd.concat([df, new], ignore_index=True); df.to_csv(DATA_FILE, index=False); st.success("Stock Added!"); st.rerun()
+
+# --- 6. SALES OUT ---
+elif choice == "💰 Sales Out":
+    with st.form("sale_f", clear_on_submit=True):
+        c1, c2 = st.columns(2); d = c1.date_input("Date"); t = c2.time_input("Time")
+        it = c1.selectbox("Item", ["Sand Sale", "Soil Sale"]); v_cust = c2.text_input("Customer Vehicle"); q = c1.number_input("Cubes"); a = c2.number_input("Amount")
+        if st.form_submit_button("Record Sale"):
+            new = pd.DataFrame([[len(df)+1, d, t.strftime("%H:%M"), "Income", it, v_cust, "Sale", a, q, 0, 0, "Paid"]], columns=df.columns)
+            df = pd.concat([df, new], ignore_index=True); df.to_csv(DATA_FILE, index=False); st.success("Sale Recorded!"); st.rerun()
+
+# --- 7. MACHINE PERFORMANCE ---
+elif choice == "🚜 Machine Performance":
+    t1, t2 = st.tabs(["🏗️ Excavator", "🚚 Lorry"])
+    with t1:
+        exs = ve_db[ve_db["Type"]=="Excavator"]["No"].tolist()
+        if exs:
+            sel = st.selectbox("Select Excavator", exs); d_ex = st.date_input("Date", key="exd"); h = st.number_input("Hours Worked")
+            if st.button("Log Hours"):
+                new = pd.DataFrame([[len(df)+1, d_ex, "", "Work", "Work Entry", sel, "Digging", 0, 0, 0, h, "Done"]], columns=df.columns)
+                df = pd.concat([df, new], ignore_index=True); df.to_csv(DATA_FILE, index=False); st.success("Hours Logged!"); st.rerun()
+        else: st.info("No Excavators found.")
+    with t2:
+        lrs = ve_db[ve_db["Type"]=="Lorry"]["No"].tolist()
+        if lrs:
+            sel_lr = st.selectbox("Select Lorry", lrs); d_lr = st.date_input("Date", key="lrd"); q_lr = st.number_input("Cubes Added")
+            if st.button("Log Cubes"):
+                new = pd.DataFrame([[len(df)+1, d_lr, "", "Work", "Work Entry", sel_lr, "Transport", 0, q_lr, 0, 0, "Done"]], columns=df.columns)
+                df = pd.concat([df, new], ignore_index=True); df.to_csv(DATA_FILE, index=False); st.success("Cubes Logged!"); st.rerun()
+        else: st.info("No Lorries found.")
+
+# --- 8. DRIVER PAYROLL ---
+elif choice == "💸 Driver Payroll":
+    if dr_db.empty: st.warning("No drivers registered.")
+    else:
+        with st.form("pay_f", clear_on_submit=True):
+            sel_dr = st.selectbox("Driver Name", dr_db["Name"].tolist())
+            p_ty = st.selectbox("Type", ["Advance", "Salary Payment"])
+            p_am = st.number_input("Amount (Rs.)", min_value=0.0)
+            if st.form_submit_button("Save Payment"):
+                new = pd.DataFrame([[len(df)+1, datetime.now().date(), "", "Expense", p_ty, sel_dr, "Driver Payment", p_am, 0, 0, 0, "Paid"]], columns=df.columns)
+                df = pd.concat([df, new], ignore_index=True); df.to_csv(DATA_FILE, index=False); st.success("Payment Saved!"); st.rerun()
+
+# --- 9. ADVANCED REPORTS ---
+elif choice == "📑 Advanced Reports":
+    rt = st.selectbox("Report Category", ["Vehicle Owner Statement", "Driver Statement"])
+    f_d = st.date_input("Start Date", datetime.now().date()-timedelta(days=30))
+    t_d = st.date_input("End Date", datetime.now().date())
+    
+    if rt == "Vehicle Owner Statement" and not ve_db.empty:
+        sv = st.selectbox("Vehicle No", ve_db["No"].tolist())
+        v_info = ve_db[ve_db["No"]==sv]
+        if not v_info.empty:
+            v_owner = v_info["Owner"].values[0]
+            v_data = df[(df["Entity"]==sv) & (df["Date"]>=f_d) & (df["Date"]<=t_d)]
+            st.write(f"### Report for: {v_owner} ({sv})")
+            st.dataframe(v_data, use_container_width=True)
+            if st.button("Download PDF"):
+                summary = {"Owner": v_owner, "Vehicle": sv, "Period": f"{f_d} to {t_d}", "Total Cubes": v_data["Qty_Cubes"].sum(), "Fuel Cost": f"Rs. {v_data[v_data['Category']=='Fuel Entry']['Amount'].sum():,.2f}"}
+                fn = create_pdf(f"Vehicle_{sv}", v_data, summary)
+                with open(fn, "rb") as file: st.download_button("📩 Download PDF", file, file_name=fn)
+    elif rt == "Driver Statement" and not dr_db.empty:
+        sd = st.selectbox("Select Driver", dr_db["Name"].tolist())
+        d_data = df[(df["Entity"]==sd) & (df["Date"]>=f_d) & (df["Date"]<=t_d)]
+        st.write(f"### Report for: {sd}")
+        st.dataframe(d_data, use_container_width=True)
+        if st.button("Download Driver PDF"):
+            summary = {"Driver": sd, "Period": f"{f_d} to {t_d}", "Total Advances": f"Rs. {d_data[d_data['Category']=='Advance']['Amount'].sum():,.2f}"}
+            fn = create_pdf(f"Driver_{sd}", d_data, summary)
+            with open(fn, "rb") as file: st.download_button("📩 Download PDF", file, file_name=fn)
