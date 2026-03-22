@@ -187,5 +187,5 @@ elif choice == "💸 Driver Payroll":
     else:
         sel_dr = st.selectbox("Select Driver", dr_db["Name"].tolist())
         dr_data = df[df["Entity"] == sel_dr]
-        c1, c2 = st.columns(2)
-        c1.metric("Advances Taken", f"Rs. {dr_data[dr_data['Category']=='Advance']['Amount'].sum():,.2f
+        c1.metric("Advances Taken", f"Rs. {dr_data[dr_data['Category']=='Advance']['Amount'].sum():,.2f}")
+        c2.metric("Salary Paid", f"Rs. {dr_data[dr_data['Category']=='Salary Payment']['Amount'].sum():,.2f}")
