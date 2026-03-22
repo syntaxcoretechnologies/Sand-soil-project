@@ -130,22 +130,53 @@ elif choice == "🚜 Machine Performance":
 
 # --- 3. FINANCIALS ---
 elif choice == "⛽ Fuel & Shed Settlements":
-    tab1, tab2 = st.tabs(["⛽ Log New Fuel Bill", "💳 Settle Pending Bills"])
+    tab1, tab2 = st.tabs(["⛽ Log New Fuel Bill", "💳 Settle Shed Payments"])
+    
+    # 1. Aluth bill ekak daddi (Credit)
     with tab1:
+        st.subheader("Add Fuel Entry (Credit)")
         with st.form("fuel_f", clear_on_submit=True):
-            d = st.date_input("Date"); v = st.selectbox("Vehicle", ve_db["No"].tolist() if not ve_db.empty else ["None"]); l = st.number_input("Liters"); c = st.number_input("Bill Cost"); s = st.text_input("Shed Name")
-            if st.form_submit_button("Record Credit Bill"):
+            d = st.date_input("Date"); v = st.selectbox("Vehicle", ve_db["No"].tolist() if not ve_db.empty else ["None"])
+            l = st.number_input("Liters", min_value=0.0); c = st.number_input("Bill Cost", min_value=0.0)
+            s = st.text_input("Shed Name")
+            if st.form_submit_button("Record Bill"):
+                # Meka 'Fuel Entry' widiyata save wenawa
                 new = pd.DataFrame([[len(df)+1, d, "", "Expense", "Fuel Entry", v, f"Shed: {s}", c, 0, l, 0, "Pending"]], columns=df.columns)
-                df = pd.concat([df, new], ignore_index=True); df.to_csv(DATA_FILE, index=False); st.success("Recorded!"); st.rerun()
+                df = pd.concat([df, new], ignore_index=True); df.to_csv(DATA_FILE, index=False); st.success("Bill Recorded!"); st.rerun()
+
+    # 2. Salli gewana option eka
     with tab2:
-        pending = df[(df["Category"] == "Fuel Entry") & (df["Status"] == "Pending")]
-        if pending.empty: st.success("No pending fuel bills!")
-        else:
-            st.dataframe(pending[["Date", "Entity", "Note", "Amount", "Status"]], use_container_width=True)
-            sel_bill = st.selectbox("Select Bill to Settle", pending.apply(lambda x: f"ID:{x['ID']} | {x['Entity']} | Rs.{x['Amount']}", axis=1))
-            if st.button("Mark as Paid ✅"):
-                sid = int(sel_bill.split("|")[0].split(":")[1])
-                df.loc[df['ID'] == sid, 'Status'] = 'Paid'; df.to_csv(DATA_FILE, index=False); st.rerun()
+        # Denata thiyena naya calculation eka
+        total_fuel_bills = df[df["Category"] == "Fuel Entry"]["Amount"].sum()
+        total_paid_to_shed = df[df["Category"] == "Shed Payment"]["Amount"].sum()
+        remaining_debt = total_fuel_bills - total_paid_to_shed
+        
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Total Fuel Cost", f"Rs. {total_fuel_bills:,.2f}")
+        c2.metric("Total Paid So Far", f"Rs. {total_paid_to_shed:,.2f}")
+        c3.metric("Current Debt (Naya)", f"Rs. {remaining_debt:,.2f}", delta_color="inverse")
+        
+        st.divider()
+        st.subheader("Make a Payment to Shed")
+        with st.form("payment_form", clear_on_submit=True):
+            pay_date = st.date_input("Payment Date")
+            pay_amt = st.number_input("Amount to Pay (Rs.)", min_value=0.0)
+            pay_ref = st.text_input("Reference (Cheque No / Cash / Slip)")
+            
+            if st.form_submit_button("Confirm Payment"):
+                if pay_amt > 0:
+                    # Meka 'Shed Payment' widiyata save wenawa, ethakota balance eken auto adu wenawa
+                    new_pay = pd.DataFrame([[len(df)+1, pay_date, "", "Expense", "Shed Payment", "Shed", pay_ref, pay_amt, 0, 0, 0, "Paid"]], columns=df.columns)
+                    df = pd.concat([df, new_pay], ignore_index=True); df.to_csv(DATA_FILE, index=False)
+                    st.success(f"Rs. {pay_amt:,.2f} Payment Recorded Successfully!")
+                    st.rerun()
+                else:
+                    st.error("Please enter a valid amount.")
+
+        # Payment history eka balanna puluwan
+        if st.checkbox("Show Payment History"):
+            hist = df[df["Category"] == "Shed Payment"][["Date", "Note", "Amount"]]
+            st.table(hist)
 
 elif choice == "💸 Driver Payroll":
     if not dr_db.empty:
