@@ -189,3 +189,104 @@ elif choice == "💸 Driver Payroll":
         dr_data = df[df["Entity"] == sel_dr]
         c1.metric("Advances Taken", f"Rs. {dr_data[dr_data['Category']=='Advance']['Amount'].sum():,.2f}")
         c2.metric("Salary Paid", f"Rs. {dr_data[dr_data['Category']=='Salary Payment']['Amount'].sum():,.2f}")
+
+# --- 7. MACHINE PERFORMANCE (FIXED) ---
+elif choice == "🚜 Machine Performance":
+    st.subheader("Performance Logs")
+    if ve_db.empty: 
+        st.warning("Please register vehicles in 'Vehicle Setup' first!")
+    else:
+        tab1, tab2 = st.tabs(["🏗️ Excavator", "🚚 Lorry"])
+        with tab1:
+            ex_list = ve_db[ve_db["Type"] == "Excavator"]["No"].tolist()
+            if ex_list:
+                sel_ex = st.selectbox("Select Excavator", ex_list)
+                ex_data = df[df["Entity"] == sel_ex]
+                st.metric("Total Hours Worked", f"{ex_data['Hours'].sum()} hrs")
+                with st.form("ex_f", clear_on_submit=True):
+                    d = st.date_input("Date")
+                    h = st.number_input("Hours", min_value=0.0)
+                    n = st.text_input("Note (Site Name)")
+                    if st.form_submit_button("Log Hours"):
+                        new_r = pd.DataFrame([[len(df)+1, d, "", "Work", "Work Entry", sel_ex, n, 0, 0, 0, h, "Done"]], columns=df.columns)
+                        df = pd.concat([df, new_r], ignore_index=True)
+                        df.to_csv(DATA_FILE, index=False)
+                        st.success("Hours Logged!")
+                        st.rerun()
+            else:
+                st.info("No Excavators found.")
+
+        with tab2:
+            lr_list = ve_db[ve_db["Type"] == "Lorry"]["No"].tolist()
+            if lr_list:
+                sel_lr = st.selectbox("Select Lorry", lr_list)
+                lr_data = df[df["Entity"] == sel_lr]
+                st.metric("Total Cubes Transported", f"{lr_data['Qty_Cubes'].sum()} Cubes")
+                with st.form("lr_f", clear_on_submit=True):
+                    d = st.date_input("Date")
+                    q = st.number_input("Cubes", min_value=0.0)
+                    n = st.text_input("Note (Location)")
+                    if st.form_submit_button("Log Cubes"):
+                        new_r = pd.DataFrame([[len(df)+1, d, "", "Work", "Work Entry", sel_lr, n, 0, q, 0, 0, "Done"]], columns=df.columns)
+                        df = pd.concat([df, new_r], ignore_index=True)
+                        df.to_csv(DATA_FILE, index=False)
+                        st.success("Cubes Logged!")
+                        st.rerun()
+            else:
+                st.info("No Lorries found.")
+
+# --- 8. ADVANCED REPORTS (FIXED) ---
+elif choice == "📑 Advanced Reports":
+    st.subheader("📑 Advanced Report Generator")
+    if df.empty:
+        st.warning("No data available to generate reports.")
+    else:
+        col1, col2, col3 = st.columns(3)
+        rep_type = col1.selectbox("Category", ["Vehicle Owner Statement", "Driver Statement"])
+        range_type = col2.selectbox("Period", ["Daily", "Weekly", "Monthly", "Custom"])
+        
+        today = datetime.now().date()
+        start_date = today
+        if range_type == "Weekly": start_date = today - timedelta(days=7)
+        elif range_type == "Monthly": start_date = today - timedelta(days=30)
+        elif range_type == "Custom": start_date = col3.date_input("From", today - timedelta(days=30))
+        t_date = col3.date_input("To", today)
+
+        if rep_type == "Vehicle Owner Statement":
+            if ve_db.empty: st.warning("No vehicles registered.")
+            else:
+                sel_v = st.selectbox("Select Vehicle", ve_db["No"].tolist())
+                v_row = ve_db[ve_db["No"] == sel_v]
+                if not v_row.empty:
+                    v_owner = v_row["Owner"].values[0]
+                    v_data = df[(df["Entity"] == sel_v) & (df["Date"] >= start_date) & (df["Date"] <= t_date)]
+                    
+                    sum_dict = {
+                        "Vehicle": sel_v, "Owner": v_owner, "Period": f"{start_date} to {t_date}",
+                        "Total Work": f"{v_data['Qty_Cubes'].sum()} Cubes / {v_data['Hours'].sum()} Hrs",
+                        "Fuel Deductions": f"Rs. {v_data[v_data['Category']=='Fuel Entry']['Amount'].sum():,.2f}"
+                    }
+                    st.write(f"### Report for {v_owner} ({sel_v})")
+                    st.dataframe(v_data, use_container_width=True)
+                    if st.button("Download PDF Report"):
+                        fname = create_pdf(f"Vehicle_{sel_v}", v_data, sum_dict)
+                        with open(fname, "rb") as f:
+                            st.download_button("📩 Download PDF", f, file_name=fname)
+
+        elif rep_type == "Driver Statement":
+            if dr_db.empty: st.warning("No drivers registered.")
+            else:
+                sel_dr = st.selectbox("Select Driver", dr_db["Name"].tolist())
+                dr_data = df[(df["Entity"] == sel_dr) & (df["Date"] >= start_date) & (df["Date"] <= t_date)]
+                
+                sum_dict = {
+                    "Driver": sel_dr, "Period": f"{start_date} to {t_date}",
+                    "Total Advances": f"Rs. {dr_data[dr_data['Category']=='Advance']['Amount'].sum():,.2f}",
+                    "Total Paid": f"Rs. {dr_data[dr_data['Category']=='Salary Payment']['Amount'].sum():,.2f}"
+                }
+                st.write(f"### Report for {sel_dr}")
+                st.dataframe(dr_data, use_container_width=True)
+                if st.button("Download PDF Report"):
+                    fname = create_pdf(f"Driver_{sel_dr}", dr_data, sum_dict)
+                    with open(fname, "rb") as f:
+                        st.download_button("📩 Download PDF", f, file_name=fname)
