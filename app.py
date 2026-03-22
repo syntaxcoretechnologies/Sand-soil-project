@@ -278,10 +278,30 @@ elif choice == "📑 Advanced Reports":
     f_date = col3.date_input("From", start_date)
     t_date = col3.date_input("To", today)
 
-    if rep_type == "Vehicle Owner Statement":
-        sel_v = st.selectbox("Vehicle", ve_db["No"].tolist())
-        v_owner = ve_db[ve_db["No"] == sel_v]["Owner"].values[0]
-        v_data = df[(df["Entity"] == sel_v) & (df["Date"] >= f_date) & (df["Date"] <= t_date)]
+  if rep_type == "Vehicle Owner Statement":
+        if ve_db.empty:
+            st.warning("No vehicles registered.")
+        else:
+            sel_v = st.selectbox("Vehicle", ve_db["No"].tolist())
+            
+            # --- ME KALLA UPDATE KARANNA ---
+            v_row = ve_db[ve_db["No"] == sel_v]
+            
+            if not v_row.empty:
+                v_owner = v_row["Owner"].values[0]
+                v_data = df[(df["Entity"] == sel_v) & (df["Date"] >= f_date) & (df["Date"] <= t_date)]
+                
+                sum_dict = {
+                    "Vehicle": sel_v, "Owner": v_owner, "Period": f"{f_date} to {t_date}",
+                    "Work (C/H)": f"{v_data['Qty_Cubes'].sum()} / {v_data['Hours'].sum()}",
+                    "Fuel Cost": f"Rs. {v_data[v_data['Category']=='Fuel Entry']['Amount'].sum():,.2f}"
+                }
+                st.dataframe(v_data)
+                if st.button("Download Vehicle Statement"):
+                    fname = create_pdf(f"Vehicle_{sel_v}", v_data, sum_dict)
+                    with open(fname, "rb") as f: st.download_button("📩 PDF", f, file_name=fname)
+            else:
+                st.error("Vehicle owner details not found. Please re-register vehicle.")
         
         sum_dict = {
             "Vehicle": sel_v, "Owner": v_owner, "Period": f"{f_date} to {t_date}",
