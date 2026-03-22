@@ -156,31 +156,52 @@ elif choice == "💸 Driver Payroll":
                 new = pd.DataFrame([[len(df)+1, datetime.now().date(), "", "Expense", ty, dr, "Pay", am, 0, 0, 0, "Paid"]], columns=df.columns)
                 df = pd.concat([df, new], ignore_index=True); df.to_csv(DATA_FILE, index=False); st.rerun()
 
-# --- 7. VEHICLE & PERFORMANCE ---
-elif choice == "🚜 Vehicle Setup":
-    with st.form("ve"):
-        v = st.text_input("No"); t = st.selectbox("Type",["Lorry","Excavator"]); o = st.text_input("Owner"); dr = st.selectbox("Driver", dr_db["Name"].tolist() if not dr_db.empty else ["None"])
-        if st.form_submit_button("Add"):
-            new = pd.DataFrame([[v,t,o,dr]], columns=ve_db.columns)
-            ve_db = pd.concat([ve_db, new], ignore_index=True); ve_db.to_csv(VE_FILE, index=False); st.rerun()
-    st.table(ve_db)
-
+# --- 7. MACHINE PERFORMANCE (FULL UPDATED) ---
 elif choice == "🚜 Machine Performance":
     t1, t2 = st.tabs(["🏗️ Excavator", "🚚 Lorry"])
+    
     with t1:
+        st.subheader("Excavator Work & Payment Log")
         exs = ve_db[ve_db["Type"]=="Excavator"]["No"].tolist()
         if exs:
-            sel = st.selectbox("Select", exs); h = st.number_input("Hours")
-            if st.button("Log Hours"):
-                new = pd.DataFrame([[len(df)+1, datetime.now().date(), "", "Work", "Work Entry", sel, "Work", 0, 0, 0, h, "Done"]], columns=df.columns)
-                df = pd.concat([df, new], ignore_index=True); df.to_csv(DATA_FILE, index=False); st.rerun()
+            with st.form("ex_work_form", clear_on_submit=True):
+                c1, c2 = st.columns(2)
+                sel_ex = c1.selectbox("Select Excavator", exs)
+                d_ex = c2.date_input("Work Date", key="ex_d")
+                hrs = c1.number_input("Hours Worked", min_value=0.0, step=0.5)
+                amt_ex = c2.number_input("Total Payment/Cost (Rs.)", min_value=0.0)
+                job_desc = st.text_input("Job Description (e.g., Digging)")
+                if st.form_submit_button("Log Excavator Work"):
+                    new_r = pd.DataFrame([[len(df)+1, d_ex, "", "Expense", "Machine Work", sel_ex, job_desc, amt_ex, 0, 0, hrs, "Done"]], columns=df.columns)
+                    df = pd.concat([df, new_r], ignore_index=True)
+                    df.to_csv(DATA_FILE, index=False)
+                    st.success(f"Logged: {hrs} hrs | Rs. {amt_ex:,.2f}")
+                    st.rerun()
+            # View recent logs
+            st.dataframe(df[df["Entity"].isin(exs)].tail(5)[["Date", "Entity", "Hours", "Amount", "Note"]], use_container_width=True)
+        else: st.warning("Add an Excavator first.")
+
     with t2:
+        st.subheader("Lorry Transport & Hire Log")
         lrs = ve_db[ve_db["Type"]=="Lorry"]["No"].tolist()
         if lrs:
-            sel = st.selectbox("Select Lorry", lrs); q = st.number_input("Cubes")
-            if st.button("Log Cubes"):
-                new = pd.DataFrame([[len(df)+1, datetime.now().date(), "", "Work", "Work Entry", sel, "Work", 0, q, 0, 0, "Done"]], columns=df.columns)
-                df = pd.concat([df, new], ignore_index=True); df.to_csv(DATA_FILE, index=False); st.rerun()
+            with st.form("lr_work_form", clear_on_submit=True):
+                c1, c2 = st.columns(2)
+                sel_lr = c1.selectbox("Select Lorry", lrs)
+                d_lr = c2.date_input("Transport Date", key="lr_d")
+                q_lr = c1.number_input("Cubes Transported", min_value=0.0)
+                amt_lr = c2.number_input("Hire/Trip Cost (Rs.)", min_value=0.0)
+                loc_desc = st.text_input("Location / Trip Details")
+                if st.form_submit_button("Log Lorry Trip"):
+                    # Lorry hire eka expense ekak widiyata save wenawa (Profit calculate wenna)
+                    new_r = pd.DataFrame([[len(df)+1, d_lr, "", "Expense", "Lorry Trip", sel_lr, loc_desc, amt_lr, q_lr, 0, 0, "Done"]], columns=df.columns)
+                    df = pd.concat([df, new_r], ignore_index=True)
+                    df.to_csv(DATA_FILE, index=False)
+                    st.success(f"Logged: {q_lr} Cubes | Rs. {amt_lr:,.2f}")
+                    st.rerun()
+            # View recent logs
+            st.dataframe(df[df["Entity"].isin(lrs)].tail(5)[["Date", "Entity", "Qty_Cubes", "Amount", "Note"]], use_container_width=True)
+        else: st.warning("Add a Lorry first.")
 
 # --- 8. NOTES & REPORTS ---
 elif choice == "📝 General Notes":
