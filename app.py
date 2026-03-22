@@ -1,65 +1,58 @@
-# --- 5. ADVANCED REPORTS (FILTERED BY DRIVER/VEHICLE) ---
-elif choice == "Advanced Reports":
-    st.subheader("Filter & Generate Statements")
-    
-    report_type = st.radio("Select Report Type", ["Driver Summary", "Vehicle/Machine Summary", "Full Transaction Log"], horizontal=True)
-    
-    col1, col2 = st.columns(2)
-    f_date = col1.date_input("From Date", datetime.now().date() - timedelta(days=30))
-    t_date = col2.date_input("To Date", datetime.now().date())
+import streamlit as st
+import pandas as pd
+import os
+from datetime import datetime, timedelta
+from fpdf import FPDF
 
-    # --- DRIVER SUMMARY ---
-    if report_type == "Driver Summary":
-        if not dr_db.empty:
-            sel_dr = st.selectbox("Select Driver", dr_db["Name"].tolist())
-            # Driver ge data filter kirima
-            dr_data = df[(df["Entity"] == sel_dr) & (df["Date"] >= f_date) & (df["Date"] <= t_date)]
-            
-            # Calculations
-            advances = dr_data[dr_data["Category"] == "Advance"]["Amount"].sum()
-            salary_paid = dr_data[dr_data["Category"] == "Salary Payment"]["Amount"].sum()
-            days_worked = len(dr_data[dr_data["Category"] == "Work Entry"]["Date"].unique())
-            
-            st.info(f"Summary for {sel_dr} from {f_date} to {t_date}")
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Days Worked", f"{days_worked} Days")
-            c2.metric("Total Advances", f"Rs. {advances:,.2f}")
-            c3.metric("Salary Paid", f"Rs. {salary_paid:,.2f}")
-            
-            st.dataframe(dr_data[["Date", "Category", "Note", "Amount"]], use_container_width=True)
-            
-            if st.button("Generate Driver PDF"):
-                fn = create_pdf(f"Driver_{sel_dr}", dr_data, {"Driver": sel_dr, "Period": f"{f_date} to {t_date}", "Work Days": days_worked})
-                with open(fn, "rb") as f: st.download_button("📩 Download PDF", f, file_name=fn)
-        else: st.warning("No drivers found.")
+# --- CONFIG & FILENAMES ---
+# Version eka v24 kale aluth columns (Status) nisa parana data ekka patalenne nathi wenna
+DATA_FILE = "ksd_master_v24.csv"
+VE_FILE = "ksd_vehicles_v24.csv"
+DR_FILE = "ksd_drivers_v24.csv"
+SHOP_NAME = "K. SIRIWARDHANA SAND CONSTRUCTION PRO"
 
-    # --- VEHICLE SUMMARY ---
-    elif report_type == "Vehicle/Machine Summary":
-        if not ve_db.empty:
-            sel_ve = st.selectbox("Select Vehicle/Machine", ve_db["No"].tolist())
-            ve_data = df[(df["Entity"] == sel_ve) & (df["Date"] >= f_date) & (df["Date"] <= t_date)]
-            
-            # Calculations
-            total_fuel = ve_data[ve_data["Category"] == "Fuel Entry"]["Amount"].sum()
-            total_work_cost = ve_data[ve_data["Category"].isin(["Machine Work", "Lorry Trip"])]["Amount"].sum()
-            total_hrs = ve_data["Hours"].sum()
-            total_cubes = ve_data["Qty_Cubes"].sum()
-            
-            st.info(f"Performance for {sel_ve}")
-            v1, v2, v3, v4 = st.columns(4)
-            v1.metric("Total Fuel Cost", f"Rs. {total_fuel:,.2f}")
-            v2.metric("Operation Cost", f"Rs. {total_work_cost:,.2f}")
-            if total_hrs > 0: v3.metric("Total Hours", f"{total_hrs} Hrs")
-            if total_cubes > 0: v4.metric("Total Cubes", f"{total_cubes} Cubes")
-            
-            st.dataframe(ve_data[["Date", "Category", "Note", "Hours", "Qty_Cubes", "Amount"]], use_container_width=True)
-            
-            if st.button("Generate Vehicle PDF"):
-                fn = create_pdf(f"Vehicle_{sel_ve}", ve_data, {"Vehicle": sel_ve, "Total Fuel": total_fuel, "Work Cost": total_work_cost})
-                with open(fn, "rb") as f: st.download_button("📩 Download PDF", f, file_name=fn)
-        else: st.warning("No vehicles found.")
+# --- HELPER FUNCTIONS ---
+def load_data(file, cols):
+    if os.path.exists(file): 
+        d = pd.read_csv(file)
+        if 'Date' in d.columns:
+            d['Date'] = pd.to_datetime(d['Date']).dt.date
+        return d
+    return pd.DataFrame(columns=cols)
 
-    # --- FULL LOG ---
-    else:
-        full_view = df[(df["Date"] >= f_date) & (df["Date"] <= t_date)]
-        st.dataframe(full_view, use_container_width=True)
+# --- PDF GENERATOR ---
+class PDF(FPDF):
+    def header(self):
+        self.set_font('Arial', 'B', 15)
+        self.set_text_color(230, 126, 34) 
+        self.cell(0, 10, SHOP_NAME, 0, 1, 'C')
+        self.ln(10)
+
+def create_pdf(title, data_df, summary_dict):
+    pdf = PDF(); pdf.add_page(); pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 10, f"STATEMENT: {title.upper()}", 1, 1, 'L')
+    for k, v in summary_dict.items():
+        pdf.set_font("Arial", 'B', 10); pdf.cell(60, 8, f"{k}:", 1); pdf.set_font("Arial", '', 10); pdf.cell(0, 8, f" {v}", 1, 1)
+    pdf.ln(10); pdf.set_font("Arial", 'B', 9)
+    cols = ["Date", "Category", "Note", "Qty/Hrs", "Amount"]
+    for c in cols: pdf.cell(38, 8, c, 1, 0, 'C')
+    pdf.ln(); pdf.set_text_color(0, 0, 0); pdf.set_font("Arial", '', 8)
+    for _, row in data_df.iterrows():
+        pdf.cell(38, 7, str(row['Date']), 1); pdf.cell(38, 7, str(row['Category']), 1); pdf.cell(38, 7, str(row['Note'])[:20], 1)
+        val = row['Qty_Cubes'] if row['Qty_Cubes'] > 0 else (row['Hours'] if row['Hours'] > 0 else "-")
+        pdf.cell(38, 7, f"{val}", 1, 0, 'C'); pdf.cell(38, 7, f"{row['Amount']:,.2f}", 1, 0, 'R'); pdf.ln()
+    fname = f"Report_{datetime.now().strftime('%H%M%S')}.pdf"
+    pdf.output(fname); return fname
+
+# --- UI SETUP ---
+st.set_page_config(page_title=SHOP_NAME, layout="wide")
+df = load_data(DATA_FILE, ["ID", "Date", "Time", "Type", "Category", "Entity", "Note", "Amount", "Qty_Cubes", "Fuel_Ltr", "Hours", "Status"])
+ve_db = load_data(VE_FILE, ["No", "Type", "Owner", "Current_Driver"])
+dr_db = load_data(DR_FILE, ["Name", "Phone", "Daily_Salary"])
+
+# --- NAVIGATION ---
+st.sidebar.title("🛠️ KSD ERP SYSTEM")
+main_sector = st.sidebar.selectbox("MAIN CATEGORY", [
+    "📊 Overview & Analytics", 
+    "🏗️ Site Operations", 
+    "💰 Financial Management",
