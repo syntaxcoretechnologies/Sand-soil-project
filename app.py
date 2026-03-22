@@ -111,14 +111,48 @@ elif choice == "🚜 Vehicle Setup":
                 ve_db = pd.concat([ve_db, new], ignore_index=True); ve_db.to_csv(VE_FILE, index=False); st.rerun()
     st.dataframe(ve_db, use_container_width=True)
 
-# --- 4. FUEL TRACKING ---
+# --- 4. FUEL TRACKING (WITH CREDIT SETTLEMENT) ---
 elif choice == "⛽ Fuel Tracking":
-    with st.form("fuel_f", clear_on_submit=True):
-        d = st.date_input("Date"); v = st.selectbox("Vehicle", ve_db["No"].tolist() if not ve_db.empty else ["No Vehicles"])
-        l = st.number_input("Liters"); c = st.number_input("Cost")
-        if st.form_submit_button("Record Fuel"):
-            new = pd.DataFrame([[len(df)+1, d, "", "Expense", "Fuel Entry", v, "Fueling", c, 0, l, 0, "Paid"]], columns=df.columns)
-            df = pd.concat([df, new], ignore_index=True); df.to_csv(DATA_FILE, index=False); st.success("Saved!"); st.rerun()
+    tab_f1, tab_f2 = st.tabs(["⛽ Log New Fuel", "💰 Settle Station Bills"])
+    
+    with tab_f1:
+        st.subheader("Record Fuel Intake (Credit)")
+        with st.form("fuel_f", clear_on_submit=True):
+            d = st.date_input("Date")
+            v = st.selectbox("Vehicle", ve_db["No"].tolist() if not ve_db.empty else ["No Vehicles"])
+            ltr = st.number_input("Liters", min_value=0.0)
+            cost = st.number_input("Bill Amount (Rs.)", min_value=0.0)
+            station = st.text_input("Fuel Station Name", "Petrol Shed")
+            if st.form_submit_button("Record Bill (Pending)"):
+                # Status eka 'Pending' widiyata save wenawa
+                new_r = pd.DataFrame([[len(df)+1, d, "", "Expense", "Fuel Entry", v, f"Station: {station}", cost, 0, ltr, 0, "Pending"]], columns=df.columns)
+                df = pd.concat([df, new_r], ignore_index=True)
+                df.to_csv(DATA_FILE, index=False)
+                st.success(f"Bill recorded as Pending for {v}")
+                st.rerun()
+
+        # Display Pending Bills
+        pending_fuel = df[(df["Category"] == "Fuel Entry") & (df["Status"] == "Pending")]
+        if not pending_fuel.empty:
+            st.warning(f"Outstanding Fuel Amount: Rs. {pending_fuel['Amount'].sum():,.2f}")
+            st.dataframe(pending_fuel[["Date", "Entity", "Fuel_Ltr", "Amount", "Note"]], use_container_width=True)
+
+    with tab_f2:
+        st.subheader("Settle Outstanding Bills")
+        unpaid = df[(df["Category"] == "Fuel Entry") & (df["Status"] == "Pending")]
+        
+        if unpaid.empty:
+            st.success("All fuel bills are settled! ✅")
+        else:
+            # Select which vehicle's bill to settle
+            to_settle = st.selectbox("Select Bill to Settle", unpaid.apply(lambda x: f"ID:{x['ID']} | {x['Date']} | {x['Entity']} | Rs.{x['Amount']}", axis=1))
+            sel_id = int(to_settle.split("|")[0].split(":")[1])
+            
+            if st.button("Mark as Paid ✅"):
+                df.loc[df['ID'] == sel_id, 'Status'] = 'Paid'
+                df.to_csv(DATA_FILE, index=False)
+                st.success("Bill settled successfully!")
+                st.rerun()
 
 # --- 5. STOCK IN ---
 elif choice == "🚚 Stock In (Soil)":
