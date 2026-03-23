@@ -4,10 +4,10 @@ import os
 from datetime import datetime, timedelta
 from fpdf import FPDF
 
-# --- 1. CONFIG & FILENAMES (Data Consistency) ---
-DATA_FILE = "ksd_master_final_v63.csv"
-VE_FILE = "ksd_vehicles_final_v63.csv"
-DR_FILE = "ksd_drivers_final_v63.csv"
+# --- 1. CONFIG & FILENAMES ---
+DATA_FILE = "ksd_master_final_v64.csv"
+VE_FILE = "ksd_vehicles_final_v64.csv"
+DR_FILE = "ksd_drivers_final_v64.csv"
 SHOP_NAME = "K. SIRIWARDHANA SAND CONSTRUCTION PRO"
 
 # --- 2. DATA ENGINE ---
@@ -55,9 +55,11 @@ def create_pdf(title, data_df, summary_dict):
     fname = f"Report_{datetime.now().strftime('%H%M%S')}.pdf"
     pdf.output(fname); return fname
 
-# --- 5. UI LAYOUT (v49 Style) ---
+# --- 5. UI LAYOUT (v49 Structure) ---
 st.set_page_config(page_title=SHOP_NAME, layout="wide", page_icon="🏗️")
-st.sidebar.title("🏗️ KSD ERP v6.3")
+st.sidebar.title("🏗️ KSD ERP v6.4")
+
+# මෙන්න මේ List එකේ නම නිවැරදි කළා
 main_sector = st.sidebar.selectbox("MAIN MENU", ["📊 Dashboard & Data Manager", "🏗️ Site Operations", "⛽ Finance & Shed", "⚙️ System Setup", "📑 Reports Center"])
 
 st.markdown(f"<h1 style='text-align: center; color: #E67E22;'>{main_sector}</h1>", unsafe_allow_html=True)
@@ -71,7 +73,6 @@ if main_sector == "📊 Dashboard & Data Manager":
             df['Amount'] = pd.to_numeric(df['Amount'], errors='coerce').fillna(0)
             ti = df[df["Type"] == "Income"]["Amount"].sum()
             te = df[df["Type"] == "Expense"]["Amount"].sum()
-            # Shed Debt: Unpaid fuel bills - total payments made to shed
             debt = df[(df["Category"] == "Fuel Entry") & (df["Status"] == "Unpaid")]["Amount"].sum()
             
             m1, m2, m3, m4 = st.columns(4)
@@ -82,7 +83,7 @@ if main_sector == "📊 Dashboard & Data Manager":
     with t2:
         st.subheader("Edit/Delete Transactions")
         if not st.session_state.df.empty:
-            for i, row in st.session_state.df.iloc[::-1].head(20).iterrows():
+            for i, row in st.session_state.df.iloc[::-1].head(15).iterrows():
                 c1, c2, c3, c4 = st.columns([3, 2, 2, 1])
                 c1.write(f"**{row['Date']}** | {row['Category']} ({row['Entity']})")
                 c2.write(f"Rs. {float(row['Amount']):,.2f}"); c3.write(f"[{row['Status']}]")
@@ -115,22 +116,24 @@ elif main_sector == "🏗️ Site Operations":
                 new = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Process", "Work Hours", v, n, 0, 0, 0, h, "Done"]], columns=st.session_state.df.columns)
                 st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
 
-# --- 8. FINANCE & SHED ---
-elif main_sector == "💰 Finance & Shed":
-    fin = st.sidebar.radio("Finance", ["⛽ Fuel & Shed", "🔧 Repairs", "💸 Payroll & Advance", "🏦 Owner Advances", "🧾 Others"])
+# --- 8. FINANCE & SHED (මෙතනයි අවුල තිබුණේ - දැන් සම්පූර්ණයෙන්ම හරි) ---
+elif main_sector == "⛽ Finance & Shed":
+    fin = st.sidebar.radio("Finance Options", ["⛽ Fuel & Shed", "🔧 Repairs", "💸 Payroll & Advance", "🏦 Owner Advances", "🧾 Others"])
     v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
     
     if fin == "⛽ Fuel & Shed":
-        st.subheader("Shed Bills & Payments")
-        with st.form("fuel"):
-            col1, col2 = st.columns(2)
-            d = col1.date_input("Date"); v = col2.selectbox("Vehicle", v_list)
-            l = col1.number_input("Liters", step=0.1); c = col2.number_input("Bill Cost (Rs.)")
-            stt = st.selectbox("Payment Mode", ["Unpaid (Credit)", "Paid (Cash)"])
-            s = st.text_input("Shed Name / Bill No")
+        st.subheader("Manage Shed Credit & Fuel")
+        with st.form("fuel_form"):
+            c1, c2 = st.columns(2)
+            d = c1.date_input("Date")
+            v = c2.selectbox("Vehicle", v_list)
+            l = c1.number_input("Liters", step=0.1)
+            am = c2.number_input("Total Bill (Rs.)")
+            stt = st.selectbox("Payment Type", ["Unpaid (Credit)", "Paid (Cash)"])
+            nt = st.text_input("Shed Name / Bill No")
             if st.form_submit_button("Save Fuel Entry"):
                 f_status = "Unpaid" if "Unpaid" in stt else "Paid"
-                new = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Expense", "Fuel Entry", v, f"Shed: {s}", c, 0, l, 0, f_status]], columns=st.session_state.df.columns)
+                new = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Expense", "Fuel Entry", v, f"Shed: {nt}", am, 0, l, 0, f_status]], columns=st.session_state.df.columns)
                 st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
                 
     elif fin == "🔧 Repairs":
@@ -143,7 +146,7 @@ elif main_sector == "💰 Finance & Shed":
         with st.form("pay"):
             dr_names = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else ["N/A"]
             d = st.date_input("Date"); dr = st.selectbox("Driver", dr_names)
-            am = st.number_input("Amount"); ty = st.selectbox("Type", ["Driver Advance", "Salary", "Food Allowance"]); v_rel = st.selectbox("Related Vehicle", v_list)
+            am = st.number_input("Amount"); ty = st.selectbox("Type", ["Driver Advance", "Salary", "Food Allowance"]); v_rel = st.selectbox("Linked Vehicle", v_list)
             if st.form_submit_button("Save Payroll"):
                 new = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Expense", ty, v_rel, f"Driver: {dr}", am, 0, 0, 0, "Paid"]], columns=st.session_state.df.columns)
                 st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
@@ -182,20 +185,17 @@ elif main_sector == "⚙️ System Setup":
 elif main_sector == "📑 Reports Center":
     r_tab1, r_tab2, r_tab3, r_tab4 = st.tabs(["🚜 Vehicle Summary", "👷 Driver Summary", "⛽ Shed Statement", "📑 General"])
     f_date = st.date_input("From", datetime.now().date()-timedelta(days=30)); t_date = st.date_input("To")
-    
-    df_all = st.session_state.df.copy()
-    df_all['Amount'] = pd.to_numeric(df_all['Amount'], errors='coerce').fillna(0)
-    df_f = df_all[(df_all["Date"] >= f_date) & (df_all["Date"] <= t_date)]
+    df_f = st.session_state.df[(st.session_state.df["Date"] >= f_date) & (st.session_state.df["Date"] <= t_date)]
 
     with r_tab1:
         v_list = st.session_state.ve_db["No"].tolist()
         if v_list:
-            sel_ve = st.selectbox("Select Vehicle", v_list)
+            sel_ve = st.selectbox("Vehicle", v_list)
             v_rep = df_f[df_f["Entity"] == sel_ve]
             st.dataframe(v_rep, use_container_width=True)
             if st.button("Generate Vehicle PDF"):
-                fn = create_pdf(f"Settlement_{sel_ve}", v_rep, {"Vehicle": sel_ve, "Total Spent": v_rep[v_rep["Type"]=="Expense"]["Amount"].sum()})
-                with open(fn, "rb") as f: st.download_button("📩 Download", f, file_name=fn)
+                fn = create_pdf(f"Settlement_{sel_ve}", v_rep, {"Vehicle": sel_ve, "Status": "Periodical"})
+                with open(fn, "rb") as f: st.download_button("📩 Download PDF", f, file_name=fn)
 
     with r_tab2:
         dr_list = st.session_state.dr_db["Name"].tolist()
@@ -206,12 +206,12 @@ elif main_sector == "📑 Reports Center":
             st.metric("Total Payments", f"Rs. {dr_rep['Amount'].sum():,.2f}")
 
     with r_tab3:
-        st.subheader("Shed Credit (Unpaid Only)")
+        st.subheader("Shed Debt (Unpaid Fuel Entry)")
         shed_rep = df_f[(df_f["Category"] == "Fuel Entry") & (df_f["Status"] == "Unpaid")]
-        st.metric("Outstanding Debt", f"Rs. {shed_rep['Amount'].sum():,.2f}")
+        st.metric("Outstanding to Shed", f"Rs. {shed_rep['Amount'].sum():,.2f}")
         st.dataframe(shed_rep, use_container_width=True)
         if st.button("Generate Shed PDF"):
-            fn = create_pdf("Shed_Debt_Report", shed_rep, {"Outstanding Debt": shed_rep['Amount'].sum()})
+            fn = create_pdf("Shed_Debt_Report", shed_rep, {"Debt": shed_rep['Amount'].sum()})
             with open(fn, "rb") as f: st.download_button("📩 Download PDF", f, file_name=fn)
 
     with r_tab4:
