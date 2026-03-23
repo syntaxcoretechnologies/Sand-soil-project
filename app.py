@@ -20,17 +20,16 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def load_gsheet_data(worksheet_name, default_cols):
     try:
+        # Spreadsheet eka kiyawanna try karanawa
         df = conn.read(spreadsheet=SHEET_URL, worksheet=worksheet_name)
         df = df.dropna(how='all')
-        if df.empty:
+        if df is None or df.empty:
             return pd.DataFrame(columns=default_cols)
         return df
-    except Exception:
+    except Exception as e:
+        # Connection eke error ekak thiyenam meke pennanawa
+        st.error(f"Error connecting to {worksheet_name}: {e}")
         return pd.DataFrame(columns=default_cols)
-
-def save_to_gsheet(df, worksheet_name):
-    conn.update(spreadsheet=SHEET_URL, worksheet=worksheet_name, data=df)
-    st.cache_data.clear()
 
 # --- LOAD DATA INTO SESSION STATE ---
 if 'df' not in st.session_state:
