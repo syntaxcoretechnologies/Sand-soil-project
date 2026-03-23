@@ -20,15 +20,15 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def load_gsheet_data(worksheet_name, default_cols):
     try:
-        # Spreadsheet eka kiyawanna try karanawa
-        df = conn.read(spreadsheet=SHEET_URL, worksheet=worksheet_name)
+        # URL එක පිරිසිදු කරලා ගමු
+        clean_url = SHEET_URL.split("/edit")[0] 
+        df = conn.read(spreadsheet=clean_url, worksheet=worksheet_name, ttl="0")
         df = df.dropna(how='all')
-        if df is None or df.empty:
+        if df.empty:
             return pd.DataFrame(columns=default_cols)
         return df
     except Exception as e:
-        # Connection eke error ekak thiyenam meke pennanawa
-        st.error(f"Error connecting to {worksheet_name}: {e}")
+        st.error(f"⚠️ Connection Error: {e}")
         return pd.DataFrame(columns=default_cols)
 
 # --- LOAD DATA INTO SESSION STATE ---
