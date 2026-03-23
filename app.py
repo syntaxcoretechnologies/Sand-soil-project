@@ -20,15 +20,24 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def load_gsheet_data(worksheet_name, default_cols):
     try:
-        # URL එක පිරිසිදු කරලා ගමු
-        clean_url = SHEET_URL.split("/edit")[0] 
-        df = conn.read(spreadsheet=clean_url, worksheet=worksheet_name, ttl="0")
-        df = df.dropna(how='all')
-        if df.empty:
-            return pd.DataFrame(columns=default_cols)
-        return df
+        # URL එකේ අන්තිම කෑලි අයින් කරලා පිරිසිදු කරනවා
+        base_url = SHEET_URL.split("/edit")[0].split("#")[0]
+        if not base_url.endswith("/"):
+            base_url += "/"
+            
+        # TTL=0 දැම්මම හැමවෙලේම අලුත් data ඇදලා ගන්නවා (Cache වෙන්නේ නෑ)
+        df = conn.read(spreadsheet=base_url, worksheet=worksheet_name, ttl=0)
+        
+        if df is not None:
+            df = df.dropna(how='all')
+            if df.empty:
+                return pd.DataFrame(columns=default_cols)
+            return df
+        return pd.DataFrame(columns=default_cols)
     except Exception as e:
         st.error(f"⚠️ Connection Error: {e}")
+        # Error එක හරියටම බලාගන්න මේකත් දාන්න
+        st.write("Tried URL:", base_url) 
         return pd.DataFrame(columns=default_cols)
 
 # --- LOAD DATA INTO SESSION STATE ---
