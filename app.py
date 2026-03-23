@@ -8,7 +8,7 @@ from streamlit_gsheets import GSheetsConnection
 SHOP_NAME = "K. SIRIWARDHANA SAND CONSTRUCTION PRO"
 # Secrets wala spreadsheet_url kiyala link eka danna puluwan. 
 # Nathnam meke ' ' athulata link eka danna.
-SHEET_URL = "YOUR_GOOGLE_SHEET_URL_HERE" 
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1fXwWem_GNXEmvPwzmRifCDNLRg6w-rYsrWZ0GpemN_U/edit?usp=sharing" 
 
 # --- FIXED HEADERS (Fix for ValueError) ---
 TX_COLS = ["ID", "Date", "Time", "Type", "Category", "Entity", "Note", "Amount", "Qty_Cubes", "Fuel_Ltr", "Hours", "Status"]
