@@ -5,9 +5,9 @@ from datetime import datetime, timedelta
 from fpdf import FPDF
 
 # --- 1. CONFIG & FILENAMES ---
-DATA_FILE = "ksd_master_final_v35.csv"
-VE_FILE = "ksd_vehicles_final_v35.csv"
-DR_FILE = "ksd_drivers_final_v35.csv"
+DATA_FILE = "ksd_master_final_v37.csv"
+VE_FILE = "ksd_vehicles_final_v37.csv"
+DR_FILE = "ksd_drivers_final_v37.csv"
 SHOP_NAME = "K. SIRIWARDHANA SAND CONSTRUCTION PRO"
 
 # --- 2. DATA ENGINE (LOCAL CSV STORAGE) ---
@@ -16,7 +16,6 @@ def load_data(file, cols):
         try:
             d = pd.read_csv(file)
             if 'Date' in d.columns:
-                # Convert string dates back to python date objects
                 d['Date'] = pd.to_datetime(d['Date']).dt.date
             return d
         except:
@@ -63,7 +62,7 @@ def create_pdf(title, data_df, summary_dict):
 
 # --- 5. UI LAYOUT & SIDEBAR ---
 st.set_page_config(page_title=SHOP_NAME, layout="wide", page_icon="🏗️")
-st.sidebar.title("🏗️ KSD ERP v3.5")
+st.sidebar.title("🏗️ KSD ERP v3.7")
 main_sector = st.sidebar.selectbox("MAIN MENU", ["📊 Dashboard & Data Manager", "🏗️ Site Operations", "💰 Finance & Shed", "⚙️ System Setup", "📑 Reports Center"])
 
 st.markdown(f"<h1 style='text-align: center; color: #E67E22;'>{main_sector}</h1>", unsafe_allow_html=True)
@@ -88,7 +87,7 @@ if main_sector == "📊 Dashboard & Data Manager":
             daily = df.groupby(['Date', 'Type'])['Amount'].sum().unstack().fillna(0)
             st.area_chart(daily)
         else:
-            st.info("No data available yet. Start by adding operations.")
+            st.info("No data yet. Go to Site Operations or Finance to add records.")
             
     with t2:
         st.subheader("Edit/Delete Transactions")
@@ -169,7 +168,7 @@ elif main_sector == "💰 Finance & Shed":
     elif fin == "💸 Driver Payroll":
         with st.form("pay_f"):
             dr_list = st.session_state.dr_db["Name"].tolist()
-            dr = st.selectbox("Driver", dr_list if dr_list else ["None"]); am = st.number_input("Amount"); ty = st.selectbox("Type", ["Advance", "Salary"])
+            dr = st.selectbox("Driver", dr_list if dr_list else ["None"]); am = st.number_input("Amount"); ty = st.selectbox("Type", ["Advance", "Salary", "Food Allowance"])
             if st.form_submit_button("Save Payroll"):
                 new = pd.DataFrame([[len(st.session_state.df)+1, datetime.now().date(), "", "Expense", ty, dr, "Payroll", am, 0, 0, 0, "Paid"]], columns=st.session_state.df.columns)
                 st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
@@ -207,26 +206,53 @@ elif main_sector == "⚙️ System Setup":
             if st.button(f"🗑️ Delete {r['No']}", key=f"ve_{i}"):
                 st.session_state.ve_db = st.session_state.ve_db.drop(i); save_all(); st.rerun()
 
-# --- 10. SECTOR: REPORTS CENTER ---
+# --- 10. SECTOR: REPORTS CENTER (UPDATED) ---
 elif main_sector == "📑 Reports Center":
     st.subheader("Advanced Statement Generator")
-    rep_mode = st.radio("Statement For", ["Vehicle Summary", "Shed Balance", "All"], horizontal=True)
+    rep_mode = st.radio("Statement For", ["Vehicle Summary", "Driver Summary", "General Transactions"], horizontal=True)
     f = st.date_input("From", datetime.now().date()-timedelta(days=30)); t = st.date_input("To")
     
-    # Filter by Date
+    # Base filter by date
     rep_df = st.session_state.df[(st.session_state.df["Date"]>=f) & (st.session_state.df["Date"]<=t)]
+    summary_data = {"Period": f"{f} to {t}", "Type": rep_mode}
     
-    if rep_mode == "Vehicle Summary":
+    if rep_mode == "Driver Summary":
+        dr_list = st.session_state.dr_db["Name"].tolist()
+        if dr_list:
+            sel_dr = st.selectbox("Select Driver", dr_list)
+            rep_df = rep_df[rep_df["Entity"] == sel_dr]
+            
+            # Sub-metrics for Driver
+            adv = rep_df[rep_df["Category"] == "Advance"]["Amount"].sum()
+            sal = rep_df[rep_df["Category"] == "Salary"]["Amount"].sum()
+            food = rep_df[rep_df["Category"] == "Food Allowance"]["Amount"].sum()
+            
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Advances Taken", f"Rs. {adv:,.2f}")
+            c2.metric("Salaries Paid", f"Rs. {sal:,.2f}")
+            c3.metric("Total Paid Out", f"Rs. {adv+sal+food:,.2f}")
+            
+            summary_data["Driver"] = sel_dr
+            summary_data["Total Payout"] = f"Rs. {adv+sal+food:,.2f}"
+        else:
+            st.warning("Please add drivers first.")
+
+    elif rep_mode == "Vehicle Summary":
         v_list = st.session_state.ve_db["No"].tolist()
         if v_list:
             sel_ve = st.selectbox("Select Vehicle", v_list)
             rep_df = rep_df[rep_df["Entity"] == sel_ve]
-            st.metric("Total Fuel Cost", f"Rs. {rep_df[rep_df['Category']=='Fuel Entry']['Amount'].sum():,.2f}")
-            st.metric("Total Repairs", f"Rs. {rep_df[rep_df['Category']=='Repair']['Amount'].sum():,.2f}")
-        else:
-            st.warning("Please add vehicles in System Setup first.")
-    
+            f_cost = rep_df[rep_df["Category"] == "Fuel Entry"]["Amount"].sum()
+            rep_cost = rep_df[rep_df["Category"] == "Repair"]["Amount"].sum()
+            
+            c1, c2 = st.columns(2)
+            c1.metric("Fuel Cost", f"Rs. {f_cost:,.2f}")
+            c2.metric("Repair Cost", f"Rs. {rep_cost:,.2f}")
+            
+            summary_data["Vehicle"] = sel_ve
+            summary_data["Total Maintenance"] = f"Rs. {f_cost+rep_cost:,.2f}"
+
     st.dataframe(rep_df, use_container_width=True)
     if st.button("Generate PDF Statement"):
-        fn = create_pdf("KSD_Full_Report", rep_df, {"Period": f"{f} to {t}", "Type": rep_mode})
+        fn = create_pdf(f"KSD_{rep_mode}", rep_df, summary_data)
         with open(fn, "rb") as fl: st.download_button("📩 Download PDF", fl, file_name=fn)
