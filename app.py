@@ -49,17 +49,26 @@ def create_pdf(title, data_df, summary_dict):
     cols = ["Date", "Category", "Note", "Qty/Hrs", "Amount"]
     for c in cols: pdf.cell(38, 8, c, 1, 0, 'C')
     pdf.ln(); pdf.set_text_color(0, 0, 0); pdf.set_font("Arial", '', 8)
+    
+    total_amt = 0.0
     for _, row in data_df.iterrows():
         pdf.cell(38, 7, str(row['Date']), 1); pdf.cell(38, 7, str(row['Category']), 1); pdf.cell(38, 7, str(row['Note'])[:20], 1)
         val = row['Hours'] if row['Hours'] > 0 else (row['Qty_Cubes'] if row['Qty_Cubes'] > 0 else "-")
         amt = float(row['Amount']) if not pd.isna(row['Amount']) else 0.0
+        total_amt += amt
         pdf.cell(38, 7, f"{val}", 1, 0, 'C'); pdf.cell(38, 7, f"{amt:,.2f}", 1, 0, 'R'); pdf.ln()
+    
+    # Total Row in PDF
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(152, 10, "GRAND TOTAL", 1, 0, 'R')
+    pdf.cell(38, 10, f"Rs. {total_amt:,.2f}", 1, 1, 'R')
+    
     fname = f"Report_{datetime.now().strftime('%H%M%S')}.pdf"
     pdf.output(fname); return fname
 
 # --- 5. UI LAYOUT ---
 st.set_page_config(page_title=SHOP_NAME, layout="wide", page_icon="🏗️")
-st.sidebar.title("🏗️ KSD ERP v5.3")
+st.sidebar.title("🏗️ KSD ERP v5.4")
 main_sector = st.sidebar.selectbox("MAIN MENU", ["📊 Dashboard & Data Manager", "🏗️ Site Operations", "💰 Finance & Shed", "⚙️ System Setup", "📑 Reports Center"])
 
 st.markdown(f"<h1 style='text-align: center; color: #E67E22;'>{main_sector}</h1>", unsafe_allow_html=True)
@@ -89,10 +98,9 @@ if main_sector == "📊 Dashboard & Data Manager":
                 if c4.button("🗑️", key=f"del_{i}"):
                     st.session_state.df = st.session_state.df.drop(i); save_all(); st.rerun()
 
-# --- 7. SITE OPERATIONS (UPDATED) ---
+# --- 7. SITE OPERATIONS ---
 elif main_sector == "🏗️ Site Operations":
     op = st.radio("Activity", ["🚛 Lorry Work Log", "🚜 Excavator Work Log", "💰 Sales Out (Sand/Soil)"], horizontal=True)
-    
     if op == "🚛 Lorry Work Log":
         with st.form("lorry_f"):
             v = st.selectbox("Select Lorry", st.session_state.ve_db[st.session_state.ve_db["Type"]=="Lorry"]["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"])
@@ -100,7 +108,6 @@ elif main_sector == "🏗️ Site Operations":
             if st.form_submit_button("Record Trip"):
                 new = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Process", "Lorry Work", v, n, 0, q, 0, 0, "Done"]], columns=st.session_state.df.columns)
                 st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
-
     elif op == "🚜 Excavator Work Log":
         with st.form("exc_f"):
             v = st.selectbox("Select Excavator", st.session_state.ve_db[st.session_state.ve_db["Type"]=="Excavator"]["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"])
@@ -108,7 +115,6 @@ elif main_sector == "🏗️ Site Operations":
             if st.form_submit_button("Record Hours"):
                 new = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Process", "Work Hours", v, n, 0, 0, 0, h, "Done"]], columns=st.session_state.df.columns)
                 st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
-
     elif op == "💰 Sales Out (Sand/Soil)":
         with st.form("sale_f"):
             d = st.date_input("Date"); it = st.selectbox("Item", ["Sand Sale", "Soil Sale"]); q = st.number_input("Cubes"); a = st.number_input("Amount")
@@ -177,13 +183,12 @@ elif main_sector == "⚙️ System Setup":
                 st.session_state.ve_db = pd.concat([st.session_state.ve_db, new], ignore_index=True); save_all(); st.rerun()
         st.table(st.session_state.ve_db)
 
-# --- 10. REPORTS CENTER (v48 tabs + v5.2 logic) ---
+# --- 10. REPORTS CENTER ---
 elif main_sector == "📑 Reports Center":
     r_tab1, r_tab2, r_tab3 = st.tabs(["🚜 Vehicle Settlement", "👷 Driver Summary", "📑 General Reports"])
     f_d = st.date_input("From Date", datetime.now().date()-timedelta(days=30))
     t_d = st.date_input("To Date", datetime.now().date())
     
-    # Pre-filter for current selection
     df_all = st.session_state.df.copy()
     df_all['Entity'] = df_all['Entity'].astype(str).str.strip().str.upper()
     df_filtered = df_all[(df_all["Date"] >= f_d) & (df_all["Date"] <= t_d)]
@@ -195,41 +200,45 @@ elif main_sector == "📑 Reports Center":
             sel_ve = st.selectbox("Select Vehicle", v_list)
             target = str(sel_ve).strip().upper()
             v_rep = df_filtered[df_filtered["Entity"] == target]
-            
             if not v_rep.empty:
                 m_ve = st.session_state.ve_db[st.session_state.ve_db["No"] == sel_ve]
                 v_type, rate = m_ve["Type"].values[0], m_ve["Rate_Per_Unit"].values[0]
-                
-                if v_type == "Excavator":
-                    units = v_rep[v_rep["Category"] == "Work Hours"]["Hours"].sum()
-                    label = "Total Hours"
-                else:
-                    units = v_rep[v_rep["Category"].isin(["Lorry Work", "Stock In", "Soil In"])]["Qty_Cubes"].sum()
-                    label = "Total Cubes"
-                
+                units = v_rep[v_rep["Category"] == "Work Hours"]["Hours"].sum() if v_type == "Excavator" else v_rep[v_rep["Category"].isin(["Lorry Work", "Stock In", "Soil In"])]["Qty_Cubes"].sum()
+                label = "Total Hours" if v_type == "Excavator" else "Total Cubes"
                 g_pay = units * rate
                 deduct = v_rep[v_rep["Type"] == "Expense"]["Amount"].sum()
                 net = g_pay - deduct
-                
                 c1, c2, c3 = st.columns(3)
                 c1.metric(label, f"{units:,.1f}"); c2.metric("Gross Pay", f"Rs. {g_pay:,.2f}"); c3.metric("NET TO OWNER", f"Rs. {net:,.2f}")
                 st.dataframe(v_rep, use_container_width=True)
-                
-                if st.button("Download Settlement PDF"):
-                    summary = {"Vehicle": sel_ve, label: units, "Rate": rate, "Gross": g_pay, "Net": net}
-                    fn = create_pdf(f"Settlement_{sel_ve}", v_rep, summary)
+                if st.button("Download Settlement PDF", key="btn_ve"):
+                    fn = create_pdf(f"Settlement_{sel_ve}", v_rep, {"Vehicle": sel_ve, label: units, "Rate": rate, "Gross": g_pay, "Net": net})
                     with open(fn, "rb") as f: st.download_button("📩 Download PDF", f, file_name=fn)
-            else: st.info("No records for this vehicle in the selected date range.")
+            else: st.info("No records for this vehicle.")
 
     with r_tab2:
+        st.subheader("Driver Payment Summary")
         dr_list = st.session_state.dr_db["Name"].tolist()
         if dr_list:
             sel_dr = st.selectbox("Select Driver", dr_list)
             dr_rep = df_filtered[df_filtered["Note"].str.contains(f"Driver: {sel_dr}", case=False, na=False)]
+            
+            total_paid = dr_rep['Amount'].sum()
+            st.metric("Total Paid to Driver", f"Rs. {total_paid:,.2f}")
             st.dataframe(dr_rep, use_container_width=True)
-            st.metric("Total Paid to Driver", f"Rs. {dr_rep['Amount'].sum():,.2f}")
+            
+            # --- UPDATED: Driver PDF Download ---
+            if st.button("Download Driver PDF", key="btn_dr"):
+                summary = {"Driver": sel_dr, "Period": f"{f_d} to {t_d}", "Total Paid": f"Rs. {total_paid:,.2f}"}
+                fn = create_pdf(f"Driver_Summary_{sel_dr}", dr_rep, summary)
+                with open(fn, "rb") as f: st.download_button("📩 Download Driver Report", f, file_name=fn)
+        else: st.info("No drivers registered.")
 
     with r_tab3:
         st.subheader("All Site Transactions")
         st.dataframe(df_filtered, use_container_width=True)
-        st.metric("Total Expenses in Range", f"Rs. {df_filtered[df_filtered['Type']=='Expense']['Amount'].sum():,.2f}")
+        total_exp = df_filtered[df_filtered['Type']=='Expense']['Amount'].sum()
+        total_inc = df_filtered[df_filtered['Type']=='Income']['Amount'].sum()
+        c1, c2 = st.columns(2)
+        c1.metric("Total Income (Range)", f"Rs. {total_inc:,.2f}")
+        c2.metric("Total Expenses (Range)", f"Rs. {total_exp:,.2f}")
