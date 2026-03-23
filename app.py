@@ -5,9 +5,9 @@ from datetime import datetime, timedelta
 from fpdf import FPDF
 
 # --- 1. CONFIG & FILENAMES ---
-DATA_FILE = "ksd_master_final_v64.csv"
-VE_FILE = "ksd_vehicles_final_v64.csv"
-DR_FILE = "ksd_drivers_final_v64.csv"
+DATA_FILE = "ksd_master_final_v66.csv"
+VE_FILE = "ksd_vehicles_final_v66.csv"
+DR_FILE = "ksd_drivers_final_v66.csv"
 SHOP_NAME = "K. SIRIWARDHANA SAND CONSTRUCTION PRO"
 
 # --- 2. DATA ENGINE ---
@@ -57,9 +57,7 @@ def create_pdf(title, data_df, summary_dict):
 
 # --- 5. UI LAYOUT (v49 Structure) ---
 st.set_page_config(page_title=SHOP_NAME, layout="wide", page_icon="🏗️")
-st.sidebar.title("🏗️ KSD ERP v6.4")
-
-# මෙන්න මේ List එකේ නම නිවැරදි කළා
+st.sidebar.title("🏗️ KSD ERP v6.6")
 main_sector = st.sidebar.selectbox("MAIN MENU", ["📊 Dashboard & Data Manager", "🏗️ Site Operations", "⛽ Finance & Shed", "⚙️ System Setup", "📑 Reports Center"])
 
 st.markdown(f"<h1 style='text-align: center; color: #E67E22;'>{main_sector}</h1>", unsafe_allow_html=True)
@@ -73,11 +71,15 @@ if main_sector == "📊 Dashboard & Data Manager":
             df['Amount'] = pd.to_numeric(df['Amount'], errors='coerce').fillna(0)
             ti = df[df["Type"] == "Income"]["Amount"].sum()
             te = df[df["Type"] == "Expense"]["Amount"].sum()
-            debt = df[(df["Category"] == "Fuel Entry") & (df["Status"] == "Unpaid")]["Amount"].sum()
+            
+            # ණය ගණනය කිරීම
+            unpaid_fuel = df[(df["Category"] == "Fuel Entry") & (df["Status"] == "Unpaid")]["Amount"].sum()
+            settled_payments = df[df["Category"] == "Shed Settle"]["Amount"].sum()
+            current_debt = unpaid_fuel - settled_payments
             
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("Total Income", f"Rs. {ti:,.2f}"); m2.metric("Total Expenses", f"Rs. {te:,.2f}")
-            m3.metric("Net Cashflow", f"Rs. {ti-te:,.2f}"); m4.metric("Shed Debt (Credit)", f"Rs. {debt:,.2f}", delta_color="inverse")
+            m3.metric("Net Cashflow", f"Rs. {ti-te:,.2f}"); m4.metric("Shed Debt", f"Rs. {current_debt:,.2f}", delta_color="inverse")
             st.divider(); daily = df.groupby(['Date', 'Type'])['Amount'].sum().unstack().fillna(0); st.area_chart(daily)
         else: st.info("No data yet.")
     with t2:
@@ -94,88 +96,99 @@ if main_sector == "📊 Dashboard & Data Manager":
 elif main_sector == "🏗️ Site Operations":
     op = st.sidebar.radio("Activity", ["🚚 Stock In (Soil/Lorry)", "💰 Sales Out (Sand/Soil)", "🚜 Excavator Work Log"])
     v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
-    
     if op == "🚚 Stock In (Soil/Lorry)":
         with st.form("stk_f"):
-            d = st.date_input("Date"); v = st.selectbox("Select Lorry", v_list)
-            q = st.number_input("Cubes Received", step=0.5); n = st.text_input("Supplier/Note")
+            d, v = st.date_input("Date"), st.selectbox("Select Lorry", v_list)
+            q, n = st.number_input("Cubes Received", step=0.5), st.text_input("Supplier/Note")
             if st.form_submit_button("Add Stock In"):
                 new = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Process", "Stock In", v, n, 0, q, 0, 0, "Done"]], columns=st.session_state.df.columns)
                 st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
     elif op == "💰 Sales Out (Sand/Soil)":
         with st.form("sale_f"):
-            d = st.date_input("Date"); it = st.selectbox("Item", ["Sand Sale", "Soil Sale"]); q = st.number_input("Cubes Sold", step=0.5); a = st.number_input("Amount Received")
+            d, it = st.date_input("Date"), st.selectbox("Item", ["Sand Sale", "Soil Sale"])
+            q, a = st.number_input("Cubes Sold", step=0.5), st.number_input("Amount Received")
             if st.form_submit_button("Record Sale"):
                 new = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Income", it, "Cash", "Sale Out", a, q, 0, 0, "Paid"]], columns=st.session_state.df.columns)
                 st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
     elif op == "🚜 Excavator Work Log":
         with st.form("mach_f"):
             v = st.selectbox("Select Excavator", st.session_state.ve_db[st.session_state.ve_db["Type"]=="Excavator"]["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"])
-            d = st.date_input("Date"); h = st.number_input("Hours Worked", step=0.5); n = st.text_input("Location/Note")
+            d, h = st.date_input("Date"), st.number_input("Hours Worked", step=0.5)
+            n = st.text_input("Location/Note")
             if st.form_submit_button("Log Hours"):
                 new = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Process", "Work Hours", v, n, 0, 0, 0, h, "Done"]], columns=st.session_state.df.columns)
                 st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
 
-# --- 8. FINANCE & SHED (මෙතනයි අවුල තිබුණේ - දැන් සම්පූර්ණයෙන්ම හරි) ---
+# --- 8. FINANCE & SHED (Finalized) ---
 elif main_sector == "⛽ Finance & Shed":
-    fin = st.sidebar.radio("Finance Options", ["⛽ Fuel & Shed", "🔧 Repairs", "💸 Payroll & Advance", "🏦 Owner Advances", "🧾 Others"])
+    fin_mode = st.sidebar.radio("Finance Options", ["⛽ Fuel & Shed", "💳 Settle Payment", "🔧 Repairs", "💸 Payroll", "🏦 Owner Advance", "🧾 Others"])
     v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
     
-    if fin == "⛽ Fuel & Shed":
-        st.subheader("Manage Shed Credit & Fuel")
-        with st.form("fuel_form"):
-            c1, c2 = st.columns(2)
-            d = c1.date_input("Date")
-            v = c2.selectbox("Vehicle", v_list)
-            l = c1.number_input("Liters", step=0.1)
-            am = c2.number_input("Total Bill (Rs.)")
-            stt = st.selectbox("Payment Type", ["Unpaid (Credit)", "Paid (Cash)"])
-            nt = st.text_input("Shed Name / Bill No")
-            if st.form_submit_button("Save Fuel Entry"):
-                f_status = "Unpaid" if "Unpaid" in stt else "Paid"
-                new = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Expense", "Fuel Entry", v, f"Shed: {nt}", am, 0, l, 0, f_status]], columns=st.session_state.df.columns)
+    if fin_mode == "⛽ Fuel & Shed":
+        st.subheader("Add Fuel Entry")
+        with st.form("fuel_f"):
+            d, v = st.date_input("Date"), st.selectbox("Vehicle", v_list)
+            l, am = st.number_input("Liters", step=0.1), st.number_input("Amount (Rs.)")
+            stt = st.selectbox("Status", ["Unpaid (Credit)", "Paid (Cash)"])
+            nt = st.text_input("Shed Details")
+            if st.form_submit_button("Save Fuel"):
+                f_s = "Unpaid" if "Unpaid" in stt else "Paid"
+                new = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Expense", "Fuel Entry", v, f"Shed: {nt}", am, 0, l, 0, f_s]], columns=st.session_state.df.columns)
                 st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
-                
-    elif fin == "🔧 Repairs":
+
+    elif fin_mode == "💳 Settle Payment":
+        st.subheader("Settle Shed Outstanding Debt")
+        with st.form("set_f"):
+            d, am = st.date_input("Date"), st.number_input("Amount Paid to Shed")
+            ref = st.text_input("Payment Reference (e.g. Cheque/Slip No)")
+            if st.form_submit_button("Confirm Payment"):
+                new = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Expense", "Shed Settle", "Shed", ref, am, 0, 0, 0, "Paid"]], columns=st.session_state.df.columns)
+                st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
+
+    elif fin_mode == "🔧 Repairs":
         with st.form("rep"):
-            d = st.date_input("Date"); v = st.selectbox("Vehicle", v_list); n = st.text_input("Repair Details"); a = st.number_input("Cost")
+            d, v, n, a = st.date_input("Date"), st.selectbox("Vehicle", v_list), st.text_input("Repair Details"), st.number_input("Cost")
             if st.form_submit_button("Save Repair"):
                 new = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Expense", "Repair", v, n, a, 0, 0, 0, "Paid"]], columns=st.session_state.df.columns)
                 st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
-    elif fin == "💸 Payroll & Advance":
+
+    elif fin_mode == "💸 Payroll":
         with st.form("pay"):
             dr_names = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else ["N/A"]
-            d = st.date_input("Date"); dr = st.selectbox("Driver", dr_names)
-            am = st.number_input("Amount"); ty = st.selectbox("Type", ["Driver Advance", "Salary", "Food Allowance"]); v_rel = st.selectbox("Linked Vehicle", v_list)
+            d, dr = st.date_input("Date"), st.selectbox("Driver", dr_names)
+            am, ty = st.number_input("Amount"), st.selectbox("Type", ["Salary", "Driver Advance", "Food"])
+            v_rel = st.selectbox("Linked Vehicle", v_list)
             if st.form_submit_button("Save Payroll"):
                 new = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Expense", ty, v_rel, f"Driver: {dr}", am, 0, 0, 0, "Paid"]], columns=st.session_state.df.columns)
                 st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
-    elif fin == "🏦 Owner Advances":
-        with st.form("own_adv"):
-            d = st.date_input("Date"); v = st.selectbox("Vehicle/Owner", v_list); am = st.number_input("Advance Amount"); nt = st.text_input("Note")
-            if st.form_submit_button("Save Owner Advance"):
+
+    elif fin_mode == "🏦 Owner Advance":
+        with st.form("own"):
+            d, v, am, nt = st.date_input("Date"), st.selectbox("Owner/Vehicle", v_list), st.number_input("Amount"), st.text_input("Note")
+            if st.form_submit_button("Save Advance"):
                 new = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Expense", "Owner Advance", v, nt, am, 0, 0, 0, "Paid"]], columns=st.session_state.df.columns)
                 st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
-    elif fin == "🧾 Others":
+
+    elif fin_mode == "🧾 Others":
         with st.form("oth"):
-            d = st.date_input("Date"); cat = st.selectbox("Category", ["Food", "Rent", "Utility", "Misc"]); nt = st.text_area("Note"); am = st.number_input("Amount")
+            d, cat, nt, am = st.date_input("Date"), st.selectbox("Category", ["Food", "Rent", "Utility", "Misc"]), st.text_area("Note"), st.number_input("Amount")
             if st.form_submit_button("Save Other"):
                 new = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Expense", cat, "Admin", nt, am, 0, 0, 0, "Paid"]], columns=st.session_state.df.columns)
                 st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
 
 # --- 9. SYSTEM SETUP ---
 elif main_sector == "⚙️ System Setup":
-    s1, s2 = st.tabs(["👷 Drivers", "🚜 Vehicles & Rates"])
+    s1, s2 = st.tabs(["👷 Drivers", "🚜 Vehicles"])
     with s1:
         with st.form("dr"):
-            n = st.text_input("Name"); p = st.text_input("Phone"); s = st.number_input("Daily Salary")
+            n, p, s = st.text_input("Name"), st.text_input("Phone"), st.number_input("Daily Salary")
             if st.form_submit_button("Add Driver"):
                 new = pd.DataFrame([[n,p,s]], columns=st.session_state.dr_db.columns)
                 st.session_state.dr_db = pd.concat([st.session_state.dr_db, new], ignore_index=True); save_all(); st.rerun()
         st.table(st.session_state.dr_db)
     with s2:
         with st.form("ve"):
-            v = st.text_input("Vehicle No"); t = st.selectbox("Type", ["Excavator", "Lorry"]); r = st.number_input("Rate (Rs.)"); o = st.text_input("Owner")
+            v, t, r, o = st.text_input("Vehicle No"), st.selectbox("Type", ["Excavator", "Lorry"]), st.number_input("Rate"), st.text_input("Owner")
             if st.form_submit_button("Add Vehicle"):
                 new = pd.DataFrame([[v,t,o,r]], columns=st.session_state.ve_db.columns)
                 st.session_state.ve_db = pd.concat([st.session_state.ve_db, new], ignore_index=True); save_all(); st.rerun()
@@ -183,36 +196,31 @@ elif main_sector == "⚙️ System Setup":
 
 # --- 10. REPORTS CENTER ---
 elif main_sector == "📑 Reports Center":
-    r_tab1, r_tab2, r_tab3, r_tab4 = st.tabs(["🚜 Vehicle Summary", "👷 Driver Summary", "⛽ Shed Statement", "📑 General"])
-    f_date = st.date_input("From", datetime.now().date()-timedelta(days=30)); t_date = st.date_input("To")
-    df_f = st.session_state.df[(st.session_state.df["Date"] >= f_date) & (st.session_state.df["Date"] <= t_date)]
-
-    with r_tab1:
+    r1, r2, r3 = st.tabs(["🚜 Vehicle Settlement", "⛽ Shed Report", "📑 Daily Log"])
+    f_d, t_d = st.date_input("From", datetime.now().date()-timedelta(days=30)), st.date_input("To")
+    df_f = st.session_state.df[(st.session_state.df["Date"] >= f_d) & (st.session_state.df["Date"] <= t_d)]
+    
+    with r1:
         v_list = st.session_state.ve_db["No"].tolist()
         if v_list:
-            sel_ve = st.selectbox("Vehicle", v_list)
+            sel_ve = st.selectbox("Select Vehicle", v_list)
             v_rep = df_f[df_f["Entity"] == sel_ve]
             st.dataframe(v_rep, use_container_width=True)
-            if st.button("Generate Vehicle PDF"):
-                fn = create_pdf(f"Settlement_{sel_ve}", v_rep, {"Vehicle": sel_ve, "Status": "Periodical"})
+            if st.button("Download PDF Statement"):
+                fn = create_pdf(f"Settlement_{sel_ve}", v_rep, {"Vehicle": sel_ve, "Total Spent": v_rep[v_rep["Type"]=="Expense"]["Amount"].sum()})
                 with open(fn, "rb") as f: st.download_button("📩 Download PDF", f, file_name=fn)
 
-    with r_tab2:
-        dr_list = st.session_state.dr_db["Name"].tolist()
-        if dr_list:
-            sel_dr = st.selectbox("Select Driver", dr_list)
-            dr_rep = df_f[df_f["Note"].str.contains(str(sel_dr), case=False, na=False)]
-            st.dataframe(dr_rep, use_container_width=True)
-            st.metric("Total Payments", f"Rs. {dr_rep['Amount'].sum():,.2f}")
+    with r2:
+        st.subheader("Shed Debt Summary")
+        unp = df_f[(df_f["Category"] == "Fuel Entry") & (df_f["Status"] == "Unpaid")]
+        setl = df_f[df_f["Category"] == "Shed Settle"]
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Credit Taken", f"Rs. {unp['Amount'].sum():,.2f}")
+        c2.metric("Total Settled", f"Rs. {setl['Amount'].sum():,.2f}")
+        c3.metric("Outstanding", f"Rs. {unp['Amount'].sum() - setl['Amount'].sum():,.2f}")
+        st.write("---")
+        st.write("Recent Settlements")
+        st.dataframe(setl, use_container_width=True)
 
-    with r_tab3:
-        st.subheader("Shed Debt (Unpaid Fuel Entry)")
-        shed_rep = df_f[(df_f["Category"] == "Fuel Entry") & (df_f["Status"] == "Unpaid")]
-        st.metric("Outstanding to Shed", f"Rs. {shed_rep['Amount'].sum():,.2f}")
-        st.dataframe(shed_rep, use_container_width=True)
-        if st.button("Generate Shed PDF"):
-            fn = create_pdf("Shed_Debt_Report", shed_rep, {"Debt": shed_rep['Amount'].sum()})
-            with open(fn, "rb") as f: st.download_button("📩 Download PDF", f, file_name=fn)
-
-    with r_tab4:
+    with r3:
         st.dataframe(df_f, use_container_width=True)
