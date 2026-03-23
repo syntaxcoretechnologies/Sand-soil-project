@@ -8,7 +8,7 @@ from streamlit_gsheets import GSheetsConnection
 SHOP_NAME = "K. SIRIWARDHANA SAND CONSTRUCTION PRO"
 # Secrets wala spreadsheet_url kiyala link eka danna puluwan. 
 # Nathnam meke ' ' athulata link eka danna.
-SHEET_URL = "https://docs.google.com/spreadsheets/d/1fXwWem_GNXEmvPwzmRifCDNLRg6w-rYsrWZ0GpemN_U" 
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1fXwWem_GNXEmvPwzmRifCDNLRg6w-rYsrWZ0GpemN_U/" 
 
 # --- FIXED HEADERS (Fix for ValueError) ---
 TX_COLS = ["ID", "Date", "Time", "Type", "Category", "Entity", "Note", "Amount", "Qty_Cubes", "Fuel_Ltr", "Hours", "Status"]
@@ -18,15 +18,19 @@ DR_COLS = ["Name", "Phone", "Daily_Salary"]
 # --- INITIALIZE CONNECTION ---
 conn = st.connection("gsheets", type=GSheetsConnection)
 
+import pandas as pd
+import streamlit as st
+
 def load_gsheet_data(worksheet_name, default_cols):
     try:
-        # URL එකේ අන්තිම කෑලි අයින් කරලා පිරිසිදු කරනවා
-        base_url = SHEET_URL.split("/edit")[0].split("#")[0]
-        if not base_url.endswith("/"):
-            base_url += "/"
-            
-        # TTL=0 දැම්මම හැමවෙලේම අලුත් data ඇදලා ගන්නවා (Cache වෙන්නේ නෑ)
-        df = conn.read(spreadsheet=base_url, worksheet=worksheet_name, ttl=0)
+        # Google Sheet එකේ ID එක විතරක් වෙන් කරලා ගන්නවා
+        sheet_id = "1fXwWem_GNXEmvPwzmRifCDNLRg6w-rYsrWZ0GpemN_U"
+        
+        # කෙලින්ම CSV විදිහට download කරන්න ලින්ක් එක හදනවා
+        csv_url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={worksheet_name}"
+        
+        # Pandas වලින් කෙලින්ම කියවනවා
+        df = pd.read_csv(csv_url)
         
         if df is not None:
             df = df.dropna(how='all')
@@ -36,9 +40,15 @@ def load_gsheet_data(worksheet_name, default_cols):
         return pd.DataFrame(columns=default_cols)
     except Exception as e:
         st.error(f"⚠️ Connection Error: {e}")
-        # Error එක හරියටම බලාගන්න මේකත් දාන්න
-        st.write("Tried URL:", base_url) 
         return pd.DataFrame(columns=default_cols)
+
+def save_to_gsheet(df, worksheet_name):
+    # Data ලියන කොටසට st.connection එක දිගටම පාවිච්චි කරන්න පුළුවන්
+    try:
+        conn.update(spreadsheet=SHEET_URL, worksheet=worksheet_name, data=df)
+        st.cache_data.clear()
+    except Exception as e:
+        st.error(f"⚠️ Save Error: {e}")
 
 # --- LOAD DATA INTO SESSION STATE ---
 if 'df' not in st.session_state:
