@@ -188,7 +188,17 @@ elif main_sector == "📑 Reports Center":
     f = st.date_input("From", datetime.now().date()-timedelta(days=30)); t = st.date_input("To")
     
     rep_df = st.session_state.df[(st.session_state.df["Entity"] == sel_ve) & (st.session_state.df["Date"]>=f) & (st.session_state.df["Date"]<=t)]
-    rate = st.session_state.ve_db[st.session_state.ve_db["No"] == sel_ve]["Rate_Per_Hour"].values[0]
+    # වාහනයට අදාළ Rate එක ගන්න කලින් ඒක තියෙනවද බලනවා
+matched_ve = st.session_state.ve_db[st.session_state.ve_db["No"] == sel_ve]
+
+if not matched_ve.empty:
+    # "Rate_Per_Hour" කියන column එක තියෙනවද සහ ඒකේ අගයක් තියෙනවද බලනවා
+    if "Rate_Per_Hour" in matched_ve.columns:
+        rate = matched_ve["Rate_Per_Hour"].values[0]
+    else:
+        rate = 0.0 # Column එක නැත්නම් 0 දානවා
+else:
+    rate = 0.0 # වාහනය නැත්නම් 0 දානවා
     
     if not rep_df.empty:
         total_hrs = rep_df[rep_df["Category"] == "Work Hours"]["Hours"].sum()
