@@ -5,12 +5,12 @@ from datetime import datetime, timedelta
 from fpdf import FPDF
 
 # --- 1. CONFIG & FILENAMES ---
-DATA_FILE = "ksd_master_v38.csv"
-VE_FILE = "ksd_vehicles_v38.csv"
-DR_FILE = "ksd_drivers_v38.csv"
+DATA_FILE = "ksd_master_v39.csv"
+VE_FILE = "ksd_vehicles_v39.csv"
+DR_FILE = "ksd_drivers_v39.csv"
 SHOP_NAME = "K. SIRIWARDHANA SAND CONSTRUCTION PRO"
 
-# --- 2. DATA ENGINE ---
+# --- 2. DATA ENGINE (FILE HANDLING) ---
 def load_data(file, cols):
     if os.path.exists(file): 
         try:
@@ -27,7 +27,7 @@ def save_all():
     st.session_state.ve_db.to_csv(VE_FILE, index=False)
     st.session_state.dr_db.to_csv(DR_FILE, index=False)
 
-# --- 3. SESSION STATE ---
+# --- 3. SESSION STATE INITIALIZATION ---
 if 'df' not in st.session_state:
     st.session_state.df = load_data(DATA_FILE, ["ID", "Date", "Time", "Type", "Category", "Entity", "Note", "Amount", "Qty_Cubes", "Fuel_Ltr", "Hours", "Status"])
 if 've_db' not in st.session_state:
@@ -60,9 +60,9 @@ def create_pdf(title, data_df, summary_dict):
     fname = f"Report_{datetime.now().strftime('%H%M%S')}.pdf"
     pdf.output(fname); return fname
 
-# --- 5. UI LAYOUT ---
+# --- 5. UI LAYOUT & SIDEBAR ---
 st.set_page_config(page_title=SHOP_NAME, layout="wide", page_icon="🏗️")
-st.sidebar.title("🛠️ KSD ERP v3.8")
+st.sidebar.title("🛠️ KSD ERP v3.9")
 main_sector = st.sidebar.selectbox("MAIN MENU", ["📊 Dashboard", "🏗️ Site Operations", "💰 Finance & Shed", "⚙️ System Setup", "📑 Reports Center"])
 
 st.markdown(f"<h1 style='text-align: center; color: #E67E22;'>{main_sector}</h1>", unsafe_allow_html=True)
@@ -80,28 +80,26 @@ if main_sector == "📊 Dashboard":
         m2.metric("Total Expenses", f"Rs. {te:,.2f}")
         m3.metric("Net Cashflow", f"Rs. {ti-te:,.2f}", delta=float(ti-te))
         
-        st.subheader("Recent Transactions")
+        st.subheader("Recent Activity")
         st.dataframe(df.iloc[::-1].head(15), use_container_width=True)
         
-        if st.button("🗑️ Clear Recent (Delete Last Entry)"):
+        if st.button("🗑️ Delete Last Entry"):
             st.session_state.df = st.session_state.df[:-1]; save_all(); st.rerun()
     else:
-        st.info("No data found. Start by adding operations.")
+        st.info("No data found. Start by adding records.")
 
-# --- 7. SECTOR: SITE OPERATIONS (INCOME) ---
+# --- 7. SECTOR: SITE OPERATIONS ---
 elif main_sector == "🏗️ Site Operations":
-    op = st.sidebar.radio("Select Activity", ["🚜 Machine Work (Income)", "🚚 Stock In (Soil)", "💰 Sales Out"])
+    op = st.sidebar.radio("Activity", ["🚜 Machine Work (Income)", "🚚 Stock In (Soil)", "💰 Sales Out"])
     
     if op == "🚜 Machine Work (Income)":
-        st.subheader("Record Machine Earnings (Hours Based)")
         with st.form("mach_f", clear_on_submit=True):
             d = st.date_input("Date")
-            v_list = st.session_state.ve_db["No"].tolist()
-            v = st.selectbox("Vehicle/Machine", v_list if v_list else ["None"])
+            v = st.selectbox("Vehicle/Machine", st.session_state.ve_db["No"].tolist())
             h = st.number_input("Hours Worked", min_value=0.0)
             a = st.number_input("Total Amount Earned (Rs.)", min_value=0.0)
-            n = st.text_input("Note (Location / Client Name)")
-            if st.form_submit_button("Add Income Record"):
+            n = st.text_input("Note (Location / Client)")
+            if st.form_submit_button("Record Work"):
                 new = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Income", "Machine Work", v, n, a, 0, 0, h, "Done"]], columns=st.session_state.df.columns)
                 st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
 
@@ -112,18 +110,15 @@ elif main_sector == "🏗️ Site Operations":
                 new = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Process", "Soil In", v, "Inbound", 0, q, 0, 0, "Done"]], columns=st.session_state.df.columns)
                 st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
 
-# --- 8. SECTOR: FINANCE & SHED (EXPENSES) ---
+# --- 8. SECTOR: FINANCE & SHED ---
 elif main_sector == "💰 Finance & Shed":
-    fin = st.sidebar.radio("Expense Category", ["⛽ Fuel / Shed Payment", "🔧 Repair & Parts", "💸 Advance & Salary"])
-    
+    fin = st.sidebar.radio("Category", ["⛽ Fuel / Diesel", "🔧 Repair & Parts", "💸 Advance & Salary"])
     with st.form("fin_form", clear_on_submit=True):
         d = st.date_input("Date")
-        # Combine machines and drivers for entity selection
         entities = st.session_state.ve_db["No"].tolist() + st.session_state.dr_db["Name"].tolist()
-        ent = st.selectbox("Entity (Machine or Person)", entities if entities else ["None"])
+        ent = st.selectbox("Entity", entities if entities else ["None"])
         amt = st.number_input("Amount (Rs.)", min_value=0.0)
-        note = st.text_input("Details (e.g., Oil change, Weekly Advance)")
-        
+        note = st.text_input("Details")
         if st.form_submit_button("Save Expense"):
             cat = "Fuel" if "Fuel" in fin else ("Repair" if "Repair" in fin else "Advance")
             new = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Expense", cat, ent, note, amt, 0, 0, 0, "Paid"]], columns=st.session_state.df.columns)
@@ -131,10 +126,10 @@ elif main_sector == "💰 Finance & Shed":
 
 # --- 9. SECTOR: SYSTEM SETUP ---
 elif main_sector == "⚙️ System Setup":
-    t1, t2 = st.tabs(["🚜 Machines/Vehicles", "👷 Drivers/Operators"])
+    t1, t2 = st.tabs(["🚜 Machines", "👷 Drivers"])
     with t1:
         with st.form("ve_add"):
-            no = st.text_input("Vehicle No (e.g., SK200)"); tp = st.selectbox("Type", ["Excavator", "Lorry", "Other"])
+            no = st.text_input("Machine No"); tp = st.selectbox("Type", ["Excavator", "Lorry"])
             if st.form_submit_button("Add Machine"):
                 new = pd.DataFrame([[no, tp, "Owner", ""]], columns=st.session_state.ve_db.columns)
                 st.session_state.ve_db = pd.concat([st.session_state.ve_db, new], ignore_index=True); save_all(); st.rerun()
@@ -147,57 +142,35 @@ elif main_sector == "⚙️ System Setup":
                 st.session_state.dr_db = pd.concat([st.session_state.dr_db, new], ignore_index=True); save_all(); st.rerun()
         st.table(st.session_state.dr_db)
 
-# --- 10. SECTOR: REPORTS CENTER (THE CLIENT LOGIC) ---
+# --- 10. SECTOR: REPORTS CENTER (THE SK200 LOGIC) ---
 elif main_sector == "📑 Reports Center":
-    st.subheader("Machine Statement (Profit/Loss)")
-    col_a, col_b = st.columns(2)
-    with col_a:
-        sel_ve = st.selectbox("Select Machine", st.session_state.ve_db["No"].tolist())
-    with col_b:
-        f_date = st.date_input("From", datetime.now().date() - timedelta(days=30))
-        t_date = st.date_input("To", datetime.now().date())
+    st.subheader("Machine Profit/Loss Statement")
+    col1, col2 = st.columns(2)
+    with col1: sel_ve = st.selectbox("Select Machine", st.session_state.ve_db["No"].tolist())
+    with col2: f_d = st.date_input("From"); t_d = st.date_input("To")
     
-    # FILTER DATA
-    rep_df = st.session_state.df[
-        (st.session_state.df["Date"] >= f_date) & 
-        (st.session_state.df["Date"] <= t_date) & 
-        (st.session_state.df["Entity"] == sel_ve)
-    ]
+    rep_df = st.session_state.df[(st.session_state.df["Date"]>=f_d) & (st.session_state.df["Date"]<=t_d) & (st.session_state.df["Entity"] == sel_ve)]
     
     if not rep_df.empty:
-        # Calculations based on Client's image
-        gross_work = rep_df[rep_df["Category"] == "Machine Work"]["Amount"].sum()
-        diesel = rep_df[rep_df["Category"] == "Fuel"]["Amount"].sum()
-        repairs = rep_df[rep_df["Category"] == "Repair"]["Amount"].sum()
-        advances = rep_df[rep_df["Category"] == "Advance"]["Amount"].sum()
+        gross = rep_df[rep_df["Category"] == "Machine Work"]["Amount"].sum()
+        dsl = rep_df[rep_df["Category"] == "Fuel"]["Amount"].sum()
+        rep = rep_df[rep_df["Category"] == "Repair"]["Amount"].sum()
+        adv = rep_df[rep_df["Category"] == "Advance"]["Amount"].sum()
+        balance = gross - (dsl + rep + adv)
         
-        net_balance = gross_work - (diesel + repairs + advances)
-        
-        # Summary Box
         st.markdown(f"""
         <div style="background-color:#fdf2e9; padding:20px; border-radius:10px; border-left: 5px solid #e67e22;">
-            <h3 style="margin-top:0;">Summary for {sel_ve}</h3>
-            <p><b>Gross Work Income:</b> Rs. {gross_work:,.2f}</p>
-            <p style="color:red;"><b>Diesel (Shed):</b> - Rs. {diesel:,.2f}</p>
-            <p style="color:red;"><b>Repairs/Advance:</b> - Rs. {repairs + advances:,.2f}</p>
-            <hr>
-            <h2 style="color:#1e8449;">NET BALANCE: Rs. {net_balance:,.2f}</h2>
+            <h3 style="margin-top:0;">Summary: {sel_ve}</h3>
+            <p><b>Machine Work Income:</b> Rs. {gross:,.2f}</p>
+            <p style="color:red;"><b>Diesel/Fuel Cost:</b> - Rs. {dsl:,.2f}</p>
+            <p style="color:red;"><b>Repairs & Advances:</b> - Rs. {rep + adv:,.2f}</p>
+            <hr><h2 style="color:#1e8449;">NET BALANCE: Rs. {balance:,.2f}</h2>
         </div>
         """, unsafe_allow_html=True)
         
-        st.divider()
         st.dataframe(rep_df[["Date", "Category", "Note", "Hours", "Amount"]], use_container_width=True)
         
-        if st.button("Download PDF Statement"):
-            summary_info = {
-                "Machine": sel_ve,
-                "Period": f"{f_date} to {t_date}",
-                "Gross Income": f"Rs. {gross_work:,.2f}",
-                "Deductions (Fuel/Rep)": f"Rs. {diesel + repairs + advances:,.2f}",
-                "NET PROFIT": f"Rs. {net_balance:,.2f}"
-            }
-            fn = create_pdf(f"Statement_{sel_ve}", rep_df, summary_info)
-            with open(fn, "rb") as file:
-                st.download_button("📩 Save PDF Report", file, file_name=fn)
-    else:
-        st.warning(f"No records found for {sel_ve} in this date range.")
+        if st.button("Generate PDF Report"):
+            summary = {"Machine": sel_ve, "Gross": f"Rs. {gross:,.2f}", "Expenses": f"Rs. {dsl+rep+adv:,.2f}", "NET": f"Rs. {balance:,.2f}"}
+            fn = create_pdf(f"Report_{sel_ve}", rep_df, summary)
+            with open(fn, "rb") as fl: st.download_button("📩 Download PDF", fl, file_name=fn)
