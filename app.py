@@ -119,4 +119,62 @@ elif main_sector == "💰 Finance & Shed":
             st.subheader("Shed Settlement")
             p_amt = st.number_input("Amount Paying to Shed", min_value=0.0)
             if st.button("Confirm Payment"):
-                new = pd.DataFrame([[len(st.session_state.df)+1, datetime.now().date(), "", "Expense", "Shed Payment", "Shed", "Payment", p_amt, 0, 0, 0, "Paid"]],
+                new = pd.DataFrame([[len(st.session_state.df)+1, datetime.now().date(), "", "Expense", "Shed Payment", "Shed", "Payment", p_amt, 0, 0, 0, "Paid"]], columns=st.session_state.df.columns)
+                st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
+
+    elif fin == "🔧 Vehicle Repairs":
+        st.subheader("Log Repair/Maintenance")
+        with st.form("rep_f", clear_on_submit=True):
+            v = st.selectbox("Vehicle", st.session_state.ve_db["No"].tolist()); n = st.text_input("Repair Details"); a = st.number_input("Cost")
+            if st.form_submit_button("Save Repair Entry"):
+                new = pd.DataFrame([[len(st.session_state.df)+1, datetime.now().date(), "", "Expense", "Repair", v, n, a, 0, 0, 0, "Paid"]], columns=st.session_state.df.columns)
+                st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
+
+# --- 4. SYSTEM SETUP ---
+elif main_sector == "⚙️ System Setup":
+    st.subheader("Manage Personnel & Vehicles")
+    s1, s2 = st.tabs(["👷 Drivers", "🚜 Vehicles"])
+    with s1:
+        with st.form("dr_f"):
+            n = st.text_input("Name"); p = st.text_input("Phone"); s = st.number_input("Daily Salary")
+            if st.form_submit_button("Add Driver"):
+                new = pd.DataFrame([[n,p,s]], columns=st.session_state.dr_db.columns)
+                st.session_state.dr_db = pd.concat([st.session_state.dr_db, new], ignore_index=True); save_all(); st.rerun()
+        for i, r in st.session_state.dr_db.iterrows():
+            c1, c2, c3 = st.columns([4, 2, 1])
+            c1.write(f"**{r['Name']}** ({r['Phone']})")
+            if c3.button("🗑️", key=f"dr_{i}"):
+                st.session_state.dr_db = st.session_state.dr_db.drop(i); save_all(); st.rerun()
+
+    with s2:
+        with st.form("ve_f"):
+            v = st.text_input("Vehicle No"); t = st.selectbox("Type", ["Lorry", "Excavator"]); o = st.text_input("Owner")
+            if st.form_submit_button("Add Vehicle"):
+                new = pd.DataFrame([[v,t,o,""]], columns=st.session_state.ve_db.columns)
+                st.session_state.ve_db = pd.concat([st.session_state.ve_db, new], ignore_index=True); save_all(); st.rerun()
+        for i, r in st.session_state.ve_db.iterrows():
+            c1, c2, c3 = st.columns([4, 2, 1])
+            c1.write(f"**{r['No']}** ({r['Type']})")
+            if c3.button("🗑️", key=f"ve_{i}"):
+                st.session_state.ve_db = st.session_state.ve_db.drop(i); save_all(); st.rerun()
+
+# --- 5. REPORTS CENTER ---
+elif main_sector == "📑 Reports Center":
+    st.subheader("Vehicle 360 & Summary Reports")
+    sel_ve = st.selectbox("Select Vehicle/Machine", st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["None"])
+    f = st.date_input("From", datetime.now().date()-timedelta(days=30)); t = st.date_input("To")
+    
+    v_data = st.session_state.df[(st.session_state.df["Entity"] == sel_ve) & (st.session_state.df["Date"] >= f) & (st.session_state.df["Date"] <= t)]
+    
+    # Logic for metrics
+    f_total = v_data[v_data["Category"] == "Fuel Entry"]["Amount"].sum()
+    r_total = v_data[v_data["Category"] == "Repair"]["Amount"].sum()
+    w_total = v_data[v_data["Category"] == "Work"]["Amount"].sum()
+    
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Fuel Cost", f"Rs. {f_total:,.2f}")
+    c2.metric("Repair Cost", f"Rs. {r_total:,.2f}")
+    c3.metric("Work Income/Cost", f"Rs. {w_total:,.2f}")
+    
+    st.write("#### Detailed Logs")
+    st.dataframe(v_data[["Date", "Category", "Note", "Amount", "Status"]], use_container_width=True)
