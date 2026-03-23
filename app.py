@@ -5,9 +5,9 @@ from datetime import datetime, timedelta
 from fpdf import FPDF
 
 # --- 1. CONFIG & FILENAMES ---
-DATA_FILE = "ksd_master_final_v48.csv"
-VE_FILE = "ksd_vehicles_final_v48.csv"
-DR_FILE = "ksd_drivers_final_v48.csv"
+DATA_FILE = "ksd_master_final_v49.csv"
+VE_FILE = "ksd_vehicles_final_v49.csv"
+DR_FILE = "ksd_drivers_final_v49.csv"
 SHOP_NAME = "K. SIRIWARDHANA SAND CONSTRUCTION PRO"
 
 # --- 2. DATA ENGINE ---
@@ -30,7 +30,7 @@ def save_all():
 if 'df' not in st.session_state:
     st.session_state.df = load_data(DATA_FILE, ["ID", "Date", "Time", "Type", "Category", "Entity", "Note", "Amount", "Qty_Cubes", "Fuel_Ltr", "Hours", "Status"])
 if 've_db' not in st.session_state:
-    st.session_state.ve_db = load_data(VE_FILE, ["No", "Type", "Owner", "Rate_Per_Hour"])
+    st.session_state.ve_db = load_data(VE_FILE, ["No", "Type", "Owner", "Rate_Per_Unit"])
 if 'dr_db' not in st.session_state:
     st.session_state.dr_db = load_data(DR_FILE, ["Name", "Phone", "Daily_Salary"])
 
@@ -59,7 +59,7 @@ def create_pdf(title, data_df, summary_dict):
 
 # --- 5. UI LAYOUT ---
 st.set_page_config(page_title=SHOP_NAME, layout="wide", page_icon="🏗️")
-st.sidebar.title("🏗️ KSD ERP v4.8")
+st.sidebar.title("🏗️ KSD ERP v4.9")
 main_sector = st.sidebar.selectbox("MAIN MENU", ["📊 Dashboard & Data Manager", "🏗️ Site Operations", "💰 Finance & Shed", "⚙️ System Setup", "📑 Reports Center"])
 
 st.markdown(f"<h1 style='text-align: center; color: #E67E22;'>{main_sector}</h1>", unsafe_allow_html=True)
@@ -92,24 +92,24 @@ if main_sector == "📊 Dashboard & Data Manager":
 
 # --- 7. SITE OPERATIONS ---
 elif main_sector == "🏗️ Site Operations":
-    op = st.sidebar.radio("Activity", ["🚚 Stock In (Soil)", "💰 Sales Out (Sand/Soil)", "🚜 Machine Work Log"])
-    if op == "🚚 Stock In (Soil)":
+    op = st.sidebar.radio("Activity", ["🚚 Stock In (Soil/Lorry)", "💰 Sales Out (Sand/Soil)", "🚜 Excavator Work Log"])
+    if op == "🚚 Stock In (Soil/Lorry)":
         with st.form("stk_f"):
-            d = st.date_input("Date"); v = st.text_input("Supplier/Vehicle"); q = st.number_input("Cubes")
-            if st.form_submit_button("Add Stock"):
-                new = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Process", "Soil In", v, "Inbound", 0, q, 0, 0, "Done"]], columns=st.session_state.df.columns)
+            d = st.date_input("Date"); v = st.selectbox("Select Lorry", st.session_state.ve_db[st.session_state.ve_db["Type"]=="Lorry"]["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"])
+            q = st.number_input("Cubes Received"); n = st.text_input("Supplier/Note")
+            if st.form_submit_button("Add Stock In"):
+                new = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Process", "Stock In", v, n, 0, q, 0, 0, "Done"]], columns=st.session_state.df.columns)
                 st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
     elif op == "💰 Sales Out (Sand/Soil)":
         with st.form("sale_f"):
-            d = st.date_input("Date"); it = st.selectbox("Item", ["Sand Sale", "Soil Sale"]); q = st.number_input("Cubes"); a = st.number_input("Amount")
+            d = st.date_input("Date"); it = st.selectbox("Item", ["Sand Sale", "Soil Sale"]); q = st.number_input("Cubes Sold"); a = st.number_input("Amount Received")
             if st.form_submit_button("Record Sale"):
                 new = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Income", it, "Cash", "Sale Out", a, q, 0, 0, "Paid"]], columns=st.session_state.df.columns)
                 st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
-    elif op == "🚜 Machine Work Log":
-        st.subheader("Log Machine Work Hours")
-        v_list = st.session_state.ve_db["No"].tolist()
+    elif op == "🚜 Excavator Work Log":
         with st.form("mach_f"):
-            v = st.selectbox("Select Machine", v_list if v_list else ["N/A"]); d = st.date_input("Date"); h = st.number_input("Hours Worked"); n = st.text_input("Location/Note")
+            v = st.selectbox("Select Excavator", st.session_state.ve_db[st.session_state.ve_db["Type"]=="Excavator"]["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"])
+            d = st.date_input("Date"); h = st.number_input("Hours Worked"); n = st.text_input("Location/Note")
             if st.form_submit_button("Log Hours"):
                 new = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Process", "Work Hours", v, n, 0, 0, 0, h, "Done"]], columns=st.session_state.df.columns)
                 st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
@@ -170,59 +170,55 @@ elif main_sector == "⚙️ System Setup":
         st.table(st.session_state.dr_db)
     with s2:
         with st.form("ve"):
-            v = st.text_input("Vehicle No"); t = st.selectbox("Type", ["Excavator", "Lorry"]); r = st.number_input("Rate Per Hour (Rs.)"); o = st.text_input("Owner")
+            v = st.text_input("Vehicle No"); t = st.selectbox("Type", ["Excavator", "Lorry"]); r = st.number_input("Rate Per Hour/Cube (Rs.)"); o = st.text_input("Owner")
             if st.form_submit_button("Add Vehicle"):
                 new = pd.DataFrame([[v,t,o,r]], columns=st.session_state.ve_db.columns)
                 st.session_state.ve_db = pd.concat([st.session_state.ve_db, new], ignore_index=True); save_all(); st.rerun()
         st.table(st.session_state.ve_db)
 
-# --- 10. REPORTS CENTER (V3.7 + NEW SETTLEMENT) ---
+# --- 10. REPORTS CENTER ---
 elif main_sector == "📑 Reports Center":
     r_tab1, r_tab2, r_tab3 = st.tabs(["🚜 Vehicle Settlement", "👷 Driver Summary", "📑 General Reports"])
-    
-    f_date = st.date_input("From Date", datetime.now().date()-timedelta(days=30))
-    t_date = st.date_input("To Date", datetime.now().date())
-    df_filtered = st.session_state.df[(st.session_state.df["Date"] >= f_date) & (st.session_state.df["Date"] <= t_date)]
+    f_date = st.date_input("From", datetime.now().date()-timedelta(days=30)); t_date = st.date_input("To")
+    df_f = st.session_state.df[(st.session_state.df["Date"] >= f_date) & (st.session_state.df["Date"] <= t_date)]
 
     with r_tab1:
-        st.subheader("Vehicle Owner Settlement")
+        st.subheader("Owner Settlement (Hours for Excavator / Cubes for Lorry)")
         v_list = st.session_state.ve_db["No"].tolist()
         if v_list:
-            sel_ve = st.selectbox("Select Vehicle for Settlement", v_list)
+            sel_ve = st.selectbox("Vehicle", v_list)
             m_ve = st.session_state.ve_db[st.session_state.ve_db["No"] == sel_ve]
-            rate = m_ve["Rate_Per_Hour"].values[0] if not m_ve.empty else 0.0
+            v_type = m_ve["Type"].values[0]; rate = m_ve["Rate_Per_Unit"].values[0]
             
-            v_rep = df_filtered[df_filtered["Entity"] == sel_ve]
+            v_rep = df_f[df_f["Entity"] == sel_ve]
             if not v_rep.empty:
-                t_hrs = v_rep[v_rep["Category"] == "Work Hours"]["Hours"].sum()
-                g_pay = t_hrs * rate
+                # Logic: Excavator -> Hours, Lorry -> Stock In Cubes
+                if v_type == "Excavator":
+                    total_units = v_rep[v_rep["Category"] == "Work Hours"]["Hours"].sum()
+                    unit_label = "Total Hours"
+                else:
+                    total_units = v_rep[v_rep["Category"] == "Stock In"]["Qty_Cubes"].sum()
+                    unit_label = "Total Cubes"
+                
+                g_pay = total_units * rate
                 fuel = v_rep[v_rep["Category"] == "Fuel Entry"]["Amount"].sum()
                 reps = v_rep[v_rep["Category"] == "Repair"]["Amount"].sum()
-                d_adv = v_rep[v_rep["Category"].str.contains("Driver Advance", na=False)]["Amount"].sum()
+                d_adv = v_rep[v_rep["Category"].isin(["Driver Advance", "Salary"])]["Amount"].sum()
                 o_adv = v_rep[v_rep["Category"] == "Owner Advance"]["Amount"].sum()
-                
                 net = g_pay - (fuel + reps + d_adv + o_adv)
+                
                 c1, c2, c3 = st.columns(3)
-                c1.metric("Total Hours", f"{t_hrs} Hrs"); c2.metric("Gross Amount", f"Rs. {g_pay:,.2f}"); c3.metric("NET TO PAY", f"Rs. {net:,.2f}")
+                c1.metric(unit_label, f"{total_units}"); c2.metric("Gross Pay", f"Rs. {g_pay:,.2f}"); c3.metric("NET TO PAY", f"Rs. {net:,.2f}")
                 st.dataframe(v_rep, use_container_width=True)
-                if st.button("Download Settlement PDF"):
-                    sumry = {"Vehicle": sel_ve, "Hours": t_hrs, "Rate": rate, "Gross": g_pay, "Net": net}
-                    fn = create_pdf(f"Settlement_{sel_ve}", v_rep, sumry)
-                    with open(fn, "rb") as fl: st.download_button("📩 Download PDF", fl, file_name=fn)
-            else: st.info("No data for this vehicle in selected range.")
-        else: st.warning("Add vehicles in setup.")
+            else: st.info("No records found.")
 
     with r_tab2:
-        st.subheader("Driver Salary & Advance Summary")
         dr_list = st.session_state.dr_db["Name"].tolist()
         if dr_list:
             sel_dr = st.selectbox("Select Driver", dr_list)
-            dr_rep = df_filtered[df_filtered["Note"].str.contains(f"Driver: {sel_dr}", na=False)]
+            dr_rep = df_f[df_f["Note"].str.contains(sel_dr, na=False)]
             st.dataframe(dr_rep, use_container_width=True)
-            st.metric("Total Advance/Salary Paid", f"Rs. {dr_rep['Amount'].sum():,.2f}")
-        else: st.info("Add drivers in setup.")
+            st.metric("Total Payments", f"Rs. {dr_rep['Amount'].sum():,.2f}")
 
     with r_tab3:
-        st.subheader("All Business Transactions")
-        st.dataframe(df_filtered, use_container_width=True)
-        st.metric("Total Range Expense", f"Rs. {df_filtered[df_filtered['Type']=='Expense']['Amount'].sum():,.2f}")
+        st.dataframe(df_f, use_container_width=True)
