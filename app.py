@@ -272,34 +272,40 @@ elif menu == "📑 Reports Center":
     with r1:
         sel_ve = st.selectbox("Select Vehicle", st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else [])
         if sel_ve:
+            # වාහනයට අදාළ දත්ත පෙරා ගැනීම
             v_rep = df_f[df_f["Entity"] == sel_ve].copy()
+            
             if not v_rep.empty:
-                # --- මෙන්න මෙතන තමයි වැදගත්ම වෙනස්කම ---
-                # Lorry වැඩ (Qty_Cubes) සහ Excavator වැඩ (Hours) දෙකම රේට් එකෙන් වැඩි කරනවා
+                # වැදගත්ම කොටස: 
+                # හැම පේළියකම (Qty + Hours) එකතුව ඒ පේළියේ තිබෙන Rate එකෙන්ම වැඩි කරනවා
                 v_rep['Income_Calc'] = (v_rep['Qty_Cubes'] + v_rep['Hours']) * v_rep['Rate_At_Time']
                 
-                # Rate Breakdown හදනවා
-                rate_group = v_rep[v_rep['Rate_At_Time'] > 0].groupby('Rate_At_Time').agg({
-                    'Qty_Cubes': 'sum',
-                    'Hours': 'sum',
-                    'Income_Calc': 'sum'
-                }).reset_index()
-                
+                # රේට් එක අනුව ගෲප් කරලා රිපෝට් එක හදනවා
+                rate_summary = v_rep[v_rep['Rate_At_Time'] > 0].groupby('Rate_At_Time').apply(
+                    lambda x: pd.Series({
+                        'Total_Units': (x['Qty_Cubes'] + x['Hours']).sum(),
+                        'Total_Income': x['Income_Calc'].sum()
+                    })
+                ).reset_index()
+
                 rate_list = []
-                for _, rb in rate_group.iterrows():
-                    # Cubes තිබුණොත් ඒක ගන්නවා, නැත්නම් Hours ගන්නවා
-                    qty = rb['Qty_Cubes'] if rb['Qty_Cubes'] > 0 else rb['Hours']
-                    unit_type = "Cubes" if rb['Qty_Cubes'] > 0 else "Hrs"
-                    rate_list.append({'rate': rb['Rate_At_Time'], 'qty': f"{qty} {unit_type}", 'subtotal': rb['Income_Calc']})
+                for _, row in rate_summary.iterrows():
+                    rate_list.append({
+                        'rate': row['Rate_At_Time'], 
+                        'qty': row['Total_Units'], 
+                        'subtotal': row['Total_Income']
+                    })
 
                 gross = v_rep['Income_Calc'].sum()
                 deduct = v_rep[v_rep["Type"] == "Expense"]["Amount"].sum()
                 net = gross - deduct
                 
-                st.metric("Net Balance (Earnings - Expenses)", f"Rs. {net:,.2f}")
-                st.dataframe(v_rep, use_container_width=True)
+                st.metric("Net Balance (LKR)", f"{net:,.2f}")
                 
-                if st.button("Download PDF with All Rates"):
+                # Table එක පෙන්වද්දී Rate එකත් එක්කම පෙන්වන්න
+                st.dataframe(v_rep[['Date', 'Category', 'Note', 'Qty_Cubes', 'Hours', 'Rate_At_Time', 'Income_Calc']])
+                
+                if st.button("Download PDF Settlement"):
                     summary = {
                         "Vehicle No": sel_ve,
                         "Gross Earnings": f"{gross:,.2f}",
@@ -309,7 +315,6 @@ elif menu == "📑 Reports Center":
                     }
                     fn = create_pdf(f"Settlement_{sel_ve}", v_rep, summary)
                     with open(fn, "rb") as f: st.download_button("📩 Download PDF", f, file_name=fn)
-    
     with r2:
         sel_dr = st.selectbox("Select Driver", st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else [])
         if sel_dr:
