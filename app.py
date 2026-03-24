@@ -326,38 +326,54 @@ elif menu == "📑 Reports Center":
     df_raw['Date'] = pd.to_datetime(df_raw['Date']).dt.date
     df_f = df_raw[(df_raw["Date"] >= f_d) & (df_raw["Date"] <= t_d)].copy()
     
-    # --- TAB: DAILY INCOME REPORT ---
+    # --- TAB: DAILY INCOME REPORT (FIXED) ---
     with r_inc:
         st.subheader("Daily Sales & Income Statement")
         
-        # Sales Out records පමණක් පෙරන්න
+        # 1. Column names වල තියෙන හිස්තැන් අයින් කරලා Clean කරමු
+        df_f.columns = [c.strip() for c in df_f.columns]
+        
+        # 2. Sales Out records විතරක් පෙරමු
         daily_sales = df_f[df_f["Category"].str.contains("Sales Out", na=False)].copy()
         
         if not daily_sales.empty:
-            # පෙන්වන ටේබල් එක ලස්සන කරමු
-            display_sales = daily_sales[['Date', 'Category', 'Entity', 'Qty_Cubes', 'Rate_At_Time', 'Amount']].copy()
-            display_sales.columns = ['Date', 'Material', 'Vehicle/Client', 'Qty', 'Rate', 'Total Amount']
+            # 3. මෙතනදී Column එකක් නැති වුණොත් Error එකක් එන එක නවත්වන්න check එකක් දාමු
+            available_cols = daily_sales.columns.tolist()
+            required_cols = ['Date', 'Category', 'Entity', 'Qty_Cubes', 'Rate_At_Time', 'Amount']
+            
+            # පද්ධතියේ තියෙන column ටික විතරක් තෝරා ගමු (KeyError වැළැක්වීමට)
+            final_cols = [c for c in required_cols if c in available_cols]
+            
+            display_sales = daily_sales[final_cols].copy()
+            
+            # 4. ටේබල් එකේ Column names ලස්සන කරමු (Rename)
+            rename_dict = {
+                'Date': 'Date', 'Category': 'Material', 'Entity': 'Vehicle/Client', 
+                'Qty_Cubes': 'Qty', 'Rate_At_Time': 'Rate', 'Amount': 'Total Amount'
+            }
+            display_sales.rename(columns=rename_dict, inplace=True)
             
             st.dataframe(display_sales, use_container_width=True)
             
-            total_daily_inc = display_sales['Total Amount'].sum()
-            st.success(f"Selected Period Total Income: **LKR {total_daily_inc:,.2f}**")
+            # මුළු මුදල පෙන්වීම
+            if 'Total Amount' in display_sales.columns:
+                total_daily_inc = display_sales['Total Amount'].sum()
+                st.success(f"Selected Period Total Income: **LKR {total_daily_inc:,.2f}**")
             
-            # --- PDF GENERATION ---
+            # PDF Button එක (කලින් විදිහටම)
             if st.button("📥 Download Daily Income PDF"):
                 inc_summary = {
                     "Report Type": "Daily Income Statement",
                     "Period": f"{f_d} to {t_d}",
                     "Total Items": len(display_sales),
-                    "Total Gross Income": f"LKR {total_daily_inc:,.2f}"
+                    "Total Gross Income": f"LKR {display_sales['Total Amount'].sum():,.2f}" if 'Total Amount' in display_sales.columns else "0.00"
                 }
-                
-                pdf_fn = create_pdf(f"Daily_Income", daily_sales, inc_summary)
+                pdf_fn = create_pdf(f"Daily_Income", display_sales, inc_summary)
                 with open(pdf_fn, "rb") as f:
                     st.download_button("📩 Click to Download PDF", f, file_name=f"Income_Report_{f_d}.pdf")
         else:
             st.warning("තෝරාගත් දින පරාසය තුළ Sales records කිසිවක් නැත.")
-
+            
     # --- TAB: PROFIT/LOSS ANALYSIS ---
     with r_prof:
         st.subheader("Daily Profit & Loss Analysis")
