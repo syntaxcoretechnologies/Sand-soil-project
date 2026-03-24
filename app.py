@@ -308,9 +308,10 @@ elif menu == "📑 Reports Center":
 
     # Tabs
 
-    r_inc, r_prof, r1, r2, r3, r4 = st.tabs([
+    r_inc, r_prof, r_gross, r1, r2, r3, r4 = st.tabs([
         "💰 Daily Income Report", 
-        "📈 Profit/Loss Analysis",
+        "📊 Profit/Loss Analysis",
+        "📈 Material Gross Earnings", # Aluth Tab eka
         "🚜 Vehicle Settlement", 
         "👷 Driver Summary", 
         "📑 Daily Log", 
@@ -399,6 +400,35 @@ elif menu == "📑 Reports Center":
             # Totals
             t_i, t_e = profit_df['Income'].sum(), profit_df['Expense'].sum()
             st.info(f"Summary: Total Income: LKR {t_i:,.2f} | Total Expense: LKR {t_e:,.2f} | Net Profit: LKR {t_i-t_e:,.2f}")
+
+    # --- TAB: MATERIAL GROSS EARNINGS ---
+    with r_gross:
+        st.subheader("Material Gross Earnings (Sales Revenue)")
+        
+        # Sales records pamanak ganeema
+        gross_df = df_f[df_f["Category"].str.contains("Sales Out", na=False)].copy()
+        
+        if not gross_df.empty:
+            # Material eka anuwa group karamu (Sand walin keeyada, Soil walin keeyada kiyala)
+            # Category eken material eka extract karamu
+            gross_df['Material_Type'] = gross_df['Category'].apply(lambda x: "Sand" if "Sand" in x else ("Soil" if "Soil" in x else "Other"))
+            
+            summary_gross = gross_df.groupby('Material_Type')['Amount'].sum().reset_index()
+            summary_gross.columns = ['Material', 'Total Gross Earning (LKR)']
+            
+            col_g1, col_g2 = st.columns([1, 2])
+            with col_g1:
+                st.write("**Earnings by Material:**")
+                st.dataframe(summary_gross.style.format({"Total Gross Earning (LKR)": "{:,.2f}"}), use_container_width=True)
+            
+            with col_g2:
+                st.bar_chart(data=summary_gross, x='Material', y='Total Gross Earning (LKR)')
+
+            st.divider()
+            st.write("**Detailed Sales Log:**")
+            st.dataframe(gross_df[['Date', 'Entity', 'Category', 'Qty_Cubes', 'Amount']], use_container_width=True)
+        else:
+            st.info("No sales records found for the selected period.")
 
     # --- TAB 1: VEHICLE SETTLEMENT ---
     with r1:
