@@ -274,8 +274,9 @@ elif menu == "📑 Reports Center":
         if sel_ve:
             v_rep = df_f[df_f["Entity"] == sel_ve].copy()
             if not v_rep.empty:
-                # Rate එක අනුව Group කරලා විස්තර ගැනීම
-                v_rep['Income_Calc'] = (v_rep['Hours'] + v_rep['Qty_Cubes']) * v_rep['Rate_At_Time']
+                # --- මෙන්න මෙතන තමයි වැදගත්ම වෙනස්කම ---
+                # Lorry වැඩ (Qty_Cubes) සහ Excavator වැඩ (Hours) දෙකම රේට් එකෙන් වැඩි කරනවා
+                v_rep['Income_Calc'] = (v_rep['Qty_Cubes'] + v_rep['Hours']) * v_rep['Rate_At_Time']
                 
                 # Rate Breakdown හදනවා
                 rate_group = v_rep[v_rep['Rate_At_Time'] > 0].groupby('Rate_At_Time').agg({
@@ -286,23 +287,25 @@ elif menu == "📑 Reports Center":
                 
                 rate_list = []
                 for _, rb in rate_group.iterrows():
+                    # Cubes තිබුණොත් ඒක ගන්නවා, නැත්නම් Hours ගන්නවා
                     qty = rb['Qty_Cubes'] if rb['Qty_Cubes'] > 0 else rb['Hours']
-                    rate_list.append({'rate': rb['Rate_At_Time'], 'qty': qty, 'subtotal': rb['Income_Calc']})
+                    unit_type = "Cubes" if rb['Qty_Cubes'] > 0 else "Hrs"
+                    rate_list.append({'rate': rb['Rate_At_Time'], 'qty': f"{qty} {unit_type}", 'subtotal': rb['Income_Calc']})
 
                 gross = v_rep['Income_Calc'].sum()
                 deduct = v_rep[v_rep["Type"] == "Expense"]["Amount"].sum()
                 net = gross - deduct
                 
-                st.metric("Net Balance", f"Rs. {net:,.2f}")
-                st.dataframe(v_rep)
+                st.metric("Net Balance (Earnings - Expenses)", f"Rs. {net:,.2f}")
+                st.dataframe(v_rep, use_container_width=True)
                 
-                if st.button("Download PDF with Rate Breakdown"):
+                if st.button("Download PDF with All Rates"):
                     summary = {
                         "Vehicle No": sel_ve,
                         "Gross Earnings": f"{gross:,.2f}",
                         "Total Expenses": f"{deduct:,.2f}",
                         "Net Settlement": f"{net:,.2f}",
-                        "Rate_Breakdown": rate_list # මේක තමයි අලුත් list එක
+                        "Rate_Breakdown": rate_list
                     }
                     fn = create_pdf(f"Settlement_{sel_ve}", v_rep, summary)
                     with open(fn, "rb") as f: st.download_button("📩 Download PDF", f, file_name=fn)
