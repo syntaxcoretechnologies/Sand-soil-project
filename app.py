@@ -120,65 +120,17 @@ def create_pdf(title, data_df, summary_dict):
 st.set_page_config(page_title=SHOP_NAME, layout="wide")
 st.sidebar.title("🏗️ KSD ERP v5.6")
 # Part 01 අන්තිමට තියෙන menu එක මේකට replace කරන්න
-# --- 5. SIDEBAR MENU ---
-menu = st.sidebar.selectbox("MAIN MENU", [
-    "📊 Dashboard", 
-    "🏗️ Site Operations", 
-    "💰 Finance & Shed", 
-    "⚙️ System Setup", 
-    "📑 Reports Center", 
-    "⚙️ Data Manager"
-])
-
-# --- 6. MAIN LOGIC (ඔක්කොම පේළියට තියෙන්න ඕනේ) ---
-
+menu = st.sidebar.selectbox("MAIN MENU", ["📊 Dashboard", "🏗️ Site Operations", "💰 Finance & Shed", "⚙️ System Setup", "📑 Reports Center", "⚙️ Data Manager"])
 if menu == "📊 Dashboard":
-    st.markdown("<h2 style='color: #2E86C1;'>📊 Business Overview</h2>", unsafe_allow_html=True)
-    if st.session_state.df.empty:
-        st.warning("දත්ත ඇතුළත් කර නැත.")
-    else:
-        df = st.session_state.df.copy()
-        df['Calculated_Income'] = (df['Qty_Cubes'] + df['Hours']) * df['Rate_At_Time']
-        t_inc = df['Calculated_Income'].sum()
-        t_exp = df[df['Type'] == 'Expense']['Amount'].sum()
-        st.columns(3)[0].metric("Total Income", f"Rs. {t_inc:,.2f}")
-        st.columns(3)[1].metric("Total Expenses", f"Rs. {t_exp:,.2f}")
-        st.columns(3)[2].metric("Net Profit", f"Rs. {t_inc - t_exp:,.2f}")
-        st.dataframe(df.sort_values(by="ID", ascending=False).head(10))
-
-elif menu == "🏗️ Site Operations":
-    st.markdown("<h2 style='color: #E67E22;'>🏗️ Site Operations</h2>", unsafe_allow_html=True)
-    op = st.radio("Type", ["🚛 Lorry Work Log", "🚜 Excavator Work Log", "💰 Sales Out"], horizontal=True)
-    # (මෙතන කලින් එවපු Site Operations Code එක තියෙන්න ඕනේ)
-    st.info(f"දැනට {op} තෝරාගෙන ඇත. Form එක මෙතනට දාන්න.")
-
-elif menu == "💰 Finance & Shed":
-    st.markdown("<h2 style='color: #27AE60;'>💰 Finance & Shed</h2>", unsafe_allow_html=True)
-    f_type = st.selectbox("Transaction Type", ["Fuel Entry", "Repair/Maintenance", "Salary Payment", "Owner Advance"])
-    with st.form("fin_form", clear_on_submit=True):
-        f_date = st.date_input("Date", datetime.now().date())
-        f_entity = st.text_input("Entity (Vehicle/Person)")
-        f_amt = st.number_input("Amount (LKR)", min_value=0.0)
-        f_note = st.text_input("Note")
-        if st.form_submit_button("Save Expense"):
-            new_row = pd.DataFrame([[len(st.session_state.df)+1, f_date, "", "Expense", f_type, f_entity, f_note, f_amt, 0, 0, 0, 0, "Done"]], columns=st.session_state.df.columns)
-            st.session_state.df = pd.concat([st.session_state.df, new_row], ignore_index=True)
-            save_all()
-            st.success("Expense Saved!")
-            st.rerun()
-
-elif menu == "⚙️ System Setup":
-    st.markdown("<h2 style='color: #7F8C8D;'>⚙️ System Setup</h2>", unsafe_allow_html=True)
-    st.write("Drivers සහ Vehicles මෙතනින් ඇතුළත් කරන්න.")
-    # (මෙතන Setup Code එක දාන්න)
-
-elif menu == "📑 Reports Center":
-    st.markdown("<h2 style='color: #8E44AD;'>📑 Reports Center</h2>", unsafe_allow_html=True)
-    # (මෙතන කලින් එවපු Rate-wise Report Code එක දාන්න)
-
-elif menu == "⚙️ Data Manager":
-    st.markdown("<h2 style='color: #D35400;'>⚙️ Data Manager</h2>", unsafe_allow_html=True)
-    # (මෙතන Edit/Delete Code එක දාන්න)
+    df = st.session_state.df
+    if not df.empty:
+        df['Amount'] = pd.to_numeric(df['Amount'], errors='coerce').fillna(0)
+        ti, te = df[df["Type"] == "Income"]["Amount"].sum(), df[df["Type"] == "Expense"]["Amount"].sum()
+        f_debt = df[df["Category"] == "Fuel Entry"]["Amount"].sum() - df[df["Category"] == "Shed Payment"]["Amount"].sum()
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Total Income", f"Rs. {ti:,.2f}"); m2.metric("Total Expenses", f"Rs. {te:,.2f}")
+        m3.metric("Net Cashflow", f"Rs. {ti-te:,.2f}"); m4.metric("Shed Debt", f"Rs. {f_debt:,.2f}")
+        st.divider(); st.area_chart(df.groupby(['Date', 'Type'])['Amount'].sum().unstack().fillna(0))
 
 # --- 7. SITE OPERATIONS (v57 FULL FIX) ---
 elif menu == "🏗️ Site Operations":
