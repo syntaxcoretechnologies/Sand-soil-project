@@ -120,20 +120,20 @@ def create_pdf(title, data_df, summary_dict):
 st.set_page_config(page_title=SHOP_NAME, layout="wide")
 st.sidebar.title("🏗️ KSD ERP v5.6")
 
+# මේ පේළිය පිටුවේ වම් කෙළවරේ සිටම පටන් ගන්න (No spaces)
 menu = st.sidebar.selectbox("MAIN MENU", ["📊 Dashboard", "🏗️ Site Operations", "💰 Finance & Shed", "⚙️ System Setup", "📑 Reports Center", "⚙️ Data Manager"])
 
+# --- 1. DASHBOARD SECTION ---
 if menu == "📊 Dashboard":
-    # --- මෙන්න මෙතන ඉඳන් පල්ලෙහාට තියෙන හැම පේළියක්ම 'if' එකට වඩා ඇතුළට වෙන්න ඕනේ ---
     df = st.session_state.df.copy()
     if not df.empty:
-        # --- Income එක ගණනය කිරීම ---
+        # මෙතන ඉදන් පල්ලෙහාට තියෙන පේළි 'if' එකට වඩා ඇතුළට වෙලා තියෙන්න ඕනේ
         df['Calculated_Income'] = (pd.to_numeric(df['Qty_Cubes'], errors='coerce').fillna(0) + 
                                    pd.to_numeric(df['Hours'], errors='coerce').fillna(0)) * \
                                    pd.to_numeric(df['Rate_At_Time'], errors='coerce').fillna(0)
         
         ti = df[df["Type"] == "Process"]["Calculated_Income"].sum()
         te = pd.to_numeric(df[df["Type"] == "Expense"]["Amount"], errors='coerce').sum()
-        
         f_debt = df[df["Category"] == "Fuel Entry"]["Amount"].sum() - df[df["Category"] == "Shed Payment"]["Amount"].sum()
         
         m1, m2, m3, m4 = st.columns(4)
@@ -146,72 +146,43 @@ if menu == "📊 Dashboard":
         st.subheader("Daily Income Trend")
         st.line_chart(df[df["Type"] == "Process"].groupby('Date')['Calculated_Income'].sum())
     else:
-        st.info("No data available to display in Dashboard.")
+        # මේ else එක අයිති 'if not df.empty' එකටයි
+        st.info("No data available to display.")
 
-# --- මීළඟට එන 'elif' එක ආයෙත් 'if' පේළියටම කෙළින් තියෙන්න ඕනේ ---
-    elif menu == "🏗️ Site Operations":
-        # (කලින් තිබුණු Site Operations Code එක මෙතනට...)
-    
-    
-    # --- 7. SITE OPERATIONS (v57 FULL FIX) ---
-    elif menu == "🏗️ Site Operations":
+# --- 2. SITE OPERATIONS SECTION ---
+# මේ 'elif' එක පටන් ගන්න ඕනේ උඩ තියෙන 'if menu == "📊 Dashboard":' එකට කෙළින්ම පල්ලෙහායින්
+elif menu == "🏗️ Site Operations":
     st.markdown(f"<h2 style='color: #E67E22;'>🏗️ Site Operations</h2>", unsafe_allow_html=True)
     
     op = st.radio("Select Activity Type", ["🚛 Lorry Work Log", "🚜 Excavator Work Log", "💰 Sales Out"], horizontal=True)
-    
     v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
     
     with st.form("site_f", clear_on_submit=True):
         col1, col2 = st.columns(2)
-        
         with col1:
             v = st.selectbox("Select Vehicle / Machine", v_list)
             d = st.date_input("Date", datetime.now().date())
-            
-            material = ""
-            if op == "💰 Sales Out":
-                material = st.selectbox("Material Type", ["Sand", "Soil", "Other"])
+            material = st.selectbox("Material Type", ["Sand", "Soil", "Other"]) if op == "💰 Sales Out" else ""
         
         with col2:
-            # වර්ගය අනුව label එක තෝරනවා
-            if "Lorry" in op:
-                val_label = "Qty (Cubes)"
-                unit = "Cubes"
-            elif "Excavator" in op:
-                val_label = "Work Hours"
-                unit = "Hrs"
-            else:
-                val_label = f"Sales Qty ({material})"
-                unit = "Cubes/Units"
-                
-            # Default අගයන් 0.0 විදියට දුන්නා (මැනුවල් ටයිප් කරන්න ඕන නිසා)
+            val_label = "Qty (Cubes)" if "Lorry" in op or "Sales" in op else "Work Hours"
             val = st.number_input(val_label, min_value=0.0, step=0.5, value=0.0)
-            r = st.number_input(f"Enter Rate per {unit}", min_value=0.0, step=100.0, value=0.0)
-        
-        n = st.text_input("Additional Note (Location, Trip details etc.)")
-        submit = st.form_submit_button("📥 Save Record")
-        
-        if submit:
-            if v == "N/A":
-                st.error("Please add a vehicle in Setup first!")
-            elif val <= 0:
-                st.error(f"Please enter a valid {val_label}")
-            elif r <= 0:
-                st.error(f"Please enter the Rate for this work!")
+            r = st.number_input("Enter Rate (LKR)", min_value=0.0, step=100.0, value=0.0)
+            
+        n = st.text_input("Additional Note")
+        if st.form_submit_button("📥 Save Record"):
+            if v == "N/A": st.error("Add a vehicle first!")
+            elif val <= 0 or r <= 0: st.error("Enter valid Qty and Rate!")
             else:
-                display_cat = f"{op} ({material})" if material else op
+                cat = f"{op} ({material})" if material else op
                 q, h = (val, 0) if "Lorry" in op or "Sales" in op else (0, val)
-                
-                new_data = pd.DataFrame([[
-                    len(st.session_state.df) + 1, d, "", "Process", 
-                    display_cat, v, n, 0, q, 0, h, r, "Done"
-                ]], columns=st.session_state.df.columns)
-                
-                st.session_state.df = pd.concat([st.session_state.df, new_data], ignore_index=True)
+                new_row = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Process", cat, v, n, 0, q, 0, h, r, "Done"]], columns=st.session_state.df.columns)
+                st.session_state.df = pd.concat([st.session_state.df, new_row], ignore_index=True)
                 save_all()
-                st.success(f"Successfully recorded {display_cat} for {v}")
+                st.success("Successfully Saved!")
                 st.rerun()
-
+    
+    
     st.divider()
     st.subheader("Today's Logs")
     today_df = st.session_state.df[st.session_state.df["Date"] == datetime.now().date()]
