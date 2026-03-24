@@ -125,29 +125,57 @@ menu = st.sidebar.selectbox("MAIN MENU", ["📊 Dashboard", "🏗️ Site Operat
 
 # --- 1. DASHBOARD SECTION ---
 if menu == "📊 Dashboard":
+    st.markdown("<h2 style='color: #2E86C1;'>📊 Business Overview</h2>", unsafe_allow_html=True)
+    
     df = st.session_state.df.copy()
+    
     if not df.empty:
-        # මෙතන ඉදන් පල්ලෙහාට තියෙන පේළි 'if' එකට වඩා ඇතුළට වෙලා තියෙන්න ඕනේ
-        df['Calculated_Income'] = (pd.to_numeric(df['Qty_Cubes'], errors='coerce').fillna(0) + 
-                                   pd.to_numeric(df['Hours'], errors='coerce').fillna(0)) * \
-                                   pd.to_numeric(df['Rate_At_Time'], errors='coerce').fillna(0)
+        # --- 1. DATE FILTER UI ---
+        st.subheader("📅 Filter by Date")
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            start_date = st.date_input("From Date", datetime.now().date() - timedelta(days=7))
+        with col_f2:
+            end_date = st.date_input("To Date", datetime.now().date())
         
-        ti = df[df["Type"] == "Process"]["Calculated_Income"].sum()
-        te = pd.to_numeric(df[df["Type"] == "Expense"]["Amount"], errors='coerce').sum()
-        f_debt = df[df["Category"] == "Fuel Entry"]["Amount"].sum() - df[df["Category"] == "Shed Payment"]["Amount"].sum()
-        
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Total Income", f"Rs. {ti:,.2f}")
-        m2.metric("Total Expenses", f"Rs. {te:,.2f}")
-        m3.metric("Net Cashflow", f"Rs. {ti-te:,.2f}")
-        m4.metric("Shed Debt", f"Rs. {f_debt:,.2f}")
-        
-        st.divider()
-        st.subheader("Daily Income Trend")
-        st.line_chart(df[df["Type"] == "Process"].groupby('Date')['Calculated_Income'].sum())
+        # දත්ත Filter කිරීම (Date column එක date format එකට තියෙන්න ඕනේ)
+        df['Date'] = pd.to_datetime(df['Date']).dt.date
+        mask = (df['Date'] >= start_date) & (df['Date'] <= end_date)
+        filtered_df = df.loc[mask].copy()
+
+        if not filtered_df.empty:
+            # --- 2. CALCULATION ON FILTERED DATA ---
+            filtered_df['Calculated_Income'] = (pd.to_numeric(filtered_df['Qty_Cubes'], errors='coerce').fillna(0) + 
+                                               pd.to_numeric(filtered_df['Hours'], errors='coerce').fillna(0)) * \
+                                               pd.to_numeric(filtered_df['Rate_At_Time'], errors='coerce').fillna(0)
+            
+            ti = filtered_df[filtered_df["Type"] == "Process"]["Calculated_Income"].sum()
+            te = pd.to_numeric(filtered_df[filtered_df["Type"] == "Expense"]["Amount"], errors='coerce').sum()
+            
+            # Fuel Debt එක නම් මුළු කාලයටම බලන එක හොඳයි (ඒක නිසා ඒක df එකෙන් ගමු)
+            f_debt = df[df["Category"] == "Fuel Entry"]["Amount"].sum() - df[df["Category"] == "Shed Payment"]["Amount"].sum()
+            
+            # --- 3. METRICS DISPLAY ---
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Selected Period Income", f"Rs. {ti:,.2f}")
+            m2.metric("Selected Period Exp", f"Rs. {te:,.2f}")
+            m3.metric("Net Cashflow", f"Rs. {ti-te:,.2f}")
+            m4.metric("Total Shed Debt", f"Rs. {f_debt:,.2f}")
+            
+            st.divider()
+            
+            # --- 4. TREND CHART ---
+            st.subheader(f"Income Trend ({start_date} to {end_date})")
+            trend_data = filtered_df[filtered_df["Type"] == "Process"].groupby('Date')['Calculated_Income'].sum()
+            st.line_chart(trend_data)
+            
+            # --- 5. RECENT TRANSACTIONS ---
+            st.subheader("Filtered Transactions")
+            st.dataframe(filtered_df.sort_values(by="ID", ascending=False), use_container_width=True)
+        else:
+            st.warning("තෝරාගත් දින පරාසය තුළ දත්ත කිසිවක් නැත.")
     else:
-        # මේ else එක අයිති 'if not df.empty' එකටයි
-        st.info("No data available to display.")
+        st.info("පද්ධතියේ දත්ත කිසිවක් නැත. කරුණාකර Site Operations වෙත ගොස් දත්ත ඇතුළත් කරන්න.")
 
 # --- 2. SITE OPERATIONS SECTION ---
 # මේ 'elif' එක පටන් ගන්න ඕනේ උඩ තියෙන 'if menu == "📊 Dashboard":' එකට කෙළින්ම පල්ලෙහායින්
