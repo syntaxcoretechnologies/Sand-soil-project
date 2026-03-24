@@ -444,9 +444,9 @@ elif menu == "📑 Reports Center":
             st.info("No sales records found for the selected period.")
 
     # --- TAB 1: VEHICLE SETTLEMENT ---
-    # --- TAB: VEHICLE SETTLEMENT (UPDATED LOGIC) ---
-    # --- TAB 1: VEHICLE SETTLEMENT (Lorry Rent/Excavator Logic Fixed) ---
-   # --- TAB 1: VEHICLE SETTLEMENT (LORRY RENT & EXCAVATOR LOGIC) ---
+    # වාහන ලැයිස්තුව (v_list) මෙතනදී සාදා ගනිමු
+    v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
+    
     with r1:
         st.subheader("Vehicle / Machine Settlement")
         
