@@ -149,12 +149,12 @@ if menu == "📊 Dashboard":
         st.info("No data available to display in Dashboard.")
 
 # --- මීළඟට එන 'elif' එක ආයෙත් 'if' පේළියටම කෙළින් තියෙන්න ඕනේ ---
-elif menu == "🏗️ Site Operations":
-    # (කලින් තිබුණු Site Operations Code එක මෙතනට...)
-
-
-# --- 7. SITE OPERATIONS (v57 FULL FIX) ---
-elif menu == "🏗️ Site Operations":
+    elif menu == "🏗️ Site Operations":
+        # (කලින් තිබුණු Site Operations Code එක මෙතනට...)
+    
+    
+    # --- 7. SITE OPERATIONS (v57 FULL FIX) ---
+    elif menu == "🏗️ Site Operations":
     st.markdown(f"<h2 style='color: #E67E22;'>🏗️ Site Operations</h2>", unsafe_allow_html=True)
     
     op = st.radio("Select Activity Type", ["🚛 Lorry Work Log", "🚜 Excavator Work Log", "💰 Sales Out"], horizontal=True)
