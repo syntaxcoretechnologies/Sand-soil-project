@@ -536,90 +536,57 @@ elif menu == "📑 Reports Center":
 # --- 10. SYSTEM SETUP (මේ කොටස අලුතින් ඇතුළත් කරන්න) ---
 elif menu == "⚙️ Settings & Setup":
         st.title("⚙️ System Setup & Configuration")
-        
-        # Session state එකේ ලිස්ට් ටික නැත්නම් හිස්ව හදාගමු (Error නොවෙන්න)
+        st.write("Welcome to Setup! Register your resources below.") # මේක පේනවාද බලන්න මචං
+
+        # 1. Initialize Session States (Error නොවෙන්න මුලින්ම මේවා ඕනේ)
         if "drivers" not in st.session_state:
             st.session_state.drivers = []
         if "landowners" not in st.session_state:
             st.session_state.landowners = []
-        if "ve_db" not in st.session_state:
-            st.session_state.ve_db = pd.DataFrame(columns=["No", "Type", "Owner"])
 
-        # Tabs 3ක් ලස්සනට වෙන් කරමු
-        tab_v, tab_d, tab_l = st.tabs(["🚜 Vehicles", "👷 Drivers", "🏡 Landowners"])
+        # 2. Tabs නිර්මාණය කිරීම
+        t_veh, t_dri, t_lan = st.tabs(["🚜 Vehicles", "👷 Drivers", "🏡 Landowners"])
 
-        # --- TAB 1: VEHICLE REGISTRATION ---
-        with tab_v:
-            st.subheader("Register New Vehicle / Machine")
-            with st.form("vehicle_form", clear_on_submit=True):
-                v_no = st.text_input("Vehicle Number (e.g. WP-1234 / EX-01)")
+        # --- TAB: VEHICLES ---
+        with t_veh:
+            st.subheader("Register Vehicle")
+            with st.form("v_form", clear_on_submit=True):
+                v_no = st.text_input("Vehicle Number")
                 v_type = st.selectbox("Type", ["Lorry", "Excavator", "JCB", "Other"])
-                v_owner = st.selectbox("Ownership", ["Owned", "Rented"])
-                
                 if st.form_submit_button("Add Vehicle"):
                     if v_no:
-                        new_ve = pd.DataFrame([{"No": v_no, "Type": v_type, "Owner": v_owner}])
-                        st.session_state.ve_db = pd.concat([st.session_state.ve_db, new_ve], ignore_index=True)
-                        save_data(VE_FILE, st.session_state.ve_db) # CSV එකටත් save කරමු
-                        st.success(f"Vehicle {v_no} added!")
-                        st.rerun() # Page එක refresh කරන්න
-                    else:
-                        st.error("Enter vehicle number.")
+                        new_v = pd.DataFrame([{"No": v_no, "Type": v_type}])
+                        st.session_state.ve_db = pd.concat([st.session_state.ve_db, new_v], ignore_index=True)
+                        save_data(VE_FILE, st.session_state.ve_db)
+                        st.success(f"Added {v_no}")
+                        st.rerun()
 
-        # --- TAB 2: DRIVER REGISTRATION ---
-        with tab_d:
-            st.subheader("Register New Driver / Operator")
-            with st.form("driver_form", clear_on_submit=True):
-                d_name = st.text_input("Driver Full Name")
-                d_nic = st.text_input("NIC Number")
+        # --- TAB: DRIVERS ---
+        with t_dri:
+            st.subheader("Register Driver")
+            with st.form("d_form", clear_on_submit=True):
+                d_name = st.text_input("Driver Name")
                 d_phone = st.text_input("Phone Number")
-                
-                if st.form_submit_button("Register Driver"):
+                if st.form_submit_button("Add Driver"):
                     if d_name:
-                        new_driver = {"Name": d_name, "NIC": d_nic, "Phone": d_phone}
-                        st.session_state.drivers.append(new_driver)
-                        # මෙතනදී ඔයාට පුළුවන් මේකත් CSV එකකට save කරන්න පස්සේ
-                        st.success(f"Driver {d_name} registered!")
+                        st.session_state.drivers.append({"Name": d_name, "Phone": d_phone})
+                        st.success(f"Added Driver {d_name}")
                         st.rerun()
-                    else:
-                        st.error("Please enter driver name.")
 
-        # --- TAB 3: LANDOWNER REGISTRATION ---
-        with tab_l:
-            st.subheader("Register New Landowner (Soil Source)")
-            with st.form("landowner_form", clear_on_submit=True):
-                l_name = st.text_input("Landowner Name")
-                l_contact = st.text_input("Contact Number")
-                l_location = st.text_input("Location")
-                
-                if st.form_submit_button("Add Landowner"):
+        # --- TAB: LANDOWNERS ---
+        with t_lan:
+            st.subheader("Register Landowner")
+            with st.form("l_form", clear_on_submit=True):
+                l_name = st.text_input("Owner Name")
+                l_loc = st.text_input("Location")
+                if st.form_submit_button("Add Owner"):
                     if l_name:
-                        st.session_state.landowners.append({"Name": l_name, "Contact": l_contact, "Location": l_location})
-                        st.success(f"Landowner {l_name} added!")
+                        st.session_state.landowners.append({"Name": l_name, "Location": l_loc})
+                        st.success(f"Added Owner {l_name}")
                         st.rerun()
-                    else:
-                        st.error("Enter landowner name.")
 
         st.divider()
-
-        # --- පද්ධතියේ දැනට තියෙන දත්ත ටික පෙන්වීම ---
-        st.write("### Current System Records")
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            st.write("**Registered Vehicles**")
-            st.dataframe(st.session_state.ve_db[["No", "Type"]], use_container_width=True)
-        with c2:
-            st.write("**Registered Drivers**")
-            if st.session_state.drivers:
-                st.dataframe(pd.DataFrame(st.session_state.drivers)[["Name", "Phone"]], use_container_width=True)
-            else:
-                st.info("No drivers yet.")
-        with c3:
-            st.write("**Registered Landowners**")
-            if st.session_state.landowners:
-                st.dataframe(pd.DataFrame(st.session_state.landowners)[["Name", "Location"]], use_container_width=True)
-            else:
-                st.info("No landowners yet.")
+        st.info("Currently registered data can be viewed in the Reports Center.")
 
 
 # --- 11. DATA MANAGER (EDIT / DELETE) ---
