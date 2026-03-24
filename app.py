@@ -446,30 +446,30 @@ elif menu == "📑 Reports Center":
     # --- TAB 1: VEHICLE SETTLEMENT ---
     # --- TAB: VEHICLE SETTLEMENT (UPDATED LOGIC) ---
     # --- TAB 1: VEHICLE SETTLEMENT (Lorry Rent/Excavator Logic Fixed) ---
+   # --- TAB 1: VEHICLE SETTLEMENT (LORRY RENT & EXCAVATOR LOGIC) ---
     with r1:
         st.subheader("Vehicle / Machine Settlement")
         
-        # වාහන ලැයිස්තුව (v_list එක දැනටමත් උඩින් define කරලා ඇති)
+        # වාහන ලැයිස්තුව තෝරාගැනීම
         selected_ve = st.selectbox("Select Vehicle to Settle", v_list, key="settle_ve")
         
         if selected_ve:
-            # තෝරාගත් වාහනයට අදාළ filtered දත්ත ලබා ගැනීම
+            # Filtered data ලබා ගැනීම
             ve_records = df_f[df_f["Entity"] == selected_ve].copy()
             
             if not ve_records.empty:
-                # --- EXCAVATOR ද නැද්ද කියා පරීක්ෂා කිරීම ---
-                # වාහන නමේ "Ex" හෝ "PC" වැනි වචන තිබේදැයි බලයි
+                # Excavator එකක්ද කියා පරීක්ෂා කිරීම (නම අනුව)
                 is_excavator = any(x in selected_ve.upper() for x in ["EX", "PC", "EXCAVATOR"])
                 
                 # 1. Gross Earnings ගණනය කිරීම
                 if is_excavator:
-                    # Excavator නම් වැඩ කරපු මුළු මුදල (Hours * Rate) ගන්නවා
+                    # Excavator නම් වැඩ කරපු මුළු වටිනාකම (Amount) ගන්නවා
                     gross_earning = pd.to_numeric(ve_records['Amount'], errors='coerce').sum()
                 else:
-                    # Lorry නම් Client ගේ ඉල්ලීම පරිදි Gross Earning පෙන්වන්නේ නැත (Daily Rent නිසා)
+                    # Lorry නම් Rent එක නිසා Gross Earning පෙන්වන්නේ නැත
                     gross_earning = 0.0
                 
-                # 2. Expenses ගණනය කිරීම (Diesel, Bata, etc.)
+                # 2. Expenses ගණනය කිරීම
                 total_exp = pd.to_numeric(ve_records[ve_records["Type"] == "Expense"]["Amount"], errors='coerce').sum()
                 
                 # 3. Net Balance
@@ -510,17 +510,12 @@ elif menu == "📑 Reports Center":
                         )
 
                 st.write(f"**Detailed Transaction Log for {selected_ve}:**")
-                # අනවශ්‍ය columns අයින් කර පෙන්වීම
+                # තියෙන columns පමණක් පෙන්වීමට ආරක්ෂිත ක්‍රමයක්
                 display_cols = ['Date', 'Category', 'Qty_Cubes', 'Work_Hours', 'Amount', 'Type']
                 safe_cols = [c for c in display_cols if c in ve_records.columns]
                 st.dataframe(ve_records[safe_cols], use_container_width=True)
             else:
                 st.info(f"No records found for {selected_ve} in the selected period.")
-                
-                  pdf_path = create_pdf("Report", v_rep, summary_data)
-                  with open(pdf_path, "rb") as f:
-                        st.download_button("📩 Click to Download PDF", f, file_name=pdf_path)
-            else: st.warning("දත්ත නැත.")
 
     # --- TAB 2: DRIVER SUMMARY ---
     with r2:
