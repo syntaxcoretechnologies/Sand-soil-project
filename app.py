@@ -444,78 +444,73 @@ elif menu == "📑 Reports Center":
             st.info("No sales records found for the selected period.")
 
     # --- TAB 1: VEHICLE SETTLEMENT ---
-    # වාහන ලැයිස්තුව (v_list) මෙතනදී සාදා ගනිමු
+   # 1. වාහන ලැයිස්තුව ලබා ගනිමු
     v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
-    
+
     with r1:
         st.subheader("Vehicle / Machine Settlement")
         
-        # වාහන ලැයිස්තුව තෝරාගැනීම
         selected_ve = st.selectbox("Select Vehicle to Settle", v_list, key="settle_ve")
         
-        if selected_ve:
-            # Filtered data ලබා ගැනීම
-            ve_records = df_f[df_f["Entity"] == selected_ve].copy()
+        if selected_ve and selected_ve != "N/A":
+            # 2. වාහනය පෙන්වන Column එක මොකක්ද කියලා බුද්ධිමත්ව සොයා ගනිමු
+            # 'Entity' නැත්නම් 'Vehicle' හෝ 'Vehicle_No' තියෙනවාද බලනවා
+            col_options = ['Entity', 'Vehicle', 'Vehicle_No', 'Machine', 'No']
+            target_col = next((c for c in col_options if c in df_f.columns), None)
             
-            if not ve_records.empty:
-                # Excavator එකක්ද කියා පරීක්ෂා කිරීම (නම අනුව)
-                is_excavator = any(x in selected_ve.upper() for x in ["EX", "PC", "EXCAVATOR"])
+            if target_col:
+                ve_records = df_f[df_f[target_col] == selected_ve].copy()
                 
-                # 1. Gross Earnings ගණනය කිරීම
-                if is_excavator:
-                    # Excavator නම් වැඩ කරපු මුළු වටිනාකම (Amount) ගන්නවා
-                    gross_earning = pd.to_numeric(ve_records['Amount'], errors='coerce').sum()
-                else:
-                    # Lorry නම් Rent එක නිසා Gross Earning පෙන්වන්නේ නැත
-                    gross_earning = 0.0
-                
-                # 2. Expenses ගණනය කිරීම
-                total_exp = pd.to_numeric(ve_records[ve_records["Type"] == "Expense"]["Amount"], errors='coerce').sum()
-                
-                # 3. Net Balance
-                net_balance = gross_earning - total_exp
-                
-                # Metrics පෙන්වීම
-                c1, c2, c3 = st.columns(3)
-                if is_excavator:
-                    c1.metric("Gross Earning (Work)", f"Rs. {gross_earning:,.2f}")
-                else:
-                    c1.metric("Gross Earning", "Rs. 0.00", delta="Rented Lorry", delta_color="off")
-                
-                c2.metric("Total Expenses", f"Rs. {total_exp:,.2f}")
-                c3.metric("Net Settlement", f"Rs. {net_balance:,.2f}")
-                
-                st.divider()
-
-                # --- PDF GENERATION SECTION ---
-                if st.button("📥 Download Settlement PDF"):
-                    summary_data = {
-                        "Vehicle/Machine": selected_ve,
-                        "Type": "Excavator (Own)" if is_excavator else "Lorry (Rented)",
-                        "Gross Earnings": f"Rs. {gross_earning:,.2f}",
-                        "Total Expenses": f"Rs. {total_exp:,.2f}",
-                        "Net Balance": f"Rs. {net_balance:,.2f}",
-                        "Period": f"{f_d} to {t_d}"
-                    }
+                if not ve_records.empty:
+                    # Excavator එකක්ද කියා පරීක්ෂා කිරීම
+                    is_excavator = any(x in selected_ve.upper() for x in ["EX", "PC", "EXCAVATOR"])
                     
-                    # PDF එක සෑදීම
-                    pdf_path = create_pdf("Settlement_Report", ve_records, summary_data)
+                    # Earnings සහ Expenses ගණනය කිරීම
+                    # Amount column එකේ නමත් check කරනවා (Spaces තිබුණොත් අයින් කරලා)
+                    df_f.columns = [c.strip() for c in df_f.columns]
                     
-                    with open(pdf_path, "rb") as f:
-                        st.download_button(
-                            label="📩 Click to Download PDF",
-                            data=f,
-                            file_name=f"{selected_ve}_Settlement_{f_d}.pdf",
-                            mime="application/pdf"
-                        )
+                    if is_excavator:
+                        gross_earning = pd.to_numeric(ve_records['Amount'], errors='coerce').sum()
+                    else:
+                        gross_earning = 0.0
+                    
+                    total_exp = pd.to_numeric(ve_records[ve_records["Type"] == "Expense"]["Amount"], errors='coerce').sum()
+                    net_balance = gross_earning - total_exp
+                    
+                    # Metrics
+                    c1, c2, c3 = st.columns(3)
+                    if is_excavator:
+                        c1.metric("Gross Earning (Work)", f"Rs. {gross_earning:,.2f}")
+                    else:
+                        c1.metric("Gross Earning", "Rs. 0.00", delta="Rented Lorry", delta_color="off")
+                    
+                    c2.metric("Total Expenses", f"Rs. {total_exp:,.2f}")
+                    c3.metric("Net Settlement", f"Rs. {net_balance:,.2f}")
+                    
+                    st.divider()
 
-                st.write(f"**Detailed Transaction Log for {selected_ve}:**")
-                # තියෙන columns පමණක් පෙන්වීමට ආරක්ෂිත ක්‍රමයක්
-                display_cols = ['Date', 'Category', 'Qty_Cubes', 'Work_Hours', 'Amount', 'Type']
-                safe_cols = [c for c in display_cols if c in ve_records.columns]
-                st.dataframe(ve_records[safe_cols], use_container_width=True)
+                    # PDF Download Button
+                    if st.button("📥 Download Settlement PDF"):
+                        summary_data = {
+                            "Vehicle/Machine": selected_ve,
+                            "Type": "Excavator (Own)" if is_excavator else "Lorry (Rented)",
+                            "Gross Earnings": f"Rs. {gross_earning:,.2f}",
+                            "Total Expenses": f"Rs. {total_exp:,.2f}",
+                            "Net Balance": f"Rs. {net_balance:,.2f}",
+                            "Period": f"{f_d} to {t_d}"
+                        }
+                        pdf_path = create_pdf("Settlement_Report", ve_records, summary_data)
+                        with open(pdf_path, "rb") as f:
+                            st.download_button("📩 Download PDF", f, file_name=f"{selected_ve}_Settlement.pdf")
+
+                    st.write(f"**Detailed Transaction Log for {selected_ve}:**")
+                    display_cols = ['Date', 'Category', 'Qty_Cubes', 'Work_Hours', 'Amount', 'Type']
+                    safe_cols = [c for c in display_cols if c in ve_records.columns]
+                    st.dataframe(ve_records[safe_cols], use_container_width=True)
+                else:
+                    st.info(f"No records found for {selected_ve} in the selected period.")
             else:
-                st.info(f"No records found for {selected_ve} in the selected period.")
+                st.error("Could not find a 'Vehicle' or 'Entity' column in your data records.")
 
     # --- TAB 2: DRIVER SUMMARY ---
     with r2:
