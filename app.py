@@ -125,13 +125,14 @@ menu = st.sidebar.selectbox("MAIN MENU", ["📊 Dashboard", "🏗️ Site Operat
 
 # --- 1. DASHBOARD SECTION ---
 # --- 1. DASHBOARD SECTION (UPDATED) ---
+# --- 1. DASHBOARD SECTION (සම්පූර්ණ එකම මෙතන තියෙනවා) ---
 if menu == "📊 Dashboard":
     st.markdown("<h2 style='color: #2E86C1;'>📊 Business Overview</h2>", unsafe_allow_html=True)
     df = st.session_state.df.copy()
     
     if not df.empty:
         # --- DATE FILTER ---
-        st.subheader("📅 Filter by Date")
+        st.subheader("📅 Filter Transactions")
         col_f1, col_f2 = st.columns(2)
         with col_f1:
             start_date = st.date_input("From Date", datetime.now().date() - timedelta(days=7))
@@ -143,51 +144,47 @@ if menu == "📊 Dashboard":
         filtered_df = df.loc[mask].copy()
 
         if not filtered_df.empty:
-            # --- 1. ඇත්තම ආදායම (Sales Only) ---
-            # සල්ලි අතට ලැබෙන්නේ විකුණපුවාම විතරයි
+            # --- FINANCIAL METRICS ---
             sales_df = filtered_df[filtered_df["Category"].str.contains("Sales Out", na=False)].copy()
             sales_df['Income'] = pd.to_numeric(sales_df['Qty_Cubes'], errors='coerce').fillna(0) * \
                                  pd.to_numeric(sales_df['Rate_At_Time'], errors='coerce').fillna(0)
             real_income = sales_df['Income'].sum()
-
-            # --- 2. අභ්‍යන්තර වැඩ (Internal Work Log - Not Earning) ---
-            # ලොරි සහ බැකෝ වැඩ කළ වටිනාකම (මේක Income එකට එකතු කරන්නේ නැහැ)
-            work_df = filtered_df[filtered_df["Category"].str.contains("Work Log", na=False)].copy()
-            work_val = (pd.to_numeric(work_df['Qty_Cubes'], errors='coerce').fillna(0) + 
-                        pd.to_numeric(work_df['Hours'], errors='coerce').fillna(0)) * \
-                        pd.to_numeric(work_df['Rate_At_Time'], errors='coerce').fillna(0)
-            total_work_done = work_val.sum()
-
-            # --- 3. වියදම් (Expenses) ---
             total_expenses = pd.to_numeric(filtered_df[filtered_df["Type"] == "Expense"]["Amount"], errors='coerce').sum()
 
-            # --- 4. METRICS පෙන්වීම ---
-            m1, m2, m3, m4 = st.columns(4)
-            # පළවෙනි 3 සල්ලි ගැන
+            m1, m2, m3 = st.columns(3)
             m1.metric("Net Sales Income", f"Rs. {real_income:,.2f}")
             m2.metric("Total Expenses", f"Rs. {total_expenses:,.2f}")
             m3.metric("Net Cashflow", f"Rs. {real_income - total_expenses:,.2f}")
-            # 4 වෙනි එක ප්ලාන්ට් එකේ වැඩ නිම කළ වටිනාකම (Earning නොවේ)
-            m4.metric("Internal Work Value", f"Rs. {total_work_done:,.2f}")
 
-            st.warning("⚠️ 'Internal Work Value' යනු ලොරි/බැකෝ ප්ලාන්ට් එක ඇතුළේ කළ වැඩ වල වටිනාකමයි. මෙය ඔබගේ අතට ලැබෙන සැබෑ මුදල (Cashflow) ලෙස ගණන් නොගැනේ.")
-            
             st.divider()
-            
 
-            # --- 5. STOCK BALANCE (PLANT) ---
+            # ==========================================
+            # 📦 STOCK BALANCE (අපි අන්තිමට හදපු කොටස)
+            # ==========================================
             st.subheader("📦 Plant Stock Balance (Current)")
             s_col1, s_col2 = st.columns(2)
-            sand_in = df[df["Category"].str.contains("Stock Inward \(Sand\)", na=False)]["Qty_Cubes"].sum()
-            sand_out = df[df["Category"].str.contains("Sales Out \(Sand\)", na=False)]["Qty_Cubes"].sum()
-            soil_in = df[df["Category"].str.contains("Stock Inward \(Soil\)", na=False)]["Qty_Cubes"].sum()
-            soil_out = df[df["Category"].str.contains("Sales Out \(Soil\)", na=False)]["Qty_Cubes"].sum()
+            
+            # මුළු ඉතිහාසයම පරීක්ෂා කර stock එක ගණනය කිරීම
+            full_df = st.session_state.df.copy()
+            
+            # Sand Calculation
+            s_in = full_df[full_df["Category"].str.contains("Stock Inward", na=False) & 
+                           full_df["Category"].str.contains("Sand", na=False)]["Qty_Cubes"].sum()
+            s_out = full_df[full_df["Category"].str.contains("Sales Out", na=False) & 
+                            full_df["Category"].str.contains("Sand", na=False)]["Qty_Cubes"].sum()
+            
+            # Soil Calculation
+            so_in = full_df[full_df["Category"].str.contains("Stock Inward", na=False) & 
+                            full_df["Category"].str.contains("Soil", na=False)]["Qty_Cubes"].sum()
+            so_out = full_df[full_df["Category"].str.contains("Sales Out", na=False) & 
+                             full_df["Category"].str.contains("Soil", na=False)]["Qty_Cubes"].sum()
 
-            s_col1.metric("Sand Remaining", f"{sand_in - sand_out:.2f} Cubes")
-            s_col2.metric("Soil Remaining", f"{soil_in - soil_out:.2f} Cubes")
+            s_col1.metric("Sand Remaining", f"{s_in - s_out:.2f} Cubes", delta=f"In: {s_in} | Out: {s_out}")
+            s_col2.metric("Soil Remaining", f"{so_in - so_out:.2f} Cubes", delta=f"In: {so_in} | Out: {so_out}")
+            # ==========================================
 
             st.divider()
-            st.subheader("Daily Income Trend (Sales Only)")
+            st.subheader("Daily Income Trend")
             st.line_chart(sales_df.groupby('Date')['Income'].sum())
         else:
             st.warning("තෝරාගත් දින පරාසය තුළ දත්ත නැත.")
