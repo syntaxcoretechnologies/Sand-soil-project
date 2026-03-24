@@ -121,6 +121,7 @@ st.set_page_config(page_title=SHOP_NAME, layout="wide")
 st.sidebar.title("🏗️ KSD ERP v5.6")
 # Part 01 අන්තිමට තියෙන menu එක මේකට replace කරන්න
 # --- 5. SIDEBAR MENU ---
+# 1. මෙනු එක තෝරාගැනීම
 menu = st.sidebar.selectbox("MAIN MENU", [
     "📊 Dashboard", 
     "🏗️ Site Operations", 
@@ -129,6 +130,35 @@ menu = st.sidebar.selectbox("MAIN MENU", [
     "📑 Reports Center", 
     "⚙️ Data Manager"
 ])
+
+# 2. ප්‍රධාන Logic එක (මෙතන හිස්තැන් ගොඩක් වැදගත්!)
+
+if menu == "📊 Dashboard":
+    # Dashboard එකට අදාළ code එක මෙතන (ටිකක් ඇතුළට වෙන්න)
+    st.subheader("Dashboard Overview")
+    # ... Dashboard Code ...
+
+elif menu == "🏗️ Site Operations":
+    # Site Operations එකට අදාළ code එක මෙතන (Dashboard එකට කෙලින්ම යටින්)
+    st.subheader("Site Operations")
+    # ... Site Operations Code ...
+
+elif menu == "💰 Finance & Shed":
+    # Finance එකට අදාළ code එක මෙතන
+    st.subheader("Finance & Shed Management")
+    # ... Finance Code ...
+
+elif menu == "⚙️ System Setup":
+    # Setup code එක මෙතන
+    # ... Setup Code ...
+
+elif menu == "📑 Reports Center":
+    # Reports code එක මෙතන
+    # ... Reports Code ...
+
+elif menu == "⚙️ Data Manager":
+    # Data Manager code එක මෙතන
+    # ... Data Manager Code ...
 
 # --- 6. MAIN LOGIC (මෙතන ඉඳන් තමයි if/elif පටන් ගන්නේ) ---
 
