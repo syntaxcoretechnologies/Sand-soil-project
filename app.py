@@ -121,7 +121,6 @@ st.set_page_config(page_title=SHOP_NAME, layout="wide")
 st.sidebar.title("🏗️ KSD ERP v5.6")
 # Part 01 අන්තිමට තියෙන menu එක මේකට replace කරන්න
 # --- 5. SIDEBAR MENU ---
-# 1. මෙනු එක තෝරාගැනීම
 menu = st.sidebar.selectbox("MAIN MENU", [
     "📊 Dashboard", 
     "🏗️ Site Operations", 
@@ -131,68 +130,80 @@ menu = st.sidebar.selectbox("MAIN MENU", [
     "⚙️ Data Manager"
 ])
 
-# 2. ප්‍රධාන Logic එක (මෙතන හිස්තැන් ගොඩක් වැදගත්!)
+# --- 6. MAIN LOGIC ---
 
+# 1. DASHBOARD
 if menu == "📊 Dashboard":
-    # Dashboard එකට අදාළ code එක මෙතන (ටිකක් ඇතුළට වෙන්න)
-    st.subheader("Dashboard Overview")
-    # ... Dashboard Code ...
-
-elif menu == "🏗️ Site Operations":
-    # Site Operations එකට අදාළ code එක මෙතන (Dashboard එකට කෙලින්ම යටින්)
-    st.subheader("Site Operations")
-    # ... Site Operations Code ...
-
-elif menu == "💰 Finance & Shed":
-    # Finance එකට අදාළ code එක මෙතන
-    st.subheader("Finance & Shed Management")
-    # ... Finance Code ...
-
-elif menu == "⚙️ System Setup":
-    # Setup code එක මෙතන
-    # ... Setup Code ...
-
-elif menu == "📑 Reports Center":
-    # Reports code එක මෙතන
-    # ... Reports Code ...
-
-elif menu == "⚙️ Data Manager":
-    # Data Manager code එක මෙතන
-    # ... Data Manager Code ...
-
-# --- 6. MAIN LOGIC (මෙතන ඉඳන් තමයි if/elif පටන් ගන්නේ) ---
-
-if menu == "📊 Dashboard":
-    st.markdown(f"<h2 style='color: #2E86C1;'>📊 Business Overview</h2>", unsafe_allow_html=True)
-    
+    st.markdown("<h2 style='color: #2E86C1;'>📊 Business Overview</h2>", unsafe_allow_html=True)
     if st.session_state.df.empty:
-        st.warning("No data found. Please add records in Site Operations or Finance.")
+        st.warning("දත්ත ඇතුළත් කර නැත. කරුණාකර Site Operations වෙත යන්න.")
     else:
         df = st.session_state.df.copy()
-        # Income ගණනය කිරීම
         df['Calculated_Income'] = (df['Qty_Cubes'] + df['Hours']) * df['Rate_At_Time']
         
-        total_income = df['Calculated_Income'].sum()
-        total_expense = df[df['Type'] == 'Expense']['Amount'].sum()
-        net_profit = total_income - total_expense
+        t_inc = df['Calculated_Income'].sum()
+        t_exp = df[df['Type'] == 'Expense']['Amount'].sum()
+        net = t_inc - t_exp
         
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Total Income", f"Rs. {total_income:,.2f}")
-        m2.metric("Total Expenses", f"Rs. {total_expense:,.2f}")
-        m3.metric("Net Profit", f"Rs. {net_profit:,.2f}")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Total Income", f"Rs. {t_inc:,.2f}")
+        c2.metric("Total Expenses", f"Rs. {t_exp:,.2f}")
+        c3.metric("Net Profit", f"Rs. {net:,.2f}")
         
         st.divider()
         st.subheader("Recent Activity")
         st.dataframe(df.sort_values(by="ID", ascending=False).head(10), use_container_width=True)
 
-# මීළඟට එන හැම එකක්ම 'elif' විය යුතුයි
+# 2. SITE OPERATIONS
 elif menu == "🏗️ Site Operations":
-    # (කලින් දුන්න Site Operations code එක මෙතනට එනවා)
-    pass 
+    st.markdown("<h2 style='color: #E67E22;'>🏗️ Site Operations</h2>", unsafe_allow_html=True)
+    op = st.radio("Select Activity Type", ["🚛 Lorry Work Log", "🚜 Excavator Work Log", "💰 Sales Out"], horizontal=True)
+    v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
+    
+    with st.form("site_f", clear_on_submit=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            v = st.selectbox("Select Vehicle", v_list)
+            d = st.date_input("Date", datetime.now().date())
+            material = st.selectbox("Material (Only for Sales)", ["Sand", "Soil", "Other"]) if op == "💰 Sales Out" else ""
+        with col2:
+            val_label = "Qty (Cubes)" if "Lorry" in op or "Sales" in op else "Work Hours"
+            val = st.number_input(val_label, min_value=0.0, step=0.5, value=0.0)
+            r = st.number_input("Enter Rate (LKR)", min_value=0.0, step=100.0, value=0.0)
+        
+        n = st.text_input("Note")
+        if st.form_submit_button("📥 Save Record"):
+            if v == "N/A": st.error("Add vehicle in Setup!")
+            elif val <= 0 or r <= 0: st.error("Enter valid Qty and Rate!")
+            else:
+                cat = f"{op} ({material})" if material else op
+                q, h = (val, 0) if "Lorry" in op or "Sales" in op else (0, val)
+                new_row = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Process", cat, v, n, 0, q, 0, h, r, "Done"]], columns=st.session_state.df.columns)
+                st.session_state.df = pd.concat([st.session_state.df, new_row], ignore_index=True)
+                save_all()
+                st.success("Saved!")
+                st.rerun()
 
+# 3. FINANCE & SHED
 elif menu == "💰 Finance & Shed":
-    # (Finance code එක මෙතනට)
-    pass
+    st.subheader("Finance & Shed Management")
+    st.info("මෙහිදී ඉන්ධන, වැටුප් සහ නඩත්තු වියදම් ඇතුළත් කරන්න.")
+    # දැනට තිබෙන Finance code එක මෙතනට දාන්න
+
+# 4. SYSTEM SETUP
+elif menu == "⚙️ System Setup":
+    st.subheader("System Setup")
+    # මෙතන Vehicles/Drivers add කරන code එක තියෙන්න ඕනේ
+
+# 5. REPORTS CENTER
+elif menu == "📑 Reports Center":
+    st.subheader("Reports Center")
+    # මෙතන අපි කලින් හදපු රේට් එකත් එක්ක එන Report code එක දාන්න
+
+# 6. DATA MANAGER
+elif menu == "⚙️ Data Manager":
+    st.subheader("Data Manager")
+    # මෙතන Edit/Delete code එක දාන්න
 # --- 7. SITE OPERATIONS (v57 FULL FIX) ---
 elif menu == "🏗️ Site Operations":
     st.markdown(f"<h2 style='color: #E67E22;'>🏗️ Site Operations</h2>", unsafe_allow_html=True)
