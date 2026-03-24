@@ -318,7 +318,7 @@ elif menu == "📑 Reports Center":
     df_raw['Date'] = pd.to_datetime(df_raw['Date']).dt.date
 
     # 1. ටැබ් ටික හදනවා
-r_inc, r_gross, r1, r_drv, r_land, r_log = st.tabs([
+    r_inc, r_gross, r1, r_drv, r_land, r_log = st.tabs([
     "💰 Income", "📊 P&L", "🚜 Vehicle Settlement", "👷 Driver Summary", "🏡 Landowner Report", "📑 Daily Log"
 ])
     
