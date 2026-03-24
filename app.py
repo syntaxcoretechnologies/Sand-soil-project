@@ -212,27 +212,27 @@ elif menu == "💰 Finance & Shed":
     if fin == "⛽ Fuel & Shed":
         f1, f2 = st.tabs(["⛽ Log Fuel Bill", "💳 Settle Shed Payments"])
         with f1:
-            with st.form("fuel"):
+            with st.form("fuel", clear_on_submit=True):
                 d, v, l, c = st.date_input("Date"), st.selectbox("Vehicle", v_list), st.number_input("Liters"), st.number_input("Cost")
                 if st.form_submit_button("Save Fuel"):
                     new = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Expense", "Fuel Entry", v, "Shed bill", c, 0, l, 0, 0, "Pending"]], columns=st.session_state.df.columns)
                     st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
         with f2:
-            with st.form("shed_pay"):
+            with st.form("shed_pay", clear_on_submit=True):
                 am, ref = st.number_input("Amount Paid"), st.text_input("Reference")
                 if st.form_submit_button("Record Payment"):
                     new = pd.DataFrame([[len(st.session_state.df)+1, datetime.now().date(), "", "Expense", "Shed Payment", "Shed", ref, am, 0, 0, 0, 0, "Paid"]], columns=st.session_state.df.columns)
                     st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
 
     elif fin == "🔧 Repairs":
-        with st.form("rep"):
+        with st.form("rep", clear_on_submit=True):
             d, v, am, nt = st.date_input("Date"), st.selectbox("Vehicle", v_list), st.number_input("Cost"), st.text_input("Detail")
             if st.form_submit_button("Save Repair"):
                 new = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Expense", "Repair", v, nt, am, 0, 0, 0, 0, "Paid"]], columns=st.session_state.df.columns)
                 st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
 
     elif fin == "💸 Payroll":
-        with st.form("pay"):
+        with st.form("pay", clear_on_submit=True):
             dr = st.selectbox("Driver", st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else ["N/A"])
             am, ty, v_rel = st.number_input("Amount"), st.selectbox("Type", ["Driver Advance", "Salary"]), st.selectbox("Vehicle", v_list)
             if st.form_submit_button("Save Payroll"):
@@ -240,7 +240,7 @@ elif menu == "💰 Finance & Shed":
                 st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
 
     elif fin == "🏦 Owner Advances":
-        with st.form("own_adv"):
+        with st.form("own_adv", clear_on_submit=True):
             d, v, am, nt = st.date_input("Date"), st.selectbox("Vehicle", v_list), st.number_input("Amount"), st.text_input("Note")
             if st.form_submit_button("Save Advance"):
                 new = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Expense", "Owner Advance", v, nt, am, 0, 0, 0, 0, "Paid"]], columns=st.session_state.df.columns)
@@ -257,13 +257,13 @@ elif menu == "💰 Finance & Shed":
 elif menu == "⚙️ System Setup":
     t1, t2 = st.tabs(["👷 Drivers", "🚜 Vehicles"])
     with t1:
-        with st.form("dr"):
+        with st.form("dr", clear_on_submit=True):
             n, p, s = st.text_input("Name"), st.text_input("Phone"), st.number_input("Salary")
             if st.form_submit_button("Add Driver"):
                 st.session_state.dr_db = pd.concat([st.session_state.dr_db, pd.DataFrame([[n,p,s]], columns=st.session_state.dr_db.columns)], ignore_index=True); save_all(); st.rerun()
         st.table(st.session_state.dr_db)
     with t2:
-        with st.form("ve"):
+        with st.form("ve", clear_on_submit=True):
             v, t, r, o = st.text_input("No"), st.selectbox("Type", ["Lorry", "Excavator"]), st.number_input("Rate"), st.text_input("Owner")
             if st.form_submit_button("Add Vehicle"):
                 st.session_state.ve_db = pd.concat([st.session_state.ve_db, pd.DataFrame([[v,t,o,r]], columns=st.session_state.ve_db.columns)], ignore_index=True); save_all(); st.rerun()
