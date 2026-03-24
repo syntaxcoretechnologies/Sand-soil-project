@@ -517,8 +517,8 @@ elif menu == "📑 Reports Center":
             else:
                 st.info(f"No records found for {selected_ve} in the selected period.")
                 
-                    pdf_path = create_pdf("Report", v_rep, summary_data)
-                    with open(pdf_path, "rb") as f:
+                  pdf_path = create_pdf("Report", v_rep, summary_data)
+                  with open(pdf_path, "rb") as f:
                         st.download_button("📩 Click to Download PDF", f, file_name=pdf_path)
             else: st.warning("දත්ත නැත.")
 
