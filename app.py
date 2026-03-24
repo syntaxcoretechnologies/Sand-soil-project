@@ -56,22 +56,37 @@ def create_pdf(title, data_df, summary_dict):
     pdf.cell(0, 10, safe_text(f"STATEMENT: {title.upper()}"), 1, 1, 'L', fill=True)
     pdf.ln(2)
     
-    # --- Summary Section (Multi-Vehicle Support) ---
+    # --- Summary Section (Basic Info) ---
     pdf.set_font("Arial", 'B', 10)
     for k, v in summary_dict.items():
-        clean_v = str(v).replace("Rs.", "LKR")
-        pdf.cell(50, 8, safe_text(k) + ":", 1)
-        pdf.set_font("Arial", '', 10)
-        pdf.cell(0, 8, " " + safe_text(clean_v), 1, 1)
-        pdf.set_font("Arial", 'B', 10)
+        if k not in ["Rate_Breakdown"]: # Rate breakdown එක summary එකේ යටින් දාමු
+            clean_v = str(v).replace("Rs.", "LKR")
+            pdf.cell(50, 8, safe_text(k) + ":", 1)
+            pdf.set_font("Arial", '', 10)
+            pdf.cell(0, 8, " " + safe_text(clean_v), 1, 1)
+            pdf.set_font("Arial", 'B', 10)
     
+    # --- අලුත් කොටස: Rate-wise Breakdown ---
+    if "Rate_Breakdown" in summary_dict:
+        pdf.ln(5)
+        pdf.set_font("Arial", 'B', 11)
+        pdf.cell(0, 8, "Earnings Breakdown (By Rate):", 0, 1)
+        pdf.set_font("Arial", 'B', 9)
+        pdf.cell(40, 8, "Rate (LKR)", 1, 0, 'C', fill=True)
+        pdf.cell(40, 8, "Qty/Hrs", 1, 0, 'C', fill=True)
+        pdf.cell(50, 8, "Sub-Total (LKR)", 1, 1, 'C', fill=True)
+        pdf.set_font("Arial", '', 9)
+        for rb in summary_dict["Rate_Breakdown"]:
+            pdf.cell(40, 7, f"{rb['rate']:,.2f}", 1, 0, 'R')
+            pdf.cell(40, 7, f"{rb['qty']}", 1, 0, 'C')
+            pdf.cell(50, 7, f"{rb['subtotal']:,.2f}", 1, 1, 'R')
+
     pdf.ln(8)
     
-    # --- Table Header ---
+    # --- Main Transaction Table ---
     pdf.set_font("Arial", 'B', 9)
-    # මෙතන "Category" වෙනුවට "Work Type" කියලා දැම්මා Lorry/Excavator වෙන් කරලා පේන්න
-    headers = ["Date", "Work Type", "Note", "Qty/Hrs", "Amount"]
-    w = [25, 40, 60, 25, 40]
+    headers = ["Date", "Category", "Note", "Rate", "Amount"] # Rate එකත් table එකට දැම්මා
+    w = [25, 35, 60, 30, 40]
     for i, h in enumerate(headers):
         pdf.cell(w[i], 8, safe_text(h), 1, 0, 'C', fill=True)
     pdf.ln()
@@ -80,20 +95,12 @@ def create_pdf(title, data_df, summary_dict):
     total_exp = 0
     for _, row in data_df.iterrows():
         pdf.cell(w[0], 7, safe_text(row['Date']), 1)
-        
-        # Category එකේ Lorry Log ද Excavator Log ද කියලා පෙන්වනවා
         pdf.cell(w[1], 7, safe_text(row['Category']), 1)
+        pdf.cell(w[2], 7, safe_text(row['Note'])[:35], 1)
         
-        clean_note = safe_text(row['Note'])[:35]
-        pdf.cell(w[2], 7, clean_note, 1)
-        
-        # Qty හෝ Hours තෝරා ගැනීම
-        val_display = ""
-        if row['Qty_Cubes'] > 0: val_display = f"{row['Qty_Cubes']} Cubes"
-        elif row['Hours'] > 0: val_display = f"{row['Hours']} Hrs"
-        else: val_display = "-"
-        
-        pdf.cell(w[3], 7, safe_text(val_display), 1, 0, 'C')
+        # Rate එක පෙන්වනවා (වැඩක් නම් පමණක්)
+        rate_val = f"{row['Rate_At_Time']:,.2f}" if row['Rate_At_Time'] > 0 else "-"
+        pdf.cell(w[3], 7, safe_text(rate_val), 1, 0, 'R')
         
         amt = float(row['Amount']) if row['Type'] == "Expense" else 0.0
         total_exp += amt
@@ -214,12 +221,21 @@ elif menu == "📑 Reports Center":
         if sel_ve:
             v_rep = df_f[df_f["Entity"] == sel_ve].copy()
             if not v_rep.empty:
-                # Lorry වැඩ සහ Excavator වැඩ වෙන වෙනම ගණනය කිරීම
-                total_cubes = v_rep['Qty_Cubes'].sum()
-                total_hours = v_rep['Hours'].sum()
-                
-                # Income එක හදන්නේ දවසට අදාළ Rate එකෙන්
+                # Rate එක අනුව Group කරලා විස්තර ගැනීම
                 v_rep['Income_Calc'] = (v_rep['Hours'] + v_rep['Qty_Cubes']) * v_rep['Rate_At_Time']
+                
+                # Rate Breakdown හදනවා
+                rate_group = v_rep[v_rep['Rate_At_Time'] > 0].groupby('Rate_At_Time').agg({
+                    'Qty_Cubes': 'sum',
+                    'Hours': 'sum',
+                    'Income_Calc': 'sum'
+                }).reset_index()
+                
+                rate_list = []
+                for _, rb in rate_group.iterrows():
+                    qty = rb['Qty_Cubes'] if rb['Qty_Cubes'] > 0 else rb['Hours']
+                    rate_list.append({'rate': rb['Rate_At_Time'], 'qty': qty, 'subtotal': rb['Income_Calc']})
+
                 gross = v_rep['Income_Calc'].sum()
                 deduct = v_rep[v_rep["Type"] == "Expense"]["Amount"].sum()
                 net = gross - deduct
@@ -227,15 +243,13 @@ elif menu == "📑 Reports Center":
                 st.metric("Net Balance", f"Rs. {net:,.2f}")
                 st.dataframe(v_rep)
                 
-                if st.button("Download Full Settlement PDF"):
-                    # Summary එකට ලොරියේ Cubes සහ Excavator එකේ Hours දෙකම දානවා
+                if st.button("Download PDF with Rate Breakdown"):
                     summary = {
                         "Vehicle No": sel_ve,
-                        "Total Lorry Cubes": f"{total_cubes} Cubes",
-                        "Total Excavator Hours": f"{total_hours} Hrs",
                         "Gross Earnings": f"{gross:,.2f}",
                         "Total Expenses": f"{deduct:,.2f}",
-                        "Net Settlement": f"{net:,.2f}"
+                        "Net Settlement": f"{net:,.2f}",
+                        "Rate_Breakdown": rate_list # මේක තමයි අලුත් list එක
                     }
                     fn = create_pdf(f"Settlement_{sel_ve}", v_rep, summary)
                     with open(fn, "rb") as f: st.download_button("📩 Download PDF", f, file_name=fn)
