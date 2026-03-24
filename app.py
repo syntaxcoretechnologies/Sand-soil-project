@@ -321,16 +321,17 @@ elif menu == "📑 Reports Center":
    # මෙන්න මේ පේළිය විතරක් replace කරන්න:
     # --- Tabs Definition (මෙන්න මේ කොටස replace කරන්න) ---
     tabs_list = [
-        "💰 Income", 
+        "💰 Daily Income", 
         "📊 Profit & Loss", 
-        "📊 P&L Old", 
+        "📈 Material Gross", 
         "🚜 Vehicle Settlement", 
         "👷 Driver Summary", 
         "🏡 Landowner Report", 
-        "📑 Daily Log"
+        "📑 Daily Log",
+        "⛽ Shed Report"
     ]
     
-    r_inc, r_prof, r_gross, r1, r_drv, r_land, r_log = st.tabs(tabs_list)
+    r_inc, r_prof, r_gross, r1, r2, r_land, r3, r4 = st.tabs(tabs_list)
     
     # 2. Date Filter එක
     col_d1, col_d2 = st.columns(2)
