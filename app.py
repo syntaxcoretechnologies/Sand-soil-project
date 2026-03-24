@@ -535,9 +535,17 @@ elif menu == "📑 Reports Center":
 
 # --- 10. SYSTEM SETUP (මේ කොටස අලුතින් ඇතුළත් කරන්න) ---
 elif menu == "⚙️ Settings & Setup":
-        st.title("System Setup & Configuration")
+        st.title("⚙️ System Setup & Configuration")
         
-        # ටැබ්ස් 3ක් හදමු ලස්සනට වෙන් කරලා පේන්න
+        # Session state එකේ ලිස්ට් ටික නැත්නම් හිස්ව හදාගමු (Error නොවෙන්න)
+        if "drivers" not in st.session_state:
+            st.session_state.drivers = []
+        if "landowners" not in st.session_state:
+            st.session_state.landowners = []
+        if "ve_db" not in st.session_state:
+            st.session_state.ve_db = pd.DataFrame(columns=["No", "Type", "Owner"])
+
+        # Tabs 3ක් ලස්සනට වෙන් කරමු
         tab_v, tab_d, tab_l = st.tabs(["🚜 Vehicles", "👷 Drivers", "🏡 Landowners"])
 
         # --- TAB 1: VEHICLE REGISTRATION ---
@@ -552,12 +560,13 @@ elif menu == "⚙️ Settings & Setup":
                     if v_no:
                         new_ve = pd.DataFrame([{"No": v_no, "Type": v_type, "Owner": v_owner}])
                         st.session_state.ve_db = pd.concat([st.session_state.ve_db, new_ve], ignore_index=True)
-                        save_data(VE_FILE, st.session_state.ve_db)
+                        save_data(VE_FILE, st.session_state.ve_db) # CSV එකටත් save කරමු
                         st.success(f"Vehicle {v_no} added!")
+                        st.rerun() # Page එක refresh කරන්න
                     else:
                         st.error("Enter vehicle number.")
 
-        # --- TAB 2: DRIVER REGISTRATION (අලුතින් එකතු කළ කොටස) ---
+        # --- TAB 2: DRIVER REGISTRATION ---
         with tab_d:
             st.subheader("Register New Driver / Operator")
             with st.form("driver_form", clear_on_submit=True):
@@ -567,13 +576,11 @@ elif menu == "⚙️ Settings & Setup":
                 
                 if st.form_submit_button("Register Driver"):
                     if d_name:
-                        if "drivers" not in st.session_state:
-                            st.session_state.drivers = []
-                        
                         new_driver = {"Name": d_name, "NIC": d_nic, "Phone": d_phone}
                         st.session_state.drivers.append(new_driver)
-                        # මෙතනදීත් ඔයාට පුළුවන් DRIVER_FILE එකකට save කරන්න පස්සේ කාලෙක
-                        st.success(f"Driver {d_name} registered successfully!")
+                        # මෙතනදී ඔයාට පුළුවන් මේකත් CSV එකකට save කරන්න පස්සේ
+                        st.success(f"Driver {d_name} registered!")
+                        st.rerun()
                     else:
                         st.error("Please enter driver name.")
 
@@ -587,29 +594,32 @@ elif menu == "⚙️ Settings & Setup":
                 
                 if st.form_submit_button("Add Landowner"):
                     if l_name:
-                        if "landowners" not in st.session_state:
-                            st.session_state.landowners = []
                         st.session_state.landowners.append({"Name": l_name, "Contact": l_contact, "Location": l_location})
                         st.success(f"Landowner {l_name} added!")
+                        st.rerun()
                     else:
                         st.error("Enter landowner name.")
 
         st.divider()
 
-        # --- Display Summary Tables ---
-        st.write("### Current System Data")
+        # --- පද්ධතියේ දැනට තියෙන දත්ත ටික පෙන්වීම ---
+        st.write("### Current System Records")
         c1, c2, c3 = st.columns(3)
         with c1:
-            st.write("**Vehicles**")
+            st.write("**Registered Vehicles**")
             st.dataframe(st.session_state.ve_db[["No", "Type"]], use_container_width=True)
         with c2:
-            st.write("**Drivers**")
-            if "drivers" in st.session_state and st.session_state.drivers:
+            st.write("**Registered Drivers**")
+            if st.session_state.drivers:
                 st.dataframe(pd.DataFrame(st.session_state.drivers)[["Name", "Phone"]], use_container_width=True)
+            else:
+                st.info("No drivers yet.")
         with c3:
-            st.write("**Landowners**")
-            if "landowners" in st.session_state and st.session_state.landowners:
+            st.write("**Registered Landowners**")
+            if st.session_state.landowners:
                 st.dataframe(pd.DataFrame(st.session_state.landowners)[["Name", "Location"]], use_container_width=True)
+            else:
+                st.info("No landowners yet.")
 
 
 # --- 11. DATA MANAGER (EDIT / DELETE) ---
