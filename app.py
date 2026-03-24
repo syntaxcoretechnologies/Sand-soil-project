@@ -225,7 +225,7 @@ elif menu == "🏗️ Site Operations":
             
         n = st.text_input("Additional Note")
         
-        if st.form_submit_button("📥 Save Record"):
+       if st.form_submit_button("📥 Save Record"):
             if val <= 0: 
                 st.error(f"Enter valid {val_label}!")
             elif r <= 0:
@@ -234,16 +234,20 @@ elif menu == "🏗️ Site Operations":
                 record_type = "Inward" if op == "📥 Stock Inward (To Plant)" else "Process"
                 cat = f"{op} ({material})" if material else op
                 
+                # --- අලුත් ලොජික් එක: මුළු මුදල ගණනය කිරීම (Qty * Rate) ---
+                calculated_amount = val * r
+                
                 # Excavator නම් Hours වලටත්, අනෙක්වා Qty_Cubes වලටත් දත්ත වෙන් කරනවා
                 q, h = (0, val) if "Excavator" in op else (val, 0)
                 
+                # Amount තීරුවට 0 වෙනුවට calculated_amount එක එකතු කරනවා
                 new_row = pd.DataFrame([[
-                    len(st.session_state.df)+1, d, "", record_type, cat, v, n, 0, q, 0, h, r, "Done"
+                    len(st.session_state.df)+1, d, "", record_type, cat, v, n, calculated_amount, q, 0, h, r, "Done"
                 ]], columns=st.session_state.df.columns)
                 
                 st.session_state.df = pd.concat([st.session_state.df, new_row], ignore_index=True)
                 save_all()
-                st.success(f"Successfully recorded {op}!")
+                st.success(f"Successfully recorded {op} | Total Value: Rs.{calculated_amount:,.2f}")
                 st.rerun()
     
     
