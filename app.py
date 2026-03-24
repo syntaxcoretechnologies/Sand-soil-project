@@ -154,7 +154,8 @@ elif menu == "🏗️ Site Operations":
             if op == "💰 Sales Out":
                 material = st.selectbox("Material Type", ["Sand", "Soil", "Other"])
         
-        with col2:
+       with col2:
+            # වර්ගය අනුව label එක තෝරනවා
             if "Lorry" in op:
                 val_label = "Qty (Cubes)"
                 unit = "Cubes"
@@ -165,8 +166,11 @@ elif menu == "🏗️ Site Operations":
                 val_label = f"Sales Qty ({material})"
                 unit = "Cubes/Units"
                 
-            val = st.number_input(val_label, min_value=0.0, step=0.5)
-            r = st.number_input(f"Rate per {unit}", value=float(def_r))
+            # මෙතන default අගයන් 0.0 විදියට දෙනවා, එතකොට ඔයාට අලුතින්ම type කරන්න වෙනවා
+            val = st.number_input(val_label, min_value=0.0, step=0.5, value=0.0)
+            
+            # Rate එකත් 0.0 විදියට හිස්ව (Default නැතුව) එනවා
+            r = st.number_input(f"Enter Rate per {unit}", min_value=0.0, step=100.0, value=0.0)
         
         # Note එකට material එකත් auto එකතු කරනවා ලේසියට
         final_note = st.text_input("Additional Note")
