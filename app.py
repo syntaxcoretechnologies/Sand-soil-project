@@ -132,7 +132,7 @@ if menu == "📊 Dashboard":
         m3.metric("Net Cashflow", f"Rs. {ti-te:,.2f}"); m4.metric("Shed Debt", f"Rs. {f_debt:,.2f}")
         st.divider(); st.area_chart(df.groupby(['Date', 'Type'])['Amount'].sum().unstack().fillna(0))
 
-# --- 7. SITE OPERATIONS (FIXED) ---
+# --- 7. SITE OPERATIONS (v57 FULL FIX) ---
 elif menu == "🏗️ Site Operations":
     st.markdown(f"<h2 style='color: #E67E22;'>🏗️ Site Operations</h2>", unsafe_allow_html=True)
     
@@ -140,21 +140,18 @@ elif menu == "🏗️ Site Operations":
     
     v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
     
-    # clear_on_submit එක මෙතන තියෙනවා
     with st.form("site_f", clear_on_submit=True):
         col1, col2 = st.columns(2)
         
         with col1:
             v = st.selectbox("Select Vehicle / Machine", v_list)
-            def_r = st.session_state.ve_db[st.session_state.ve_db["No"]==v]["Rate_Per_Unit"].values[0] if v != "N/A" else 0.0
             d = st.date_input("Date", datetime.now().date())
             
-            # --- අලුත් කොටස: වැලි ද පස් ද තෝරන තැන ---
             material = ""
             if op == "💰 Sales Out":
                 material = st.selectbox("Material Type", ["Sand", "Soil", "Other"])
         
-       with col2:
+        with col2:
             # වර්ගය අනුව label එක තෝරනවා
             if "Lorry" in op:
                 val_label = "Qty (Cubes)"
@@ -166,42 +163,39 @@ elif menu == "🏗️ Site Operations":
                 val_label = f"Sales Qty ({material})"
                 unit = "Cubes/Units"
                 
-            # මෙතන default අගයන් 0.0 විදියට දෙනවා, එතකොට ඔයාට අලුතින්ම type කරන්න වෙනවා
+            # Default අගයන් 0.0 විදියට දුන්නා (මැනුවල් ටයිප් කරන්න ඕන නිසා)
             val = st.number_input(val_label, min_value=0.0, step=0.5, value=0.0)
-            
-            # Rate එකත් 0.0 විදියට හිස්ව (Default නැතුව) එනවා
             r = st.number_input(f"Enter Rate per {unit}", min_value=0.0, step=100.0, value=0.0)
         
-        # Note එකට material එකත් auto එකතු කරනවා ලේසියට
-        final_note = st.text_input("Additional Note")
-        
+        n = st.text_input("Additional Note (Location, Trip details etc.)")
         submit = st.form_submit_button("📥 Save Record")
         
         if submit:
             if v == "N/A":
-                st.error("Please add a vehicle first!")
+                st.error("Please add a vehicle in Setup first!")
+            elif val <= 0:
+                st.error(f"Please enter a valid {val_label}")
+            elif r <= 0:
+                st.error(f"Please enter the Rate for this work!")
             else:
-                # Category එකට Sand/Soil කියන එකත් එකතු කරනවා
                 display_cat = f"{op} ({material})" if material else op
-                
                 q, h = (val, 0) if "Lorry" in op or "Sales" in op else (0, val)
                 
                 new_data = pd.DataFrame([[
                     len(st.session_state.df) + 1, d, "", "Process", 
-                    display_cat, # මෙතන දැන් "Sales Out (Sand)" වගේ වැටෙනවා
-                    v, final_note, 0, q, 0, h, r, "Done"
+                    display_cat, v, n, 0, q, 0, h, r, "Done"
                 ]], columns=st.session_state.df.columns)
                 
                 st.session_state.df = pd.concat([st.session_state.df, new_data], ignore_index=True)
                 save_all()
-                st.success(f"Successfully recorded {display_cat}")
+                st.success(f"Successfully recorded {display_cat} for {v}")
                 st.rerun()
 
-    # පහළින් අද දවසේ records විතරක් පෙන්වන්න (ලේසියට)
     st.divider()
     st.subheader("Today's Logs")
     today_df = st.session_state.df[st.session_state.df["Date"] == datetime.now().date()]
     st.dataframe(today_df, use_container_width=True)
+    
 # --- 8. FINANCE & SHED (v56 FULL) ---
 elif menu == "💰 Finance & Shed":
     fin = st.radio("Finance Category", ["⛽ Fuel & Shed", "🔧 Repairs", "💸 Payroll", "🏦 Owner Advances", "🧾 Others"], horizontal=True)
