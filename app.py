@@ -316,13 +316,19 @@ elif menu == "📑 Reports Center":
     with r2:
         sel_dr = st.selectbox("Select Driver", st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else [])
         if sel_dr:
-            dr_rep = df_f[df_f["Note"].str.contains(f"Driver: {sel_dr}", na=False)].copy()
+            # --- මෙතන තමයි වැදගත්ම වෙනස්කම ---
+            # Note column එක string එකක් බවට හරවා පරීක්ෂා කිරීම (Error එක එන තැන)
+            dr_rep = df_f[df_f["Note"].astype(str).str.contains(f"Driver: {sel_dr}", na=False)].copy()
+            
             total_dr = dr_rep['Amount'].sum()
-            st.metric(f"Total Paid to {sel_dr}", f"Rs. {total_dr:,.2f}"); st.dataframe(dr_rep)
+            st.metric(f"Total Paid to {sel_dr}", f"Rs. {total_dr:,.2f}")
+            st.dataframe(dr_rep, use_container_width=True)
+            
             if st.button(f"Download {sel_dr} Report"):
                 sum_dr = {"Driver": sel_dr, "Period": f"{f_d} to {t_d}", "Total Paid": f"{total_dr:,.2f}"}
                 fn = create_pdf(f"Driver_{sel_dr}", dr_rep, sum_dr)
-                with open(fn, "rb") as f: st.download_button("📩 Get PDF", f, file_name=fn)
+                with open(fn, "rb") as f: 
+                    st.download_button("📩 Get PDF", f, file_name=fn)
     
     with r3:
         st.dataframe(df_f)
