@@ -559,15 +559,29 @@ elif menu == "📑 Reports Center":
             else:
                 st.error("Could not find a 'Vehicle' or 'Entity' column in your data records.")
 
-    # --- TAB 2: DRIVER SUMMARY ---
+    # --- TAB 2: DRIVER SUMMARY (FIXED) ---
     with r2:
+        st.subheader("👷 Driver Work & Payment Summary")
         dr_list = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else []
-        sel_dr = st.selectbox("Select Driver", dr_list)
+        sel_dr = st.selectbox("Select Driver", ["All"] + dr_list, key="dr_sel_box")
+        
         if sel_dr:
-            dr_rep = df_f[df_f["Note"].fillna("").astype(str).str.contains(sel_dr, case=False)].copy()
-            st.metric(f"Total Paid to {sel_dr}", f"Rs. {pd.to_numeric(dr_rep['Amount'], errors='coerce').sum():,.2f}")
-            st.dataframe(dr_rep[['Date', 'Category', 'Vehicle', 'Note', 'Amount']], use_container_width=True)
-
+            # 1. Driver ව filter කරමු
+            if sel_dr != "All":
+                dr_rep = df_f[df_f["Note"].fillna("").astype(str).str.contains(sel_dr, case=False)].copy()
+            else:
+                dr_rep = df_f[df_f["Category"].str.contains("Salary|Advance", na=False)].copy()
+            
+            # 2. මුළු ගෙවීම් ගණනය කරමු
+            total_paid = pd.to_numeric(dr_rep['Amount'], errors='coerce').sum()
+            st.metric(f"Total for {sel_dr}", f"Rs. {total_paid:,.2f}")
+            
+            # 3. පෙන්විය යුතු Columns ටික (තියෙන ඒවා විතරක් තෝරා ගනී)
+            req_cols = ['Date', 'Category', 'Entity', 'Vehicle', 'Note', 'Amount']
+            available_cols = [c for c in req_cols if c in dr_rep.columns]
+            
+            # 4. Table එක පෙන්වමු (KeyError එකක් එන්නේ නැත)
+            st.dataframe(dr_rep[available_cols], use_container_width=True)
     # --- TAB 3: DAILY LOG ---
     with r3:
         st.dataframe(df_f, use_container_width=True)
