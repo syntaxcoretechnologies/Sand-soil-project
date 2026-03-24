@@ -119,19 +119,19 @@ def create_pdf(title, data_df, summary_dict):
 # --- 5. UI LAYOUT & DASHBOARD ---
 st.set_page_config(page_title=SHOP_NAME, layout="wide")
 st.sidebar.title("🏗️ KSD ERP v5.6")
-# Part 01 අන්තිමට තියෙන menu එක මේකට replace කරන්න
+
 menu = st.sidebar.selectbox("MAIN MENU", ["📊 Dashboard", "🏗️ Site Operations", "💰 Finance & Shed", "⚙️ System Setup", "📑 Reports Center", "⚙️ Data Manager"])
+
+if menu == "📊 Dashboard":
+    # --- මෙන්න මෙතන ඉඳන් පල්ලෙහාට තියෙන හැම පේළියක්ම 'if' එකට වඩා ඇතුළට වෙන්න ඕනේ ---
     df = st.session_state.df.copy()
     if not df.empty:
-        # --- වැදගත්ම වෙනස්කම: Income එක ගණනය කිරීම ---
-        # (Cubes + Hours) * Rate formula එක පාවිච්චි කරනවා
+        # --- Income එක ගණනය කිරීම ---
         df['Calculated_Income'] = (pd.to_numeric(df['Qty_Cubes'], errors='coerce').fillna(0) + 
                                    pd.to_numeric(df['Hours'], errors='coerce').fillna(0)) * \
                                    pd.to_numeric(df['Rate_At_Time'], errors='coerce').fillna(0)
         
-        # Income වර්ගයේ ඒවයේ එකතුව ගන්නවා
         ti = df[df["Type"] == "Process"]["Calculated_Income"].sum()
-        # Expense වර්ගයේ ඒවයේ එකතුව ගන්නවා
         te = pd.to_numeric(df[df["Type"] == "Expense"]["Amount"], errors='coerce').sum()
         
         f_debt = df[df["Category"] == "Fuel Entry"]["Amount"].sum() - df[df["Category"] == "Shed Payment"]["Amount"].sum()
@@ -143,15 +143,16 @@ menu = st.sidebar.selectbox("MAIN MENU", ["📊 Dashboard", "🏗️ Site Operat
         m4.metric("Shed Debt", f"Rs. {f_debt:,.2f}")
         
         st.divider()
-        # ප්‍රස්ථාරය සඳහා Income එක සහ Expense එක පෙන්වනවා
-        chart_data = df.groupby(['Date', 'Type']).agg({
-            'Calculated_Income': 'sum',
-            'Amount': 'sum'
-        }).reset_index()
-        
-        # Income chart එකක් පෙන්වමු
         st.subheader("Daily Income Trend")
         st.line_chart(df[df["Type"] == "Process"].groupby('Date')['Calculated_Income'].sum())
+    else:
+        st.info("No data available to display in Dashboard.")
+
+# --- මීළඟට එන 'elif' එක ආයෙත් 'if' පේළියටම කෙළින් තියෙන්න ඕනේ ---
+elif menu == "🏗️ Site Operations":
+    # (කලින් තිබුණු Site Operations Code එක මෙතනට...)
+
+
 # --- 7. SITE OPERATIONS (v57 FULL FIX) ---
 elif menu == "🏗️ Site Operations":
     st.markdown(f"<h2 style='color: #E67E22;'>🏗️ Site Operations</h2>", unsafe_allow_html=True)
