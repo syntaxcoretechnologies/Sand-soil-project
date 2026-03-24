@@ -161,6 +161,24 @@ if menu == "📊 Dashboard":
             m2.metric("Selected Period Exp", f"Rs. {te:,.2f}")
             m3.metric("Net Cashflow", f"Rs. {ti-te:,.2f}")
             m4.metric("Total Shed Debt", f"Rs. {f_debt:,.2f}")
+
+            # --- STOCK BALANCE CALCULATION ---
+            # Dashboard එක ඇතුළේ 'if not filtered_df.empty:' කොටස ඇතුළට මේක දාන්න
+            st.subheader("📦 Plant Stock Balance (Current Status)")
+            s_col1, s_col2 = st.columns(2)
+
+            # වැලි සහ පස් වල Inward/Outward ගණනය කිරීම
+            # Category එකේ 'Stock Inward' තියෙන ඒවා එකතු කරලා 'Sales Out' තියෙන ඒවා අඩු කරනවා
+            sand_in = df[df["Category"].str.contains("Stock Inward \(Sand\)", na=False)]["Qty_Cubes"].sum()
+            sand_out = df[df["Category"].str.contains("Sales Out \(Sand\)", na=False)]["Qty_Cubes"].sum()
+            
+            soil_in = df[df["Category"].str.contains("Stock Inward \(Soil\)", na=False)]["Qty_Cubes"].sum()
+            soil_out = df[df["Category"].str.contains("Sales Out \(Soil\)", na=False)]["Qty_Cubes"].sum()
+
+            s_col1.metric("Sand Remaining", f"{sand_in - sand_out:.2f} Cubes")
+            s_col2.metric("Soil Remaining", f"{soil_in - soil_out:.2f} Cubes")
+            
+            # මේ පේළියට උඩින් තමයි Stock Balance එක තියෙන්න ඕනේ
             
             st.divider()
             
@@ -180,34 +198,38 @@ if menu == "📊 Dashboard":
 # --- 2. SITE OPERATIONS SECTION ---
 # මේ 'elif' එක පටන් ගන්න ඕනේ උඩ තියෙන 'if menu == "📊 Dashboard":' එකට කෙළින්ම පල්ලෙහායින්
 elif menu == "🏗️ Site Operations":
-    st.markdown(f"<h2 style='color: #E67E22;'>🏗️ Site Operations</h2>", unsafe_allow_html=True)
+    st.markdown(f"<h2 style='color: #E67E22;'>🏗️ Site Operations & Stock Manager</h2>", unsafe_allow_html=True)
     
-    op = st.radio("Select Activity Type", ["🚛 Lorry Work Log", "🚜 Excavator Work Log", "💰 Sales Out"], horizontal=True)
+    # ක්‍රියාකාරකම තෝරන තැනට 'Stock Inward' ඇතුළත් කළා
+    op = st.radio("Select Activity Type", ["🚛 Lorry Work Log", "🚜 Excavator Work Log", "💰 Sales Out", "📥 Stock Inward (To Plant)"], horizontal=True)
+    
     v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
     
     with st.form("site_f", clear_on_submit=True):
         col1, col2 = st.columns(2)
         with col1:
-            v = st.selectbox("Select Vehicle / Machine", v_list)
+            v = st.selectbox("Select Vehicle / Machine", v_list if op != "📥 Stock Inward (To Plant)" else ["Internal / Third Party"])
             d = st.date_input("Date", datetime.now().date())
-            material = st.selectbox("Material Type", ["Sand", "Soil", "Other"]) if op == "💰 Sales Out" else ""
+            material = st.selectbox("Material Type", ["Sand", "Soil", "Other"]) if (op == "💰 Sales Out" or op == "📥 Stock Inward (To Plant)") else ""
         
         with col2:
-            val_label = "Qty (Cubes)" if "Lorry" in op or "Sales" in op else "Work Hours"
+            val_label = "Qty (Cubes)"
             val = st.number_input(val_label, min_value=0.0, step=0.5, value=0.0)
-            r = st.number_input("Enter Rate (LKR)", min_value=0.0, step=100.0, value=0.0)
+            r = st.number_input("Enter Rate (LKR) / Cost per Cube", min_value=0.0, step=100.0, value=0.0)
             
-        n = st.text_input("Additional Note")
+        n = st.text_input("Additional Note (e.g. Supplier Name)")
+        
         if st.form_submit_button("📥 Save Record"):
-            if v == "N/A": st.error("Add a vehicle first!")
-            elif val <= 0 or r <= 0: st.error("Enter valid Qty and Rate!")
+            if val <= 0: 
+                st.error("Enter valid Qty!")
             else:
+                record_type = "Inward" if op == "📥 Stock Inward (To Plant)" else "Process"
                 cat = f"{op} ({material})" if material else op
-                q, h = (val, 0) if "Lorry" in op or "Sales" in op else (0, val)
-                new_row = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Process", cat, v, n, 0, q, 0, h, r, "Done"]], columns=st.session_state.df.columns)
+                
+                new_row = pd.DataFrame([[len(st.session_state.df)+1, d, "", record_type, cat, v, n, 0, val, 0, 0, r, "Done"]], columns=st.session_state.df.columns)
                 st.session_state.df = pd.concat([st.session_state.df, new_row], ignore_index=True)
                 save_all()
-                st.success("Successfully Saved!")
+                st.success(f"Successfully recorded {material} stock entry!")
                 st.rerun()
     
     
