@@ -305,35 +305,18 @@ elif menu == "💰 Finance & Shed":
                 st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
 
 # --- 9. SYSTEM SETUP ---
-elif menu == "⚙️ System Setup":
-    t1, t2 = st.tabs(["👷 Drivers", "🚜 Vehicles"])
-    with t1:
-        with st.form("dr", clear_on_submit=True):
-            n, p, s = st.text_input("Name"), st.text_input("Phone"), st.number_input("Salary")
-            if st.form_submit_button("Add Driver"):
-                st.session_state.dr_db = pd.concat([st.session_state.dr_db, pd.DataFrame([[n,p,s]], columns=st.session_state.dr_db.columns)], ignore_index=True); save_all(); st.rerun()
-        st.table(st.session_state.dr_db)
-    with t2:
-        with st.form("ve", clear_on_submit=True):
-            v, t, r, o = st.text_input("No"), st.selectbox("Type", ["Lorry", "Excavator"]), st.number_input("Rate"), st.text_input("Owner")
-            if st.form_submit_button("Add Vehicle"):
-                st.session_state.ve_db = pd.concat([st.session_state.ve_db, pd.DataFrame([[v,t,o,r]], columns=st.session_state.ve_db.columns)], ignore_index=True); save_all(); st.rerun()
-        st.table(st.session_state.ve_db)
-
-# --- 10. REPORTS CENTER (UPDATED WITH DRIVER & SHED PDF) ---
-# --- මෙන්න මේ පේළිය හොයාගන්න ---
 elif menu == "📑 Reports Center":
     st.markdown("<h2 style='color: #8E44AD;'>📑 Comprehensive Reports & Settlement</h2>", unsafe_allow_html=True)
     
+    # 1. දත්ත පිරිසිදු කිරීම සහ Column Names නිවැරදි කිරීම
     df_raw = st.session_state.df.copy()
     df_raw.columns = [str(c).strip() for c in df_raw.columns]
     
-    rename_map = {
-        'Vehicle No': 'Vehicle', 'Vehicle_No': 'Vehicle', 'Lorry No': 'Vehicle', 'vehicle': 'Vehicle',
-        'Cat': 'Category', 'category': 'Category', 'Entity': 'Vehicle' # සමහර තැන්වල Entity ලෙස තිබිය හැක
-    }
+    # වැරදි column names තිබේ නම් ඒවා "Vehicle" ලෙස සකස් කිරීම
+    rename_map = {'Vehicle No': 'Vehicle', 'Vehicle_No': 'Vehicle', 'Lorry No': 'Vehicle', 'Entity': 'Vehicle'}
     df_raw.rename(columns=rename_map, inplace=True)
 
+    # Tabs වෙන් කිරීම
     r1, r2, r3, r4 = st.tabs(["🚜 Vehicle Settlement", "👷 Driver Summary", "📑 Daily Log", "⛽ Shed Report"])
     
     col_d1, col_d2 = st.columns(2)
@@ -346,65 +329,57 @@ elif menu == "📑 Reports Center":
     df_f = df_raw[(df_raw["Date"] >= f_d) & (df_raw["Date"] <= t_d)].copy()
 
     # ---------------------------------------------------------
-    # TAB 1: VEHICLE SETTLEMENT
+    # TAB 1: VEHICLE SETTLEMENT (PDF එකේ විදිහටම)
     # ---------------------------------------------------------
     with r1:
         v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else df_f["Vehicle"].unique().tolist()
-        sel_ve = st.selectbox("Select Vehicle/Machine", v_list, key="sel_ve_rep")
+        sel_ve = st.selectbox("Select Vehicle/Machine", v_list, key="v_sel_settle")
         
         if sel_ve:
             v_rep = df_f[df_f["Vehicle"] == sel_ve].copy()
             if not v_rep.empty:
+                # ලොරි ද බැකෝ ද බලලා ඒක අනුව Units (Cubes/Hours) තෝරා ගැනීම
                 is_excavator = v_rep["Category"].str.contains("Excavator", na=False).any()
+                unit_col = 'Hours' if is_excavator else 'Qty_Cubes'
                 
-                v_rep['Income_Calc'] = (pd.to_numeric(v_rep['Qty_Cubes'], errors='coerce').fillna(0) + 
-                                       pd.to_numeric(v_rep['Hours'], errors='coerce').fillna(0)) * \
-                                       pd.to_numeric(v_rep['Rate_At_Time'], errors='coerce').fillna(0)
+                # පේළියක ආදායම = (ප්‍රමාණය) * රේට් එක
+                v_rep['Line_Total'] = pd.to_numeric(v_rep[unit_col], errors='coerce').fillna(0) * \
+                                     pd.to_numeric(v_rep['Rate_At_Time'], errors='coerce').fillna(0)
                 
-                gross = v_rep[v_rep["Type"] == "Process"]['Income_Calc'].sum()
-                deduct = pd.to_numeric(v_rep[v_rep["Type"] == "Expense"]["Amount"], errors='coerce').sum()
-                net = gross - deduct
+                # මුළු එකතුවන් (PDF Header එකේ විදිහට)
+                gross_earnings = v_rep[v_rep["Type"] == "Process"]['Line_Total'].sum()
+                total_expenses = pd.to_numeric(v_rep[v_rep["Type"] == "Expense"]["Amount"], errors='coerce').sum()
+                net_settlement = gross_earnings - total_expenses
 
-                st.metric(f"Net Settlement for {sel_ve}", f"Rs. {net:,.2f}")
+                # --- PDF Header Style Summary ---
+                st.markdown(f"### STATEMENT: SETTLEMENT {sel_ve}")
+                st.table(pd.DataFrame({
+                    "Description": ["Vehicle No", "Gross Earnings", "Total Expenses", "Net Settlement"],
+                    "Amount": [sel_ve, f"{gross_earnings:,.2f}", f"{total_expenses:,.2f}", f"{net_settlement:,.2f}"]
+                }))
 
-                # Summary Table for PDF
-                rate_summary = v_rep[v_rep['Type'] == "Process"].groupby('Rate_At_Time').agg({
-                    'Qty_Cubes': 'sum', 'Hours': 'sum', 'Income_Calc': 'sum'
+                # --- Earnings Breakdown (By Rate) ---
+                st.subheader("Earnings Breakdown (By Rate)")
+                rate_breakdown = v_rep[v_rep["Type"] == "Process"].groupby('Rate_At_Time').agg({
+                    unit_col: 'sum',
+                    'Line_Total': 'sum'
                 }).reset_index()
-                rate_summary['Total_Units'] = rate_summary['Hours'] if is_excavator else rate_summary['Qty_Cubes']
                 
-                st.write("**Earnings Breakdown**")
-                st.table(rate_summary[['Rate_At_Time', 'Total_Units', 'Income_Calc']])
+                st.table(rate_breakdown.rename(columns={
+                    'Rate_At_Time': 'Rate (LKR)',
+                    unit_col: 'Qty/Hrs',
+                    'Line_Total': 'Sub-Total (LKR)'
+                }))
+
+                # --- Detailed Log ---
+                st.subheader("Transaction Log")
+                st.dataframe(v_rep[['Date', 'Category', 'Note', 'Rate_At_Time', 'Amount', 'Line_Total']], use_container_width=True)
                 
-                # --- PDF DOWNLOAD SECTION ---
-                st.divider()
-                # මෙන්න මෙතන තමයි PDF එක හදන්නේ
-                summary_data = {
-                    "Vehicle No": sel_ve,
-                    "Gross Earnings": f"{gross:,.2f}",
-                    "Total Expenses": f"{deduct:,.2f}",
-                    "Net Settlement": f"{net:,.2f}"
-                }
-                
-                # CSV එකක් විදිහට දැනට ගන්න පුළුවන් (PDF එකට create_pdf function එක අවශ්‍යයි)
-                csv = v_rep.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label=f"📥 Download {sel_ve} Settlement (CSV)",
-                    data=csv,
-                    file_name=f"Settlement_{sel_ve}_{f_d}.csv",
-                    mime='text/csv',
-                )
-                
-                # PDF එක Generate කරන්න (create_pdf function එක තියෙනවා නම් විතරක් මේක වැඩ කරයි)
-                try:
-                    if st.button("📄 Generate PDF Settlement"):
-                        fn = create_pdf(f"Settlement_{sel_ve}", v_rep, summary_data)
-                        with open(fn, "rb") as f:
-                            st.download_button("📩 Click to Download PDF", f, file_name=fn)
-                except NameError:
-                    st.info("💡 PDF Generator එක පද්ධතියට සම්බන්ධ වෙමින් පවතී. දැනට CSV වාර්තාව බාගත කරන්න.")
+                # Download Buttons
+                csv_data = v_rep.to_csv(index=False).encode('utf-8')
+                st.download_button(f"📥 Download {sel_ve} CSV Report", csv_data, f"Settlement_{sel_ve}.csv", "text/csv")
             else:
-                st.warning("මෙම වාහනයට අදාළ දත්ත නැත.")
+                st.warning("තෝරාගත් වාහනයට අදාළ දත්ත නැත.")
 
     # ---------------------------------------------------------
     # TAB 2: DRIVER SUMMARY
@@ -412,35 +387,24 @@ elif menu == "📑 Reports Center":
     with r2:
         dr_list = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else []
         sel_dr = st.selectbox("Select Driver", dr_list)
-        
         if sel_dr:
             dr_rep = df_f[df_f["Note"].fillna("").astype(str).str.contains(sel_dr, case=False)].copy()
-            total_dr = pd.to_numeric(dr_rep['Amount'], errors='coerce').sum()
-            
-            st.metric(f"Total Paid to {sel_dr}", f"Rs. {total_dr:,.2f}")
-            
-            # Safe Display
-            cols = ['Date', 'Category', 'Vehicle', 'Note', 'Amount']
-            available = [c for c in cols if c in dr_rep.columns]
-            st.dataframe(dr_rep[available], use_container_width=True)
-            
-            # Download Button for Driver
-            csv_dr = dr_rep.to_csv(index=False).encode('utf-8')
-            st.download_button(f"📥 Download {sel_dr} Log (CSV)", csv_dr, f"Driver_{sel_dr}.csv", "text/csv")
+            st.metric(f"Total Paid to {sel_dr}", f"Rs. {pd.to_numeric(dr_rep['Amount'], errors='coerce').sum():,.2f}")
+            st.dataframe(dr_rep, use_container_width=True)
 
     # ---------------------------------------------------------
-    # TAB 3 & 4 (DAILY LOG & SHED)
+    # TAB 3 & 4: DAILY LOG & SHED
     # ---------------------------------------------------------
     with r3:
         st.dataframe(df_f, use_container_width=True)
     
     with r4:
-        st.subheader("Shed Debt Analysis")
         f_total = pd.to_numeric(df_f[df_f["Category"] == "Fuel Entry"]["Amount"], errors='coerce').sum()
         p_total = pd.to_numeric(df_f[df_f["Category"] == "Shed Payment"]["Amount"], errors='coerce').sum()
-        st.metric("Balance to Pay", f"Rs. {f_total - p_total:,.2f}")
+        st.metric("Pending Shed Debt", f"Rs. {f_total - p_total:,.2f}")
         st.dataframe(df_f[df_f["Category"].str.contains("Fuel|Shed", na=False)], use_container_width=True)
-        
+
+
 # --- 11. DATA MANAGER (EDIT / DELETE) ---
 elif menu == "⚙️ Data Manager":
     st.markdown(f"<h2 style='color: #E67E22;'>⚙️ Data Manager</h2>", unsafe_allow_html=True)
