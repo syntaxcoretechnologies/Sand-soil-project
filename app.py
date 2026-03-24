@@ -143,35 +143,37 @@ if menu == "📊 Dashboard":
         filtered_df = df.loc[mask].copy()
 
         if not filtered_df.empty:
-            # --- 1. INCOME (SALES ONLY) ---
-            # මෙතනදී ගන්නේ 'Sales Out' කියන ඒවා විතරයි
+            # --- 1. ඇත්තම ආදායම (Sales Only) ---
+            # සල්ලි අතට ලැබෙන්නේ විකුණපුවාම විතරයි
             sales_df = filtered_df[filtered_df["Category"].str.contains("Sales Out", na=False)].copy()
             sales_df['Income'] = pd.to_numeric(sales_df['Qty_Cubes'], errors='coerce').fillna(0) * \
                                  pd.to_numeric(sales_df['Rate_At_Time'], errors='coerce').fillna(0)
-            total_income = sales_df['Income'].sum()
+            real_income = sales_df['Income'].sum()
 
-            # --- 2. WORK VALUE (LORRY & EXCAVATOR) ---
-            # මේක සල්ලි නෙවෙයි, කරපු වැඩ වල වටිනාකම
+            # --- 2. අභ්‍යන්තර වැඩ (Internal Work Log - Not Earning) ---
+            # ලොරි සහ බැකෝ වැඩ කළ වටිනාකම (මේක Income එකට එකතු කරන්නේ නැහැ)
             work_df = filtered_df[filtered_df["Category"].str.contains("Work Log", na=False)].copy()
-            work_df['Value'] = (pd.to_numeric(work_df['Qty_Cubes'], errors='coerce').fillna(0) + 
-                                pd.to_numeric(work_df['Hours'], errors='coerce').fillna(0)) * \
-                                pd.to_numeric(work_df['Rate_At_Time'], errors='coerce').fillna(0)
-            total_work_value = work_df['Value'].sum()
+            work_val = (pd.to_numeric(work_df['Qty_Cubes'], errors='coerce').fillna(0) + 
+                        pd.to_numeric(work_df['Hours'], errors='coerce').fillna(0)) * \
+                        pd.to_numeric(work_df['Rate_At_Time'], errors='coerce').fillna(0)
+            total_work_done = work_val.sum()
 
-            # --- 3. EXPENSES & DEBT ---
+            # --- 3. වියදම් (Expenses) ---
             total_expenses = pd.to_numeric(filtered_df[filtered_df["Type"] == "Expense"]["Amount"], errors='coerce').sum()
-            f_debt = df[df["Category"] == "Fuel Entry"]["Amount"].sum() - df[df["Category"] == "Shed Payment"]["Amount"].sum()
 
-            # --- 4. DISPLAY METRICS ---
+            # --- 4. METRICS පෙන්වීම ---
             m1, m2, m3, m4 = st.columns(4)
-            m1.metric("Cash Income (Sales)", f"Rs. {total_income:,.2f}")
+            # පළවෙනි 3 සල්ලි ගැන
+            m1.metric("Net Sales Income", f"Rs. {real_income:,.2f}")
             m2.metric("Total Expenses", f"Rs. {total_expenses:,.2f}")
-            m3.metric("Net Cashflow", f"Rs. {total_income - total_expenses:,.2f}")
-            m4.metric("Work Production Value", f"Rs. {total_work_value:,.2f}")
+            m3.metric("Net Cashflow", f"Rs. {real_income - total_expenses:,.2f}")
+            # 4 වෙනි එක ප්ලාන්ට් එකේ වැඩ නිම කළ වටිනාකම (Earning නොවේ)
+            m4.metric("Internal Work Value", f"Rs. {total_work_done:,.2f}")
 
-            st.info(f"💡 'Work Production Value' යනු ලොරි සහ බැකෝ වැඩ කළ මුළු වටිනාකමයි (මෙය Cash Income එකට එකතු නොවේ).")
+            st.warning("⚠️ 'Internal Work Value' යනු ලොරි/බැකෝ ප්ලාන්ට් එක ඇතුළේ කළ වැඩ වල වටිනාකමයි. මෙය ඔබගේ අතට ලැබෙන සැබෑ මුදල (Cashflow) ලෙස ගණන් නොගැනේ.")
             
             st.divider()
+            
 
             # --- 5. STOCK BALANCE (PLANT) ---
             st.subheader("📦 Plant Stock Balance (Current)")
