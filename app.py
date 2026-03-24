@@ -444,45 +444,51 @@ elif menu == "📑 Reports Center":
             st.info("No sales records found for the selected period.")
 
     # --- TAB 1: VEHICLE SETTLEMENT ---
+    # --- TAB: VEHICLE SETTLEMENT (UPDATED LOGIC) ---
     with r1:
-        v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else df_f["Vehicle"].unique().tolist()
-        sel_ve = st.selectbox("Select Vehicle", v_list)
+        st.subheader("Vehicle / Machine Settlement")
         
-        if sel_ve:
-            v_rep = df_f[df_f["Vehicle"] == sel_ve].copy()
-            if not v_rep.empty:
-                # ලොරි ද බැකෝ ද බලලා Qty එක තෝරා ගැනීම
-                is_ex = v_rep["Category"].str.contains("Excavator", na=False, case=False).any()
-                u_col = 'Hours' if is_ex else 'Qty_Cubes'
+        # වාහනය තෝරන තැන (ඔයාගේ කෝඩ් එකේ දැනටමත් ඇති)
+        selected_ve = st.selectbox("Select Vehicle to Settle", v_list, key="settle_ve")
+        
+        if selected_ve:
+            ve_records = df_f[df_f["Entity"] == selected_ve].copy()
+            
+            if not ve_records.empty:
+                # --- අලුත් වෙනස මෙතනයි ---
+                # Excavator එකක්ද නැද්ද කියලා බලනවා
+                is_excavator = any(x in selected_ve for x in ["Ex", "EX", "Excavator", "PC"])
                 
-                v_rep['Line_Total'] = pd.to_numeric(v_rep[u_col], errors='coerce').fillna(0) * \
-                                     pd.to_numeric(v_rep['Rate_At_Time'], errors='coerce').fillna(0)
+                # 1. Gross Earnings ගණනය කිරීම
+                if is_excavator:
+                    # Excavator නම් Hours * Rate ගන්නවා
+                    gross_earning = ve_records['Amount'].sum()
+                else:
+                    # Lorry නම් Client ගේ ඉල්ලීම පරිදි Gross Earning බිංදුවයි
+                    gross_earning = 0.0
                 
-                gross = v_rep[v_rep["Type"] == "Process"]['Line_Total'].sum()
-                expenses = pd.to_numeric(v_rep[v_rep["Type"] == "Expense"]["Amount"], errors='coerce').sum()
-                net = gross - expenses
-
-                # Screen Display
-                st.table(pd.DataFrame({
-                    "Description": ["Gross Earnings", "Total Expenses", "Net Settlement"],
-                    "Value (LKR)": [f"{gross:,.2f}", f"{expenses:,.2f}", f"{net:,.2f}"]
-                }))
-
-                # Rate Breakdown
-                rate_sum = v_rep[v_rep["Type"] == "Process"].groupby('Rate_At_Time').agg({u_col: 'sum', 'Line_Total': 'sum'}).reset_index()
-                st.write("**Rate Breakdown:**")
-                st.table(rate_sum)
-
-                # PDF Button
-                if st.button(f"📥 Generate & Download PDF"):
-                    r_list = [{'rate': r['Rate_At_Time'], 'qty': r[u_col], 'subtotal': r['Line_Total']} for _, r in rate_sum.iterrows()]
-                    summary_data = {
-                        "Vehicle No": sel_ve,
-                        "Gross Earnings": f"{gross:,.2f}",
-                        "Total Expenses": f"{expenses:,.2f}",
-                        "Net Settlement": f"{net:,.2f}",
-                        "Rate_Breakdown": r_list
-                    }
+                # 2. Expenses ගණනය කිරීම (Lorry/Excavator දෙකටම පොදුයි)
+                total_exp = ve_records[ve_records["Type"] == "Expense"]["Amount"].sum()
+                
+                # 3. Net Balance
+                net_balance = gross_earning - total_exp
+                
+                # Metrics පෙන්වීම
+                c1, c2, c3 = st.columns(3)
+                if is_excavator:
+                    c1.metric("Gross Earning (Work)", f"Rs. {gross_earning:,.2f}")
+                else:
+                    c1.metric("Gross Earning", "Rs. 0.00", delta="Rented Lorry", delta_color="off")
+                
+                c2.metric("Total Expenses", f"Rs. {total_exp:,.2f}")
+                c3.metric("Net Settlement", f"Rs. {net_balance:,.2f}")
+                
+                st.divider()
+                st.write(f"**Detailed Log for {selected_ve}:**")
+                st.dataframe(ve_records[['Date', 'Category', 'Qty_Cubes', 'Work_Hours', 'Amount', 'Type']], use_container_width=True)
+            else:
+                st.info("No records found for this vehicle in the selected period.")
+                
                     pdf_path = create_pdf("Report", v_rep, summary_data)
                     with open(pdf_path, "rb") as f:
                         st.download_button("📩 Click to Download PDF", f, file_name=pdf_path)
