@@ -47,10 +47,8 @@ def create_pdf(title, data_df, summary_dict):
     pdf = PDF()
     pdf.add_page()
     
-    # Unicode Error එන එක නතර කරන්න safe_text කියන function එක පාවිච්චි කරමු
     def safe_text(text):
         if text is None: return ""
-        # Latin-1 වලට සපෝට් නොකරන අකුරු (සිංහල, Emojis) අයින් කරනවා
         return str(text).encode("latin-1", "ignore").decode("latin-1")
 
     pdf.set_font("Arial", 'B', 12)
@@ -58,40 +56,44 @@ def create_pdf(title, data_df, summary_dict):
     pdf.cell(0, 10, safe_text(f"STATEMENT: {title.upper()}"), 1, 1, 'L', fill=True)
     pdf.ln(2)
     
-    # Summary Section
+    # --- Summary Section (Multi-Vehicle Support) ---
     pdf.set_font("Arial", 'B', 10)
     for k, v in summary_dict.items():
-        # රුපියල් සලකුණ වෙනුවට LKR පාවිච්චි කිරීම ආරක්ෂිතයි
-        val = str(v).replace("Rs.", "LKR")
+        clean_v = str(v).replace("Rs.", "LKR")
         pdf.cell(50, 8, safe_text(k) + ":", 1)
         pdf.set_font("Arial", '', 10)
-        pdf.cell(0, 8, " " + safe_text(val), 1, 1)
+        pdf.cell(0, 8, " " + safe_text(clean_v), 1, 1)
         pdf.set_font("Arial", 'B', 10)
     
     pdf.ln(8)
     
-    # Table Header
+    # --- Table Header ---
     pdf.set_font("Arial", 'B', 9)
-    headers = ["Date", "Category", "Note", "Qty/Hrs", "Amount"]
-    w = [25, 35, 65, 25, 40]
+    # මෙතන "Category" වෙනුවට "Work Type" කියලා දැම්මා Lorry/Excavator වෙන් කරලා පේන්න
+    headers = ["Date", "Work Type", "Note", "Qty/Hrs", "Amount"]
+    w = [25, 40, 60, 25, 40]
     for i, h in enumerate(headers):
         pdf.cell(w[i], 8, safe_text(h), 1, 0, 'C', fill=True)
     pdf.ln()
     
-    pdf.set_text_color(0, 0, 0)
     pdf.set_font("Arial", '', 8)
-    
     total_exp = 0
     for _, row in data_df.iterrows():
         pdf.cell(w[0], 7, safe_text(row['Date']), 1)
+        
+        # Category එකේ Lorry Log ද Excavator Log ද කියලා පෙන්වනවා
         pdf.cell(w[1], 7, safe_text(row['Category']), 1)
         
-        # Note එකේ සිංහල අකුරු තිබුණොත් ඒක ignore කරනවා
-        clean_note = safe_text(row['Note'])[:40]
+        clean_note = safe_text(row['Note'])[:35]
         pdf.cell(w[2], 7, clean_note, 1)
         
-        qty = row['Hours'] if row['Hours'] > 0 else (row['Qty_Cubes'] if row['Qty_Cubes'] > 0 else "-")
-        pdf.cell(w[3], 7, safe_text(qty), 1, 0, 'C')
+        # Qty හෝ Hours තෝරා ගැනීම
+        val_display = ""
+        if row['Qty_Cubes'] > 0: val_display = f"{row['Qty_Cubes']} Cubes"
+        elif row['Hours'] > 0: val_display = f"{row['Hours']} Hrs"
+        else: val_display = "-"
+        
+        pdf.cell(w[3], 7, safe_text(val_display), 1, 0, 'C')
         
         amt = float(row['Amount']) if row['Type'] == "Expense" else 0.0
         total_exp += amt
@@ -103,14 +105,8 @@ def create_pdf(title, data_df, summary_dict):
     pdf.cell(sum(w[:4]), 10, "GRAND TOTAL (EXPENSES) LKR", 1, 0, 'R')
     pdf.cell(w[4], 10, f"{total_exp:,.2f}", 1, 1, 'R')
     
-    # Output file
     fn = f"Settlement_{datetime.now().strftime('%H%M%S')}.pdf"
-    try:
-        pdf.output(fn)
-    except Exception as e:
-        # තවමත් error එකක් එනවා නම් නිකන්ම output කරනවා (fallback)
-        pdf.output(fn, 'F')
-        
+    pdf.output(fn)
     return fn
 
 # --- 5. UI LAYOUT & DASHBOARD ---
@@ -218,12 +214,29 @@ elif menu == "📑 Reports Center":
         if sel_ve:
             v_rep = df_f[df_f["Entity"] == sel_ve].copy()
             if not v_rep.empty:
+                # Lorry වැඩ සහ Excavator වැඩ වෙන වෙනම ගණනය කිරීම
+                total_cubes = v_rep['Qty_Cubes'].sum()
+                total_hours = v_rep['Hours'].sum()
+                
+                # Income එක හදන්නේ දවසට අදාළ Rate එකෙන්
                 v_rep['Income_Calc'] = (v_rep['Hours'] + v_rep['Qty_Cubes']) * v_rep['Rate_At_Time']
-                gross = v_rep['Income_Calc'].sum(); deduct = v_rep[v_rep["Type"] == "Expense"]["Amount"].sum(); net = gross - deduct
-                st.metric("Net Balance", f"Rs. {net:,.2f}"); st.dataframe(v_rep)
-                if st.button("Download PDF Settlement"):
-                    avg_r = v_rep[v_rep['Rate_At_Time']>0]['Rate_At_Time'].iloc[0] if not v_rep[v_rep['Rate_At_Time']>0].empty else 0
-                    summary = {"Vehicle": sel_ve, "Total Cubes/Hrs": (v_rep['Hours']+v_rep['Qty_Cubes']).sum(), "Rate": f"{avg_r:,.2f}", "Gross": f"{gross:,.2f}", "Net": f"{net:,.2f}"}
+                gross = v_rep['Income_Calc'].sum()
+                deduct = v_rep[v_rep["Type"] == "Expense"]["Amount"].sum()
+                net = gross - deduct
+                
+                st.metric("Net Balance", f"Rs. {net:,.2f}")
+                st.dataframe(v_rep)
+                
+                if st.button("Download Full Settlement PDF"):
+                    # Summary එකට ලොරියේ Cubes සහ Excavator එකේ Hours දෙකම දානවා
+                    summary = {
+                        "Vehicle No": sel_ve,
+                        "Total Lorry Cubes": f"{total_cubes} Cubes",
+                        "Total Excavator Hours": f"{total_hours} Hrs",
+                        "Gross Earnings": f"{gross:,.2f}",
+                        "Total Expenses": f"{deduct:,.2f}",
+                        "Net Settlement": f"{net:,.2f}"
+                    }
                     fn = create_pdf(f"Settlement_{sel_ve}", v_rep, summary)
                     with open(fn, "rb") as f: st.download_button("📩 Download PDF", f, file_name=fn)
     
