@@ -119,7 +119,8 @@ def create_pdf(title, data_df, summary_dict):
 # --- 5. UI LAYOUT & DASHBOARD ---
 st.set_page_config(page_title=SHOP_NAME, layout="wide")
 st.sidebar.title("🏗️ KSD ERP v5.6")
-if menu == "📊 Dashboard":
+# Part 01 අන්තිමට තියෙන menu එක මේකට replace කරන්න
+menu = st.sidebar.selectbox("MAIN MENU", ["📊 Dashboard", "🏗️ Site Operations", "💰 Finance & Shed", "⚙️ System Setup", "📑 Reports Center", "⚙️ Data Manager"])
     df = st.session_state.df.copy()
     if not df.empty:
         # --- වැදගත්ම වෙනස්කම: Income එක ගණනය කිරීම ---
