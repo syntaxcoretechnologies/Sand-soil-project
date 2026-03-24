@@ -323,98 +323,99 @@ elif menu == "⚙️ System Setup":
 # --- 10. REPORTS CENTER (UPDATED WITH DRIVER & SHED PDF) ---
 # --- මෙන්න මේ පේළිය හොයාගන්න ---
 elif menu == "📑 Reports Center":
-    st.markdown("<h2 style='color: #8E44AD;'>📑 Reports & Settlement Summary</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color: #8E44AD;'>📑 Comprehensive Reports & Settlement</h2>", unsafe_allow_html=True)
     
-    # 1. දත්ත කොපියක් ගෙන Column නම් නිවැරදි කිරීම
     df = st.session_state.df.copy()
     
-    # Column names වල අකුරු වල වෙනස්කම් තිබේ නම් ඒවා නිවැරදි කිරීම (Fixes KeyError)
-    df.columns = [c.strip() for c in df.columns] # හිස්තැන් මකා දැමීම
-    rename_dict = {
-        'Vehicle No': 'Vehicle', 
-        'Vehicle_No': 'Vehicle', 
-        'vehicle': 'Vehicle',
-        'Qty Cubes': 'Qty_Cubes',
-        'Qty_Cubes ': 'Qty_Cubes'
+    # 🚨 CRITICAL FIX: Column names පිරිසිදු කිරීම (KeyError එක මඟහරවා ගැනීමට)
+    df.columns = [c.strip() for c in df.columns]
+    rename_map = {
+        'Vehicle No': 'Vehicle', 'Vehicle_No': 'Vehicle', 'Lorry No': 'Vehicle',
+        'Qty Cubes': 'Qty_Cubes', 'Qty_Cubes ': 'Qty_Cubes'
     }
-    df.rename(columns=rename_dict, inplace=True)
+    df.rename(columns=rename_map, inplace=True)
 
     if not df.empty:
-        # --- 2. FILTERS (PDF එකේ විදියටම) ---
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            s_date = st.date_input("Start Date", datetime.now().date() - timedelta(days=30))
-        with col2:
-            e_date = st.date_input("End Date", datetime.now().date())
-        with col3:
-            if "Vehicle" in df.columns:
-                v_options = df["Vehicle"].unique().tolist()
-                selected_v = st.selectbox("Select Vehicle for Settlement", options=v_options)
+        # --- REPORT TYPE SELECTION ---
+        report_type = st.tabs(["🚛 Vehicle & Driver Settlement", "⛽ Shed & Fuel Report", "📅 Daily Operations Log"])
+
+        # ---------------------------------------------------------
+        # 1. VEHICLE & DRIVER SETTLEMENT (Driver Summary & Vehicle Log)
+        # ---------------------------------------------------------
+        with report_type[0]:
+            col1, col2 = st.columns(2)
+            with col1:
+                s_date = st.date_input("Start Date", datetime.now().date() - timedelta(days=7), key="v_s")
+                selected_v = st.selectbox("Select Vehicle", options=df["Vehicle"].unique())
+            with col2:
+                e_date = st.date_input("End Date", datetime.now().date(), key="v_e")
+            
+            df['Date'] = pd.to_datetime(df['Date']).dt.date
+            v_df = df[(df["Date"] >= s_date) & (df["Date"] <= e_date) & (df["Vehicle"] == selected_v)].copy()
+
+            if not v_df.empty:
+                # Earnings & Expenses Calculation
+                v_df['Line_Total'] = (pd.to_numeric(v_df['Qty_Cubes'], errors='coerce').fillna(0) + 
+                                     pd.to_numeric(v_df['Hours'], errors='coerce').fillna(0)) * \
+                                     pd.to_numeric(v_df['Rate_At_Time'], errors='coerce').fillna(0)
+                
+                gross_earning = v_df[v_df["Type"] == "Process"]['Line_Total'].sum()
+                total_exp = pd.to_numeric(v_df[v_df["Type"] == "Expense"]["Amount"], errors='coerce').sum()
+
+                # Display Settlement Card
+                st.markdown(f"#### 📋 Settlement Summary: {selected_v}")
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Gross Earnings", f"Rs. {gross_earning:,.2f}")
+                c2.metric("Total Expenses", f"Rs. {total_exp:,.2f}")
+                c3.metric("Net to Driver/Owner", f"Rs. {gross_earning - total_exp:,.2f}")
+
+                # Rate Breakdown Table (PDF එකේ වගේ)
+                st.write("**Earnings Breakdown (By Rate)**")
+                rate_table = v_df[v_df["Type"] == "Process"].groupby('Rate_At_Time').agg({'Qty_Cubes':'sum','Hours':'sum','Line_Total':'sum'}).reset_index()
+                rate_table['Total Qty/Hrs'] = rate_table['Qty_Cubes'] + rate_table['Hours']
+                st.table(rate_table[['Rate_At_Time', 'Total Qty/Hrs', 'Line_Total']])
+                
+                st.write("**Detailed Vehicle Log**")
+                st.dataframe(v_df[['Date', 'Category', 'Note', 'Rate_At_Time', 'Amount', 'Line_Total']], use_container_width=True)
             else:
-                st.error("දත්ත ගබඩාවේ 'Vehicle' නමින් තීරුවක් හමු නොවුණි. කරුණාකර Data Manager වෙතින් පරීක්ෂා කරන්න.")
-                st.stop()
-        
-        # දින අනුව Filter කිරීම
-        df['Date'] = pd.to_datetime(df['Date']).dt.date
-        r_df = df[(df["Date"] >= s_date) & (df["Date"] <= e_date) & (df["Vehicle"] == selected_v)].copy()
-        
-        if not r_df.empty:
-            # --- 3. EARNINGS CALCULATION (PDF Structure) ---
-            # Qty හෝ Hours තියෙන තීරුවෙන් Line Total එක සෑදීම
-            r_df['Line_Total'] = (pd.to_numeric(r_df['Qty_Cubes'], errors='coerce').fillna(0) + 
-                                  pd.to_numeric(r_df['Hours'], errors='coerce').fillna(0)) * \
-                                  pd.to_numeric(r_df['Rate_At_Time'], errors='coerce').fillna(0)
-            
-            # Rate අනුව වෙන් කළ සාරාංශය (Earnings Breakdown Table)
-            rate_summary = r_df[r_df["Type"] == "Process"].groupby('Rate_At_Time').agg({
-                'Qty_Cubes': 'sum',
-                'Hours': 'sum',
-                'Line_Total': 'sum'
-            }).reset_index()
-            
-            rate_summary['Qty_Hrs'] = rate_summary['Qty_Cubes'] + rate_summary['Hours']
-            
-            # මුළු එකතුවන් ගණනය කිරීම
-            gross_earnings = r_df[r_df["Type"] == "Process"]['Line_Total'].sum()
-            total_expenses = pd.to_numeric(r_df[r_df["Type"] == "Expense"]["Amount"], errors='coerce').sum()
-            net_settlement = gross_earnings - total_expenses
+                st.warning("No data found for this vehicle.")
 
-            # --- 4. DISPLAY SUMMARY (Cards) ---
-            st.markdown(f"### 📋 Statement: Settlement {selected_v}")
-            cols = st.columns(3)
-            cols[0].metric("Gross Earnings", f"Rs. {gross_earnings:,.2f}")
-            cols[1].metric("Total Expenses", f"Rs. {total_expenses:,.2f}")
-            cols[2].metric("Net Settlement", f"Rs. {net_settlement:,.2f}")
+        # ---------------------------------------------------------
+        # 2. SHED & FUEL REPORT
+        # ---------------------------------------------------------
+        with report_type[1]:
+            st.markdown("#### ⛽ Shed Fuel Summary")
+            fuel_df = df[df["Category"].str.contains("Fuel|Shed", na=False, case=False)].copy()
             
-            st.divider()
-
-            # --- 5. EARNINGS BREAKDOWN (Table) ---
-            st.subheader("📊 Earnings Breakdown (By Rate)")
-            st.table(rate_summary[['Rate_At_Time', 'Qty_Hrs', 'Line_Total']].rename(columns={
-                'Rate_At_Time': 'Rate (LKR)',
-                'Qty_Hrs': 'Total Qty/Hrs',
-                'Line_Total': 'Sub-Total (LKR)'
-            }))
-
-            # --- 6. DETAILED TRANSACTION LOG ---
-            st.subheader("📝 Detailed Transaction Log")
-            # PDF එකේ තියෙන පේළි වලට සමාන columns පෙන්වීම
-            display_df = r_df[['Date', 'Category', 'Note', 'Rate_At_Time', 'Amount', 'Line_Total']]
-            st.dataframe(display_df.sort_values(by="Date", ascending=True), use_container_width=True)
-
-            # --- 7. EXPORT DATA ---
-            csv = r_df.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="📥 Download Settlement CSV",
-                data=csv,
-                file_name=f"Settlement_{selected_v}_{s_date}.csv",
-                mime='text/csv'
-            )
+            total_fuel = fuel_df[fuel_df["Category"].str.contains("Fuel", na=False)]["Amount"].sum()
+            total_paid = fuel_df[fuel_df["Category"].str.contains("Payment", na=False)]["Amount"].sum()
             
-        else:
-            st.warning(f"තෝරාගත් දින පරාසය තුළ {selected_v} වාහනයට අදාළ දත්ත කිසිවක් නැත.")
+            col_s1, col_s2 = st.columns(2)
+            col_s1.metric("Total Fuel Bill", f"Rs. {total_fuel:,.2f}")
+            col_s2.metric("Outstanding Shed Debt", f"Rs. {total_fuel - total_paid:,.2f}", delta_color="inverse")
+            
+            st.write("**Shed Transaction History**")
+            st.dataframe(fuel_df[['Date', 'Vehicle', 'Category', 'Note', 'Amount']], use_container_width=True)
+
+        # ---------------------------------------------------------
+        # 3. DAILY OPERATIONS LOG
+        # ---------------------------------------------------------
+        with report_type[2]:
+            target_day = st.date_input("Select Day", datetime.now().date())
+            day_df = df[df["Date"] == target_day].copy()
+            
+            if not day_df.empty:
+                st.markdown(f"#### 📅 Log for {target_day}")
+                st.dataframe(day_df[['Date', 'Category', 'Vehicle', 'Note', 'Amount', 'Status']], use_container_width=True)
+                
+                # Day Summary
+                d_sales = day_df[day_df["Category"].str.contains("Sales", na=False)]["Amount"].sum() # Assuming Sales are marked
+                st.info(f"Summary for the day: Total Transactions recorded: {len(day_df)}")
+            else:
+                st.warning("No entries for this day.")
+
     else:
-        st.info("පද්ධතියේ දත්ත කිසිවක් නැත. කරුණාකර දත්ත ඇතුළත් කරන්න.")
+        st.info("පද්ධතියේ දත්ත කිසිවක් නැත.")
 
 # --- 11. DATA MANAGER (EDIT / DELETE) ---
 elif menu == "⚙️ Data Manager":
