@@ -193,9 +193,57 @@ elif menu == "📑 Reports Center":
     with r2:
         sel_dr = st.selectbox("Select Driver", st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else [])
         if sel_dr:
-            dr_rep = df_f[df_f["Note"].str.contains(f"Driver: {sel_dr}", na=False)]
-            st.metric("Total Paid", f"Rs. {dr_rep['Amount'].sum():,.2f}"); st.dataframe(dr_rep)
+            # Driver ට අදාළ transactions පෙරා ගැනීම
+            dr_rep = df_f[df_f["Note"].str.contains(f"Driver: {sel_dr}", na=False)].copy()
+            total_paid = dr_rep['Amount'].sum()
+            
+            st.metric(f"Total Paid to {sel_dr}", f"Rs. {total_paid:,.2f}")
+            st.dataframe(dr_rep, use_container_width=True)
+            
+            # --- අලුත් PDF Button එක ---
+            if st.button(f"Download {sel_dr}'s Report"):
+                summary_dr = {
+                    "Driver Name": sel_dr,
+                    "Report Period": f"{f_d} to {t_d}",
+                    "Total Amount Paid": f"Rs. {total_paid:,.2f}",
+                    "Status": "Settled/Advance"
+                }
+                fn = create_pdf(f"Driver_{sel_dr}", dr_rep, summary_dr)
+                with open(fn, "rb") as f:
+                    st.download_button(f"📩 Get {sel_dr} PDF", f, file_name=fn)
     
     with r3:
         st.dataframe(df_f)
         st.metric("Total Range Expense", f"Rs. {df_f[df_f['Type']=='Expense']['Amount'].sum():,.2f}")
+# --- Report Center එකේ tabs වලට මේකත් එකතු කරන්න ---
+r1, r2, r3, r4 = st.tabs(["🚜 Vehicle Settlement", "👷 Driver Summary", "📑 Daily Log", "⛽ Shed Report"])
+
+# ... (අනිත් r1, r2, r3 ටික කලින් වගේමයි) ...
+
+    with r4:
+        st.subheader("Shed Payment & Debt Summary")
+        # Shed එකට අදාළ Fuel entries සහ Payments වෙන් කර ගැනීම
+        shed_logs = df_f[df_f["Entity"] == "Shed"].copy()
+        
+        fuel_total = df_f[df_f["Category"] == "Fuel Entry"]["Amount"].sum()
+        paid_total = df_f[df_f["Category"] == "Shed Payment"]["Amount"].sum()
+        balance = fuel_total - paid_total
+        
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Total Fuel Bill", f"Rs. {fuel_total:,.2f}")
+        c2.metric("Total Paid", f"Rs. {paid_total:,.2f}")
+        c3.metric("Remaining Debt", f"Rs. {balance:,.2f}", delta=-paid_total)
+        
+        st.dataframe(shed_logs, use_container_width=True)
+        
+        if st.button("Download Shed PDF"):
+            summary_shed = {
+                "Report Type": "Shed Settlement",
+                "Total Fuel Bill": f"Rs. {fuel_total:,.2f}",
+                "Total Paid": f"Rs. {paid_total:,.2f}",
+                "Net Debt": f"Rs. {balance:,.2f}"
+            }
+            # Shed ලොග් ටික PDF එකට දානවා
+            fn = create_pdf("Shed_Statement", shed_logs, summary_shed)
+            with open(fn, "rb") as f:
+                st.download_button("📩 Download Shed PDF", f, file_name=fn)
