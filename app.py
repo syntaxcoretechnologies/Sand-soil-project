@@ -46,16 +46,19 @@ class PDF(FPDF):
 def create_pdf(title, data_df, summary_dict):
     pdf = PDF(); pdf.add_page(); pdf.set_font("Arial", 'B', 12)
     pdf.set_fill_color(240, 240, 240)
+    # මෙතන 'Rs.' වගේ symbols පාවිච්චි කරන එක අවදානම්, ඒ නිසා Title එක විතරක් දාමු
     pdf.cell(0, 10, f"STATEMENT: {title.upper()}", 1, 1, 'L', fill=True); pdf.ln(2)
     
-    # Summary Table (Upper Part of PDF)
+    # Summary Section
     pdf.set_font("Arial", 'B', 10)
     for k, v in summary_dict.items():
+        # මෙතන v එක ඇතුළේ 'Rs.' තියෙනවා නම් ඒක encode කරන්න බැරි වෙන්න පුළුවන්
+        # ඒ නිසා අපි clean කරලා දාමු
+        clean_v = str(v).replace("Rs.", "LKR") 
         pdf.cell(50, 8, f"{k}:", 1); pdf.set_font("Arial", '', 10)
-        pdf.cell(0, 8, f" {v}", 1, 1); pdf.set_font("Arial", 'B', 10)
+        pdf.cell(0, 8, f" {clean_v}", 1, 1); pdf.set_font("Arial", 'B', 10)
     
     pdf.ln(8); pdf.set_font("Arial", 'B', 9)
-    # Transaction Table Header
     headers = ["Date", "Category", "Note", "Qty/Hrs", "Amount"]
     w = [25, 35, 65, 25, 40]
     for i, h in enumerate(headers): pdf.cell(w[i], 8, h, 1, 0, 'C', fill=True)
@@ -63,18 +66,26 @@ def create_pdf(title, data_df, summary_dict):
     
     total_exp = 0
     for _, row in data_df.iterrows():
+        # Unicode error එක එන එක නතර කරන්න Note එකේ තියෙන අමුතු අකුරු අයින් කරනවා
+        note_text = str(row['Note'])[:40].encode('ascii', 'ignore').decode('ascii')
+        
         pdf.cell(w[0], 7, str(row['Date']), 1)
         pdf.cell(w[1], 7, str(row['Category']), 1)
-        pdf.cell(w[2], 7, str(row['Note'])[:40], 1)
+        pdf.cell(w[2], 7, note_text, 1)
         qty = row['Hours'] if row['Hours'] > 0 else (row['Qty_Cubes'] if row['Qty_Cubes'] > 0 else "-")
         pdf.cell(w[3], 7, f"{qty}", 1, 0, 'C')
         amt = float(row['Amount']) if row['Type'] == "Expense" else 0.0
         total_exp += amt
         pdf.cell(w[4], 7, f"{amt:,.2f}", 1, 0, 'R'); pdf.ln()
     
-    pdf.set_font("Arial", 'B', 9); pdf.cell(sum(w[:4]), 10, "GRAND TOTAL (EXPENSES)", 1, 0, 'R')
-    pdf.cell(w[4], 10, f"Rs. {total_exp:,.2f}", 1, 1, 'R')
-    fn = f"Settlement_{datetime.now().strftime('%H%M%S')}.pdf"; pdf.output(fn); return fn
+    pdf.set_font("Arial", 'B', 9)
+    pdf.cell(sum(w[:4]), 10, "GRAND TOTAL (EXPENSES)", 1, 0, 'R')
+    # මෙතන 'Rs.' අයින් කරලා 'LKR' කියලා දැම්මා
+    pdf.cell(w[4], 10, f"{total_exp:,.2f}", 1, 1, 'R')
+    
+    fn = f"Settlement_{datetime.now().strftime('%H%M%S')}.pdf"
+    pdf.output(fn)
+    return fn
 
 # --- 5. UI LAYOUT & DASHBOARD ---
 st.set_page_config(page_title=SHOP_NAME, layout="wide")
