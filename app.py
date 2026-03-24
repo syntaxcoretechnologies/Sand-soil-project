@@ -318,8 +318,10 @@ elif menu == "📑 Reports Center":
     df_raw['Date'] = pd.to_datetime(df_raw['Date']).dt.date
 
     # 1. ටැබ් ටික හදනවා
-    r_inc, r_gross, r1, r_drv, r_land, r_log = st.tabs([
-    "💰 Income", "📊 P&L", "🚜 Vehicle Settlement", "👷 Driver Summary", "🏡 Landowner Report", "📑 Daily Log"
+   # මෙන්න මේ පේළිය විතරක් replace කරන්න:
+    r_inc, r_prof, r_gross, r1, r_drv, r_land, r_log = st.tabs([
+    "💰 Income", "📊 Profit & Loss", "📊 P&L Old", "🚜 Vehicle Settlement", "👷 Driver Summary", "🏡 Landowner Report", "📑 Daily Log"
+])
 ])
     
     # 2. Date Filter එක
