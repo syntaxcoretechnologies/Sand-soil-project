@@ -538,7 +538,7 @@ elif menu == "⚙️ System Setup":
     st.markdown("<h2 style='color: #2E86C1;'>⚙️ System Configuration</h2>", unsafe_allow_html=True)
     
     # Tabs දෙකක් සාදමු
-    setup_tab1, setup_tab2 = st.tabs(["🚜 Vehicle Management", "👷 Driver Management"])
+    setup_tab1, setup_tab2, setup_tab3 = st.tabs(["🚜 Vehicle Management", "👷 Driver Management", "🏡 Register New Landowner"])
     
     # --- VEHICLE MANAGEMENT ---
     with setup_tab1:
@@ -598,6 +598,24 @@ elif menu == "⚙️ System Setup":
         if st.button("🗑️ Clear Driver List"):
             st.session_state.dr_db = pd.DataFrame(columns=["Name", "Phone", "Daily_Salary"])
             save_all(); st.rerun()
+
+# --- Landowner Registration ---
+    with setup_tab3:
+    st.subheader("🏡 Register New Landowner (Source)")
+    with st.form("landowner_form", clear_on_submit=True):
+        l_name = st.text_input("Landowner Name")
+        l_contact = st.text_input("Contact Number")
+        l_location = st.text_input("Land Location")
+        
+        if st.form_submit_button("Add Landowner"):
+            if l_name:
+                # මෙතනදී අපි landowners ලාව session state එකට add කරනවා
+                if "landowners" not in st.session_state:
+                    st.session_state.landowners = []
+                st.session_state.landowners.append({"Name": l_name, "Contact": l_contact, "Location": l_location})
+                st.success(f"Registered {l_name} successfully!")
+            else:
+                st.error("Please enter a name.")
 
 
 # --- 11. DATA MANAGER (EDIT / DELETE) ---
