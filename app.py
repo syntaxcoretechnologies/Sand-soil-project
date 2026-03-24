@@ -308,101 +308,65 @@ elif menu == "💰 Finance & Shed":
 elif menu == "📑 Reports Center":
     st.markdown("<h2 style='color: #8E44AD;'>📑 Comprehensive Reports & Settlement</h2>", unsafe_allow_html=True)
     
-    # 1. දත්ත පිරිසිදු කිරීම සහ Column Names නිවැරදි කිරීම
     df_raw = st.session_state.df.copy()
     df_raw.columns = [str(c).strip() for c in df_raw.columns]
-    
-    # වැරදි column names තිබේ නම් ඒවා "Vehicle" ලෙස සකස් කිරීම
-    rename_map = {'Vehicle No': 'Vehicle', 'Vehicle_No': 'Vehicle', 'Lorry No': 'Vehicle', 'Entity': 'Vehicle'}
-    df_raw.rename(columns=rename_map, inplace=True)
+    df_raw.rename(columns={'Vehicle No': 'Vehicle', 'Vehicle_No': 'Vehicle', 'Entity': 'Vehicle'}, inplace=True)
 
-    # Tabs වෙන් කිරීම
     r1, r2, r3, r4 = st.tabs(["🚜 Vehicle Settlement", "👷 Driver Summary", "📑 Daily Log", "⛽ Shed Report"])
     
-    col_d1, col_d2 = st.columns(2)
-    with col_d1:
-        f_d = st.date_input("From Date", datetime.now().date() - timedelta(days=30))
-    with col_d2:
-        t_d = st.date_input("To Date", datetime.now().date())
+    f_d = st.date_input("From", datetime.now().date() - timedelta(days=30))
+    t_d = st.date_input("To", datetime.now().date())
 
     df_raw['Date'] = pd.to_datetime(df_raw['Date']).dt.date
     df_f = df_raw[(df_raw["Date"] >= f_d) & (df_raw["Date"] <= t_d)].copy()
 
-    # ---------------------------------------------------------
-    # TAB 1: VEHICLE SETTLEMENT (PDF එකේ විදිහටම)
-    # ---------------------------------------------------------
     with r1:
         v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else df_f["Vehicle"].unique().tolist()
-        sel_ve = st.selectbox("Select Vehicle/Machine", v_list, key="v_sel_settle")
+        sel_ve = st.selectbox("Select Vehicle", v_list)
         
         if sel_ve:
             v_rep = df_f[df_f["Vehicle"] == sel_ve].copy()
             if not v_rep.empty:
-                # ලොරි ද බැකෝ ද බලලා ඒක අනුව Units (Cubes/Hours) තෝරා ගැනීම
-                is_excavator = v_rep["Category"].str.contains("Excavator", na=False).any()
-                unit_col = 'Hours' if is_excavator else 'Qty_Cubes'
+                is_ex = v_rep["Category"].str.contains("Excavator", na=False).any()
+                u_col = 'Hours' if is_ex else 'Qty_Cubes'
                 
-                # පේළියක ආදායම = (ප්‍රමාණය) * රේට් එක
-                v_rep['Line_Total'] = pd.to_numeric(v_rep[unit_col], errors='coerce').fillna(0) * \
+                v_rep['Line_Total'] = pd.to_numeric(v_rep[u_col], errors='coerce').fillna(0) * \
                                      pd.to_numeric(v_rep['Rate_At_Time'], errors='coerce').fillna(0)
                 
-                # මුළු එකතුවන් (PDF Header එකේ විදිහට)
-                gross_earnings = v_rep[v_rep["Type"] == "Process"]['Line_Total'].sum()
-                total_expenses = pd.to_numeric(v_rep[v_rep["Type"] == "Expense"]["Amount"], errors='coerce').sum()
-                net_settlement = gross_earnings - total_expenses
+                gross = v_rep[v_rep["Type"] == "Process"]['Line_Total'].sum()
+                deduct = pd.to_numeric(v_rep[v_rep["Type"] == "Expense"]["Amount"], errors='coerce').sum()
+                net = gross - deduct
 
-                # --- PDF Header Style Summary ---
-                st.markdown(f"### STATEMENT: SETTLEMENT {sel_ve}")
-                st.table(pd.DataFrame({
-                    "Description": ["Vehicle No", "Gross Earnings", "Total Expenses", "Net Settlement"],
-                    "Amount": [sel_ve, f"{gross_earnings:,.2f}", f"{total_expenses:,.2f}", f"{net_settlement:,.2f}"]
-                }))
+                # Screen එකේ පෙන්වන Summary Table
+                summary_dict = {
+                    "Vehicle No": sel_ve,
+                    "Gross Earnings": f"{gross:,.2f}",
+                    "Total Expenses": f"{deduct:,.2f}",
+                    "Net Settlement": f"{net:,.2f}"
+                }
+                st.table(pd.DataFrame(summary_dict.items(), columns=["Description", "Value"]))
 
-                # --- Earnings Breakdown (By Rate) ---
-                st.subheader("Earnings Breakdown (By Rate)")
-                rate_breakdown = v_rep[v_rep["Type"] == "Process"].groupby('Rate_At_Time').agg({
-                    unit_col: 'sum',
-                    'Line_Total': 'sum'
-                }).reset_index()
+                # Rate Breakdown Logic
+                rate_summary = v_rep[v_rep["Type"] == "Process"].groupby('Rate_At_Time').agg({u_col: 'sum', 'Line_Total': 'sum'}).reset_index()
+                rate_list = []
+                for _, row in rate_summary.iterrows():
+                    rate_list.append({'rate': row['Rate_At_Time'], 'qty': row[u_col], 'subtotal': row['Line_Total']})
                 
-                st.table(rate_breakdown.rename(columns={
-                    'Rate_At_Time': 'Rate (LKR)',
-                    unit_col: 'Qty/Hrs',
-                    'Line_Total': 'Sub-Total (LKR)'
-                }))
+                summary_dict["Rate_Breakdown"] = rate_list
 
-                # --- Detailed Log ---
-                st.subheader("Transaction Log")
+                # --- මෙන්න මෙතන තමයි PDF DOWNLOAD එක වෙන්නේ ---
+                st.divider()
+                if st.button("📄 Generate PDF Settlement"):
+                    pdf_file = create_pdf(f"Settlement_{sel_ve}", v_rep, summary_dict)
+                    with open(pdf_file, "rb") as f:
+                        st.download_button(
+                            label="📩 Click here to Download PDF",
+                            data=f,
+                            file_name=pdf_file,
+                            mime="application/pdf"
+                        )
+                
                 st.dataframe(v_rep[['Date', 'Category', 'Note', 'Rate_At_Time', 'Amount', 'Line_Total']], use_container_width=True)
-                
-                # Download Buttons
-                csv_data = v_rep.to_csv(index=False).encode('utf-8')
-                st.download_button(f"📥 Download {sel_ve} CSV Report", csv_data, f"Settlement_{sel_ve}.csv", "text/csv")
-            else:
-                st.warning("තෝරාගත් වාහනයට අදාළ දත්ත නැත.")
-
-    # ---------------------------------------------------------
-    # TAB 2: DRIVER SUMMARY
-    # ---------------------------------------------------------
-    with r2:
-        dr_list = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else []
-        sel_dr = st.selectbox("Select Driver", dr_list)
-        if sel_dr:
-            dr_rep = df_f[df_f["Note"].fillna("").astype(str).str.contains(sel_dr, case=False)].copy()
-            st.metric(f"Total Paid to {sel_dr}", f"Rs. {pd.to_numeric(dr_rep['Amount'], errors='coerce').sum():,.2f}")
-            st.dataframe(dr_rep, use_container_width=True)
-
-    # ---------------------------------------------------------
-    # TAB 3 & 4: DAILY LOG & SHED
-    # ---------------------------------------------------------
-    with r3:
-        st.dataframe(df_f, use_container_width=True)
-    
-    with r4:
-        f_total = pd.to_numeric(df_f[df_f["Category"] == "Fuel Entry"]["Amount"], errors='coerce').sum()
-        p_total = pd.to_numeric(df_f[df_f["Category"] == "Shed Payment"]["Amount"], errors='coerce').sum()
-        st.metric("Pending Shed Debt", f"Rs. {f_total - p_total:,.2f}")
-        st.dataframe(df_f[df_f["Category"].str.contains("Fuel|Shed", na=False)], use_container_width=True)
 
 
 # --- 11. DATA MANAGER (EDIT / DELETE) ---
