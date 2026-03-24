@@ -124,13 +124,13 @@ st.sidebar.title("🏗️ KSD ERP v5.6")
 menu = st.sidebar.selectbox("MAIN MENU", ["📊 Dashboard", "🏗️ Site Operations", "💰 Finance & Shed", "⚙️ System Setup", "📑 Reports Center", "⚙️ Data Manager"])
 
 # --- 1. DASHBOARD SECTION ---
+# --- 1. DASHBOARD SECTION (UPDATED) ---
 if menu == "📊 Dashboard":
     st.markdown("<h2 style='color: #2E86C1;'>📊 Business Overview</h2>", unsafe_allow_html=True)
-    
     df = st.session_state.df.copy()
     
     if not df.empty:
-        # --- 1. DATE FILTER UI ---
+        # --- DATE FILTER ---
         st.subheader("📅 Filter by Date")
         col_f1, col_f2 = st.columns(2)
         with col_f1:
@@ -138,62 +138,59 @@ if menu == "📊 Dashboard":
         with col_f2:
             end_date = st.date_input("To Date", datetime.now().date())
         
-        # දත්ත Filter කිරීම (Date column එක date format එකට තියෙන්න ඕනේ)
         df['Date'] = pd.to_datetime(df['Date']).dt.date
         mask = (df['Date'] >= start_date) & (df['Date'] <= end_date)
         filtered_df = df.loc[mask].copy()
 
         if not filtered_df.empty:
-            # --- 2. CALCULATION ON FILTERED DATA ---
-            filtered_df['Calculated_Income'] = (pd.to_numeric(filtered_df['Qty_Cubes'], errors='coerce').fillna(0) + 
-                                               pd.to_numeric(filtered_df['Hours'], errors='coerce').fillna(0)) * \
-                                               pd.to_numeric(filtered_df['Rate_At_Time'], errors='coerce').fillna(0)
-            
-            ti = filtered_df[filtered_df["Type"] == "Process"]["Calculated_Income"].sum()
-            te = pd.to_numeric(filtered_df[filtered_df["Type"] == "Expense"]["Amount"], errors='coerce').sum()
-            
-            # Fuel Debt එක නම් මුළු කාලයටම බලන එක හොඳයි (ඒක නිසා ඒක df එකෙන් ගමු)
+            # --- 1. INCOME (SALES ONLY) ---
+            # මෙතනදී ගන්නේ 'Sales Out' කියන ඒවා විතරයි
+            sales_df = filtered_df[filtered_df["Category"].str.contains("Sales Out", na=False)].copy()
+            sales_df['Income'] = pd.to_numeric(sales_df['Qty_Cubes'], errors='coerce').fillna(0) * \
+                                 pd.to_numeric(sales_df['Rate_At_Time'], errors='coerce').fillna(0)
+            total_income = sales_df['Income'].sum()
+
+            # --- 2. WORK VALUE (LORRY & EXCAVATOR) ---
+            # මේක සල්ලි නෙවෙයි, කරපු වැඩ වල වටිනාකම
+            work_df = filtered_df[filtered_df["Category"].str.contains("Work Log", na=False)].copy()
+            work_df['Value'] = (pd.to_numeric(work_df['Qty_Cubes'], errors='coerce').fillna(0) + 
+                                pd.to_numeric(work_df['Hours'], errors='coerce').fillna(0)) * \
+                                pd.to_numeric(work_df['Rate_At_Time'], errors='coerce').fillna(0)
+            total_work_value = work_df['Value'].sum()
+
+            # --- 3. EXPENSES & DEBT ---
+            total_expenses = pd.to_numeric(filtered_df[filtered_df["Type"] == "Expense"]["Amount"], errors='coerce').sum()
             f_debt = df[df["Category"] == "Fuel Entry"]["Amount"].sum() - df[df["Category"] == "Shed Payment"]["Amount"].sum()
-            
-            # --- 3. METRICS DISPLAY ---
+
+            # --- 4. DISPLAY METRICS ---
             m1, m2, m3, m4 = st.columns(4)
-            m1.metric("Selected Period Income", f"Rs. {ti:,.2f}")
-            m2.metric("Selected Period Exp", f"Rs. {te:,.2f}")
-            m3.metric("Net Cashflow", f"Rs. {ti-te:,.2f}")
-            m4.metric("Total Shed Debt", f"Rs. {f_debt:,.2f}")
+            m1.metric("Cash Income (Sales)", f"Rs. {total_income:,.2f}")
+            m2.metric("Total Expenses", f"Rs. {total_expenses:,.2f}")
+            m3.metric("Net Cashflow", f"Rs. {total_income - total_expenses:,.2f}")
+            m4.metric("Work Production Value", f"Rs. {total_work_value:,.2f}")
 
-            # --- STOCK BALANCE CALCULATION ---
-            # Dashboard එක ඇතුළේ 'if not filtered_df.empty:' කොටස ඇතුළට මේක දාන්න
-            st.subheader("📦 Plant Stock Balance (Current Status)")
+            st.info(f"💡 'Work Production Value' යනු ලොරි සහ බැකෝ වැඩ කළ මුළු වටිනාකමයි (මෙය Cash Income එකට එකතු නොවේ).")
+            
+            st.divider()
+
+            # --- 5. STOCK BALANCE (PLANT) ---
+            st.subheader("📦 Plant Stock Balance (Current)")
             s_col1, s_col2 = st.columns(2)
-
-            # වැලි සහ පස් වල Inward/Outward ගණනය කිරීම
-            # Category එකේ 'Stock Inward' තියෙන ඒවා එකතු කරලා 'Sales Out' තියෙන ඒවා අඩු කරනවා
             sand_in = df[df["Category"].str.contains("Stock Inward \(Sand\)", na=False)]["Qty_Cubes"].sum()
             sand_out = df[df["Category"].str.contains("Sales Out \(Sand\)", na=False)]["Qty_Cubes"].sum()
-            
             soil_in = df[df["Category"].str.contains("Stock Inward \(Soil\)", na=False)]["Qty_Cubes"].sum()
             soil_out = df[df["Category"].str.contains("Sales Out \(Soil\)", na=False)]["Qty_Cubes"].sum()
 
             s_col1.metric("Sand Remaining", f"{sand_in - sand_out:.2f} Cubes")
             s_col2.metric("Soil Remaining", f"{soil_in - soil_out:.2f} Cubes")
-            
-            # මේ පේළියට උඩින් තමයි Stock Balance එක තියෙන්න ඕනේ
-            
+
             st.divider()
-            
-            # --- 4. TREND CHART ---
-            st.subheader(f"Income Trend ({start_date} to {end_date})")
-            trend_data = filtered_df[filtered_df["Type"] == "Process"].groupby('Date')['Calculated_Income'].sum()
-            st.line_chart(trend_data)
-            
-            # --- 5. RECENT TRANSACTIONS ---
-            st.subheader("Filtered Transactions")
-            st.dataframe(filtered_df.sort_values(by="ID", ascending=False), use_container_width=True)
+            st.subheader("Daily Income Trend (Sales Only)")
+            st.line_chart(sales_df.groupby('Date')['Income'].sum())
         else:
-            st.warning("තෝරාගත් දින පරාසය තුළ දත්ත කිසිවක් නැත.")
+            st.warning("තෝරාගත් දින පරාසය තුළ දත්ත නැත.")
     else:
-        st.info("පද්ධතියේ දත්ත කිසිවක් නැත. කරුණාකර Site Operations වෙත ගොස් දත්ත ඇතුළත් කරන්න.")
+        st.info("පද්ධතියේ දත්ත කිසිවක් නැත.")
 
 # --- 2. SITE OPERATIONS SECTION ---
 # මේ 'elif' එක පටන් ගන්න ඕනේ උඩ තියෙන 'if menu == "📊 Dashboard":' එකට කෙළින්ම පල්ලෙහායින්
