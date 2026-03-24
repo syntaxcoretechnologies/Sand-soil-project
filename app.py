@@ -119,8 +119,8 @@ def create_pdf(title, data_df, summary_dict):
 # --- 5. UI LAYOUT & DASHBOARD ---
 st.set_page_config(page_title=SHOP_NAME, layout="wide")
 st.sidebar.title("🏗️ KSD ERP v5.6")
-menu = st.sidebar.selectbox("MAIN MENU", ["📊 Dashboard", "🏗️ Site Operations", "💰 Finance & Shed", "⚙️ System Setup", "📑 Reports Center"])
-
+# Part 01 අන්තිමට තියෙන menu එක මේකට replace කරන්න
+menu = st.sidebar.selectbox("MAIN MENU", ["📊 Dashboard", "🏗️ Site Operations", "💰 Finance & Shed", "⚙️ System Setup", "📑 Reports Center", "⚙️ Data Manager"])
 if menu == "📊 Dashboard":
     df = st.session_state.df
     if not df.empty:
@@ -282,3 +282,67 @@ elif menu == "📑 Reports Center":
             sum_sh = {"Report": "Shed Settlement", "Total Bill": f"{fuel_total:,.2f}", "Total Paid": f"{paid_total:,.2f}", "Net Debt": f"{debt:,.2f}"}
             fn = create_pdf("Shed_Statement", shed_logs, sum_sh)
             with open(fn, "rb") as f: st.download_button("📩 Download Shed PDF", f, file_name=fn)
+
+# --- 11. DATA MANAGER (EDIT / DELETE) ---
+elif menu == "⚙️ Data Manager":
+    st.markdown(f"<h2 style='color: #E67E22;'>⚙️ Data Manager</h2>", unsafe_allow_html=True)
+    st.info("මෙහිදී ඔබට වැරදිලාවත් ඇතුළත් කළ දත්ත Edit කිරීමට හෝ Delete කිරීමට හැකියාව ඇත.")
+    
+    if st.session_state.df.empty:
+        st.warning("No data found in the system.")
+    else:
+        # ID එකෙන් Record එක සොයා ගැනීම
+        search_id = st.number_input("Enter Record ID to Edit/Delete", min_value=1, step=1)
+        
+        # DataFrame එකේ index එක හරියටම අල්ලගන්නවා
+        record_idx = st.session_state.df.index[st.session_state.df["ID"] == search_id].tolist()
+        
+        if record_idx:
+            idx = record_idx[0]
+            record = st.session_state.df.loc[idx]
+            
+            st.write("Current Data for ID:", search_id)
+            st.dataframe(pd.DataFrame([record])) # තෝරාගත් row එක විතරක් පෙන්වයි
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.subheader("📝 Edit Record")
+                with st.form("edit_record_form"):
+                    u_date = st.date_input("Date", value=record["Date"])
+                    u_entity = st.text_input("Vehicle / Entity", value=record["Entity"])
+                    u_note = st.text_input("Note", value=record["Note"])
+                    u_amount = st.number_input("Amount", value=float(record["Amount"]))
+                    u_qty = st.number_input("Qty (Cubes)", value=float(record["Qty_Cubes"]))
+                    u_hours = st.number_input("Hours", value=float(record["Hours"]))
+                    u_rate = st.number_input("Rate", value=float(record["Rate_At_Time"]))
+                    
+                    if st.form_submit_button("✅ Update Now"):
+                        st.session_state.df.at[idx, "Date"] = u_date
+                        st.session_state.df.at[idx, "Entity"] = u_entity
+                        st.session_state.df.at[idx, "Note"] = u_note
+                        st.session_state.df.at[idx, "Amount"] = u_amount
+                        st.session_state.df.at[idx, "Qty_Cubes"] = u_qty
+                        st.session_state.df.at[idx, "Hours"] = u_hours
+                        st.session_state.df.at[idx, "Rate_At_Time"] = u_rate
+                        
+                        save_all() # CSV එකට save කරනවා
+                        st.success("Record updated successfully!")
+                        st.rerun()
+
+            with col2:
+                st.subheader("🗑️ Delete Record")
+                st.error("ප්‍රවේසමෙන්! මෙය මැකූ පසු නැවත ලබාගත නොහැක.")
+                if st.button("🔥 Confirm Permanent Delete"):
+                    st.session_state.df = st.session_state.df.drop(idx).reset_index(drop=True)
+                    save_all()
+                    st.success("Record deleted!")
+                    st.rerun()
+        else:
+            st.warning("Could not find a record with that ID. Please check the ID in the table below.")
+
+        # පහළින් සම්පූර්ණ දත්ත වගුව පෙන්වනවා ID එක ලේසියෙන් බලාගන්න
+        st.divider()
+        st.write("All Transactions (Use ID from here):")
+        # අලුත්ම දත්ත උඩට එන විදියට පෙන්වනවා
+        st.dataframe(st.session_state.df.sort_values(by="ID", ascending=False), use_container_width=True)
