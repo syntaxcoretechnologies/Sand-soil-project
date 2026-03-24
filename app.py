@@ -44,47 +44,73 @@ class PDF(FPDF):
         self.cell(0, 10, SHOP_NAME, 0, 1, 'C'); self.ln(5)
 
 def create_pdf(title, data_df, summary_dict):
-    pdf = PDF(); pdf.add_page(); pdf.set_font("Arial", 'B', 12)
+    pdf = PDF()
+    pdf.add_page()
+    
+    # Unicode Error එන එක නතර කරන්න safe_text කියන function එක පාවිච්චි කරමු
+    def safe_text(text):
+        if text is None: return ""
+        # Latin-1 වලට සපෝට් නොකරන අකුරු (සිංහල, Emojis) අයින් කරනවා
+        return str(text).encode("latin-1", "ignore").decode("latin-1")
+
+    pdf.set_font("Arial", 'B', 12)
     pdf.set_fill_color(240, 240, 240)
-    # මෙතන 'Rs.' වගේ symbols පාවිච්චි කරන එක අවදානම්, ඒ නිසා Title එක විතරක් දාමු
-    pdf.cell(0, 10, f"STATEMENT: {title.upper()}", 1, 1, 'L', fill=True); pdf.ln(2)
+    pdf.cell(0, 10, safe_text(f"STATEMENT: {title.upper()}"), 1, 1, 'L', fill=True)
+    pdf.ln(2)
     
     # Summary Section
     pdf.set_font("Arial", 'B', 10)
     for k, v in summary_dict.items():
-        # මෙතන v එක ඇතුළේ 'Rs.' තියෙනවා නම් ඒක encode කරන්න බැරි වෙන්න පුළුවන්
-        # ඒ නිසා අපි clean කරලා දාමු
-        clean_v = str(v).replace("Rs.", "LKR") 
-        pdf.cell(50, 8, f"{k}:", 1); pdf.set_font("Arial", '', 10)
-        pdf.cell(0, 8, f" {clean_v}", 1, 1); pdf.set_font("Arial", 'B', 10)
+        # රුපියල් සලකුණ වෙනුවට LKR පාවිච්චි කිරීම ආරක්ෂිතයි
+        val = str(v).replace("Rs.", "LKR")
+        pdf.cell(50, 8, safe_text(k) + ":", 1)
+        pdf.set_font("Arial", '', 10)
+        pdf.cell(0, 8, " " + safe_text(val), 1, 1)
+        pdf.set_font("Arial", 'B', 10)
     
-    pdf.ln(8); pdf.set_font("Arial", 'B', 9)
+    pdf.ln(8)
+    
+    # Table Header
+    pdf.set_font("Arial", 'B', 9)
     headers = ["Date", "Category", "Note", "Qty/Hrs", "Amount"]
     w = [25, 35, 65, 25, 40]
-    for i, h in enumerate(headers): pdf.cell(w[i], 8, h, 1, 0, 'C', fill=True)
-    pdf.ln(); pdf.set_text_color(0, 0, 0); pdf.set_font("Arial", '', 8)
+    for i, h in enumerate(headers):
+        pdf.cell(w[i], 8, safe_text(h), 1, 0, 'C', fill=True)
+    pdf.ln()
+    
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Arial", '', 8)
     
     total_exp = 0
     for _, row in data_df.iterrows():
-        # Unicode error එක එන එක නතර කරන්න Note එකේ තියෙන අමුතු අකුරු අයින් කරනවා
-        note_text = str(row['Note'])[:40].encode('ascii', 'ignore').decode('ascii')
+        pdf.cell(w[0], 7, safe_text(row['Date']), 1)
+        pdf.cell(w[1], 7, safe_text(row['Category']), 1)
         
-        pdf.cell(w[0], 7, str(row['Date']), 1)
-        pdf.cell(w[1], 7, str(row['Category']), 1)
-        pdf.cell(w[2], 7, note_text, 1)
+        # Note එකේ සිංහල අකුරු තිබුණොත් ඒක ignore කරනවා
+        clean_note = safe_text(row['Note'])[:40]
+        pdf.cell(w[2], 7, clean_note, 1)
+        
         qty = row['Hours'] if row['Hours'] > 0 else (row['Qty_Cubes'] if row['Qty_Cubes'] > 0 else "-")
-        pdf.cell(w[3], 7, f"{qty}", 1, 0, 'C')
+        pdf.cell(w[3], 7, safe_text(qty), 1, 0, 'C')
+        
         amt = float(row['Amount']) if row['Type'] == "Expense" else 0.0
         total_exp += amt
-        pdf.cell(w[4], 7, f"{amt:,.2f}", 1, 0, 'R'); pdf.ln()
+        pdf.cell(w[4], 7, f"{amt:,.2f}", 1, 0, 'R')
+        pdf.ln()
     
+    # Grand Total
     pdf.set_font("Arial", 'B', 9)
-    pdf.cell(sum(w[:4]), 10, "GRAND TOTAL (EXPENSES)", 1, 0, 'R')
-    # මෙතන 'Rs.' අයින් කරලා 'LKR' කියලා දැම්මා
+    pdf.cell(sum(w[:4]), 10, "GRAND TOTAL (EXPENSES) LKR", 1, 0, 'R')
     pdf.cell(w[4], 10, f"{total_exp:,.2f}", 1, 1, 'R')
     
+    # Output file
     fn = f"Settlement_{datetime.now().strftime('%H%M%S')}.pdf"
-    pdf.output(fn)
+    try:
+        pdf.output(fn)
+    except Exception as e:
+        # තවමත් error එකක් එනවා නම් නිකන්ම output කරනවා (fallback)
+        pdf.output(fn, 'F')
+        
     return fn
 
 # --- 5. UI LAYOUT & DASHBOARD ---
