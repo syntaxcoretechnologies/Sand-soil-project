@@ -132,19 +132,78 @@ if menu == "📊 Dashboard":
         m3.metric("Net Cashflow", f"Rs. {ti-te:,.2f}"); m4.metric("Shed Debt", f"Rs. {f_debt:,.2f}")
         st.divider(); st.area_chart(df.groupby(['Date', 'Type'])['Amount'].sum().unstack().fillna(0))
 
-# --- 7. SITE OPERATIONS (v56 Full) ---
+# --- 7. SITE OPERATIONS (FIXED) ---
 elif menu == "🏗️ Site Operations":
-    op = st.radio("Activity", ["🚛 Lorry Work Log", "🚜 Excavator Work Log", "💰 Sales Out (Sand/Soil)"], horizontal=True)
+    st.markdown(f"<h2 style='color: #E67E22;'>🏗️ Site Operations</h2>", unsafe_allow_html=True)
+    
+    # මෙතනින් තමයි වර්ගය තෝරන්නේ
+    op = st.radio("Select Activity Type", ["🚛 Lorry Work Log", "🚜 Excavator Work Log", "💰 Sales Out (Sand/Soil)"], horizontal=True)
+    
     v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
-    with st.form("site_f"):
-        v = st.selectbox("Vehicle", v_list)
-        def_r = st.session_state.ve_db[st.session_state.ve_db["No"]==v]["Rate_Per_Unit"].values[0] if v != "N/A" else 0.0
-        d, val, r, n = st.date_input("Date"), st.number_input("Qty (Cubes/Hours)", step=0.5), st.number_input("Rate (Dynamic)", value=float(def_r)), st.text_input("Note")
-        if st.form_submit_button("Save Log"):
-            q, h = (val, 0) if "Lorry" in op else (0, val)
-            new = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Process", op, v, n, 0, q, 0, h, r, "Done"]], columns=st.session_state.df.columns)
-            st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
+    
+    with st.form("site_f", clear_on_submit=True):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            v = st.selectbox("Select Vehicle / Machine", v_list)
+            # වාහනය තෝරපු ගමන් ඒකට අදාළ පරණ Rate එක default විදිහට ගන්නවා
+            def_r = st.session_state.ve_db[st.session_state.ve_db["No"]==v]["Rate_Per_Unit"].values[0] if v != "N/A" else 0.0
+            d = st.date_input("Date", datetime.now().date())
+        
+        with col2:
+            # තෝරන වර්ගය අනුව Label එක වෙනස් කරනවා
+            if "Lorry" in op:
+                val_label = "Qty (Cubes)"
+                unit = "Cubes"
+            elif "Excavator" in op:
+                val_label = "Work Hours"
+                unit = "Hrs"
+            else:
+                val_label = "Sales Qty"
+                unit = "Units"
+                
+            val = st.number_input(val_label, min_value=0.0, step=0.5)
+            r = st.number_input(f"Rate per {unit}", value=float(def_r))
+        
+        n = st.text_input("Additional Note (Location, Trip details etc.)")
+        
+        submit = st.form_submit_button("📥 Save Record")
+        
+        if submit:
+            if v == "N/A":
+                st.error("Please add a vehicle in Setup first!")
+            elif val <= 0:
+                st.error(f"Please enter a valid {val_label}")
+            else:
+                # දත්ත ගබඩා කරන කොට වර්ගය අනුව Qty සහ Hours වෙන් කරලා යවනවා
+                q, h = (val, 0) if "Lorry" in op or "Sales" in op else (0, val)
+                
+                new_data = pd.DataFrame([[
+                    len(st.session_state.df) + 1, 
+                    d, 
+                    datetime.now().strftime("%H:%M"), 
+                    "Process", 
+                    op, 
+                    v, 
+                    n, 
+                    0, 
+                    q, 
+                    0, 
+                    h, 
+                    r, 
+                    "Done"
+                ]], columns=st.session_state.df.columns)
+                
+                st.session_state.df = pd.concat([st.session_state.df, new_data], ignore_index=True)
+                save_all()
+                st.success(f"Successfully recorded {op} for {v}")
+                st.rerun()
 
+    # පහළින් අද දවසේ records විතරක් පෙන්වන්න (ලේසියට)
+    st.divider()
+    st.subheader("Today's Logs")
+    today_df = st.session_state.df[st.session_state.df["Date"] == datetime.now().date()]
+    st.dataframe(today_df, use_container_width=True)
 # --- 8. FINANCE & SHED (v56 FULL) ---
 elif menu == "💰 Finance & Shed":
     fin = st.radio("Finance Category", ["⛽ Fuel & Shed", "🔧 Repairs", "💸 Payroll", "🏦 Owner Advances", "🧾 Others"], horizontal=True)
