@@ -391,6 +391,72 @@ elif menu == "📑 Reports Center":
         st.metric("Shed Debt", f"Rs. {f_bill - p_paid:,.2f}")
         st.dataframe(shed_f, use_container_width=True)
 
+# --- 10. SYSTEM SETUP (මේ කොටස අලුතින් ඇතුළත් කරන්න) ---
+elif menu == "⚙️ System Setup":
+    st.markdown("<h2 style='color: #2E86C1;'>⚙️ System Configuration</h2>", unsafe_allow_html=True)
+    
+    # Tabs දෙකක් සාදමු
+    setup_tab1, setup_tab2 = st.tabs(["🚜 Vehicle Management", "👷 Driver Management"])
+    
+    # --- VEHICLE MANAGEMENT ---
+    with setup_tab1:
+        st.subheader("Add New Vehicle or Machine")
+        with st.form("v_setup_form", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                v_no = st.text_input("Vehicle Number (Ex: LM-1234)")
+                v_owner = st.text_input("Owner Name")
+            with col2:
+                v_type = st.selectbox("Category", ["Lorry", "Excavator", "JCB", "Tractor", "Other"])
+                v_rate = st.number_input("Standard Rate (Optional)", min_value=0.0)
+            
+            if st.form_submit_button("✅ Register Vehicle"):
+                if v_no:
+                    new_v = pd.DataFrame([[v_no, v_type, v_owner, v_rate]], 
+                                         columns=["No", "Type", "Owner", "Rate_Per_Unit"])
+                    st.session_state.ve_db = pd.concat([st.session_state.ve_db, new_v], ignore_index=True)
+                    save_all()
+                    st.success(f"Vehicle {v_no} registered!")
+                    st.rerun()
+                else:
+                    st.error("Please enter a vehicle number!")
+
+        st.divider()
+        st.subheader("Registered Vehicles")
+        st.dataframe(st.session_state.ve_db, use_container_width=True)
+        if st.button("🗑️ Clear Vehicle List"):
+            st.session_state.ve_db = pd.DataFrame(columns=["No", "Type", "Owner", "Rate_Per_Unit"])
+            save_all(); st.rerun()
+
+    # --- DRIVER MANAGEMENT ---
+    with setup_tab2:
+        st.subheader("Add New Driver / Operator")
+        with st.form("d_setup_form", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                d_name = st.text_input("Driver Name")
+            with col2:
+                d_salary = st.number_input("Daily Salary (Rs.)", min_value=0.0)
+            d_phone = st.text_input("Contact Number")
+            
+            if st.form_submit_button("✅ Register Driver"):
+                if d_name:
+                    new_d = pd.DataFrame([[d_name, d_phone, d_salary]], 
+                                         columns=["Name", "Phone", "Daily_Salary"])
+                    st.session_state.dr_db = pd.concat([st.session_state.dr_db, new_d], ignore_index=True)
+                    save_all()
+                    st.success(f"Driver {d_name} registered!")
+                    st.rerun()
+                else:
+                    st.error("Please enter a driver name!")
+
+        st.divider()
+        st.subheader("Registered Drivers")
+        st.dataframe(st.session_state.dr_db, use_container_width=True)
+        if st.button("🗑️ Clear Driver List"):
+            st.session_state.dr_db = pd.DataFrame(columns=["Name", "Phone", "Daily_Salary"])
+            save_all(); st.rerun()
+
 
 # --- 11. DATA MANAGER (EDIT / DELETE) ---
 elif menu == "⚙️ Data Manager":
