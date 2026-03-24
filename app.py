@@ -401,32 +401,45 @@ elif menu == "📑 Reports Center":
             t_i, t_e = profit_df['Income'].sum(), profit_df['Expense'].sum()
             st.info(f"Summary: Total Income: LKR {t_i:,.2f} | Total Expense: LKR {t_e:,.2f} | Net Profit: LKR {t_i-t_e:,.2f}")
 
-    # --- TAB: MATERIAL GROSS EARNINGS ---
+    # --- TAB: MATERIAL GROSS EARNINGS (FIXED) ---
     with r_gross:
         st.subheader("Material Gross Earnings (Sales Revenue)")
         
-        # Sales records pamanak ganeema
+        # 1. Column names වල හිස්තැන් අයින් කරලා Clean කරමු
+        df_f.columns = [c.strip() for c in df_f.columns]
+        
+        # 2. Sales records පමණක් පෙරමු
         gross_df = df_f[df_f["Category"].str.contains("Sales Out", na=False)].copy()
         
         if not gross_df.empty:
-            # Material eka anuwa group karamu (Sand walin keeyada, Soil walin keeyada kiyala)
-            # Category eken material eka extract karamu
-            gross_df['Material_Type'] = gross_df['Category'].apply(lambda x: "Sand" if "Sand" in x else ("Soil" if "Soil" in x else "Other"))
+            # 3. Material Type එක වෙන් කරගමු
+            gross_df['Material_Type'] = gross_df['Category'].apply(
+                lambda x: "Sand" if "Sand" in x else ("Soil" if "Soil" in x else "Other")
+            )
             
-            summary_gross = gross_df.groupby('Material_Type')['Amount'].sum().reset_index()
-            summary_gross.columns = ['Material', 'Total Gross Earning (LKR)']
+            # 4. Amount column එක තියෙනවාද බලමු (ගණනය කිරීම් වලට)
+            if 'Amount' in gross_df.columns:
+                gross_df['Amount'] = pd.to_numeric(gross_df['Amount'], errors='coerce').fillna(0)
+                summary_gross = gross_df.groupby('Material_Type')['Amount'].sum().reset_index()
+                summary_gross.columns = ['Material', 'Total Gross Earning (LKR)']
+                
+                col_g1, col_g2 = st.columns([1, 2])
+                with col_g1:
+                    st.write("**Earnings by Material:**")
+                    st.dataframe(summary_gross.style.format({"Total Gross Earning (LKR)": "{:,.2f}"}), use_container_width=True)
+                
+                with col_g2:
+                    st.bar_chart(data=summary_gross, x='Material', y='Total Gross Earning (LKR)')
             
-            col_g1, col_g2 = st.columns([1, 2])
-            with col_g1:
-                st.write("**Earnings by Material:**")
-                st.dataframe(summary_gross.style.format({"Total Gross Earning (LKR)": "{:,.2f}"}), use_container_width=True)
-            
-            with col_g2:
-                st.bar_chart(data=summary_gross, x='Material', y='Total Gross Earning (LKR)')
-
             st.divider()
             st.write("**Detailed Sales Log:**")
-            st.dataframe(gross_df[['Date', 'Entity', 'Category', 'Qty_Cubes', 'Amount']], use_container_width=True)
+            
+            # 5. Column එකක් නැති වුණොත් Error එක එන එක මෙතනින් නවත්වනවා
+            req_cols = ['Date', 'Entity', 'Category', 'Qty_Cubes', 'Amount']
+            available_cols = [c for c in req_cols if c in gross_df.columns]
+            
+            # තියෙන Column ටික විතරක් පෙන්වන්න
+            st.dataframe(gross_df[available_cols], use_container_width=True)
         else:
             st.info("No sales records found for the selected period.")
 
