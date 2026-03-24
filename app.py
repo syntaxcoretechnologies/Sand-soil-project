@@ -306,67 +306,110 @@ elif menu == "💰 Finance & Shed":
 
 # --- 9. SYSTEM SETUP ---
 elif menu == "📑 Reports Center":
-    st.markdown("<h2 style='color: #8E44AD;'>📑 Comprehensive Reports & Settlement</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color: #8E44AD;'>📑 Comprehensive Business Reports</h2>", unsafe_allow_html=True)
     
+    # 1. Column Names පිරිසිදු කිරීම
     df_raw = st.session_state.df.copy()
     df_raw.columns = [str(c).strip() for c in df_raw.columns]
     df_raw.rename(columns={'Vehicle No': 'Vehicle', 'Vehicle_No': 'Vehicle', 'Entity': 'Vehicle'}, inplace=True)
 
-    r1, r2, r3, r4 = st.tabs(["🚜 Vehicle Settlement", "👷 Driver Summary", "📑 Daily Log", "⛽ Shed Report"])
+    # Tabs හතරම පෙන්වීම
+    r1, r2, r3, r4 = st.tabs(["🚜 Vehicle Settlement", "👷 Driver Summary", "📅 Daily Log", "⛽ Shed Report"])
     
-    f_d = st.date_input("From", datetime.now().date() - timedelta(days=30))
-    t_d = st.date_input("To", datetime.now().date())
+    # Date Filter (පොදුවේ හැමෝටම)
+    col_d1, col_d2 = st.columns(2)
+    with col_d1:
+        f_d = st.date_input("From Date", datetime.now().date() - timedelta(days=30), key="global_from")
+    with col_d2:
+        t_d = st.date_input("To Date", datetime.now().date(), key="global_to")
 
     df_raw['Date'] = pd.to_datetime(df_raw['Date']).dt.date
     df_f = df_raw[(df_raw["Date"] >= f_d) & (df_raw["Date"] <= t_d)].copy()
 
+    # ---------------------------------------------------------
+    # TAB 1: VEHICLE SETTLEMENT (කලින් හැදූ කොටස)
+    # ---------------------------------------------------------
     with r1:
         v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else df_f["Vehicle"].unique().tolist()
-        sel_ve = st.selectbox("Select Vehicle", v_list)
-        
+        sel_ve = st.selectbox("Select Vehicle", v_list, key="v_sel")
         if sel_ve:
             v_rep = df_f[df_f["Vehicle"] == sel_ve].copy()
             if not v_rep.empty:
                 is_ex = v_rep["Category"].str.contains("Excavator", na=False).any()
                 u_col = 'Hours' if is_ex else 'Qty_Cubes'
-                
-                v_rep['Line_Total'] = pd.to_numeric(v_rep[u_col], errors='coerce').fillna(0) * \
-                                     pd.to_numeric(v_rep['Rate_At_Time'], errors='coerce').fillna(0)
+                v_rep['Line_Total'] = pd.to_numeric(v_rep[u_col], errors='coerce').fillna(0) * pd.to_numeric(v_rep['Rate_At_Time'], errors='coerce').fillna(0)
                 
                 gross = v_rep[v_rep["Type"] == "Process"]['Line_Total'].sum()
                 deduct = pd.to_numeric(v_rep[v_rep["Type"] == "Expense"]["Amount"], errors='coerce').sum()
-                net = gross - deduct
-
-                # Screen එකේ පෙන්වන Summary Table
-                summary_dict = {
-                    "Vehicle No": sel_ve,
-                    "Gross Earnings": f"{gross:,.2f}",
-                    "Total Expenses": f"{deduct:,.2f}",
-                    "Net Settlement": f"{net:,.2f}"
-                }
-                st.table(pd.DataFrame(summary_dict.items(), columns=["Description", "Value"]))
-
-                # Rate Breakdown Logic
-                rate_summary = v_rep[v_rep["Type"] == "Process"].groupby('Rate_At_Time').agg({u_col: 'sum', 'Line_Total': 'sum'}).reset_index()
-                rate_list = []
-                for _, row in rate_summary.iterrows():
-                    rate_list.append({'rate': row['Rate_At_Time'], 'qty': row[u_col], 'subtotal': row['Line_Total']})
                 
-                summary_dict["Rate_Breakdown"] = rate_list
-
-                # --- මෙන්න මෙතන තමයි PDF DOWNLOAD එක වෙන්නේ ---
-                st.divider()
-                if st.button("📄 Generate PDF Settlement"):
-                    pdf_file = create_pdf(f"Settlement_{sel_ve}", v_rep, summary_dict)
-                    with open(pdf_file, "rb") as f:
-                        st.download_button(
-                            label="📩 Click here to Download PDF",
-                            data=f,
-                            file_name=pdf_file,
-                            mime="application/pdf"
-                        )
+                st.subheader(f"Settlement: {sel_ve}")
+                st.info(f"Gross: {gross:,.2f} | Expenses: {deduct:,.2f} | Net: {gross-deduct:,.2f}")
                 
-                st.dataframe(v_rep[['Date', 'Category', 'Note', 'Rate_At_Time', 'Amount', 'Line_Total']], use_container_width=True)
+                # PDF Button
+                if st.button(f"Generate PDF for {sel_ve}"):
+                    sum_data = {"Vehicle No": sel_ve, "Gross Earnings": f"{gross:,.2f}", "Total Expenses": f"{deduct:,.2f}", "Net Settlement": f"{gross-deduct:,.2f}"}
+                    # Rate breakdown calculation here...
+                    fn = create_pdf(f"Settlement_{sel_ve}", v_rep, sum_data)
+                    with open(fn, "rb") as f: st.download_button("📩 Download PDF", f, file_name=fn)
+            else: st.warning("දත්ත නැත.")
+
+    # ---------------------------------------------------------
+    # TAB 2: DRIVER SUMMARY (දැන් පෙනේවි)
+    # ---------------------------------------------------------
+    with r2:
+        st.subheader("👷 Driver Payment & Expense Summary")
+        dr_list = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else []
+        sel_dr = st.selectbox("Select Driver", dr_list, key="dr_sel")
+        
+        if sel_dr:
+            # Note එකේ ඩ්‍රයිවර්ගේ නම තියෙන පේළි පෙරා ගැනීම
+            dr_rep = df_f[df_f["Note"].fillna("").astype(str).str.contains(sel_dr, case=False)].copy()
+            if not dr_rep.empty:
+                total_dr = pd.to_numeric(dr_rep['Amount'], errors='coerce').sum()
+                st.metric(f"Total Amount Paid to {sel_dr}", f"Rs. {total_dr:,.2f}")
+                st.dataframe(dr_rep[['Date', 'Category', 'Vehicle', 'Note', 'Amount']], use_container_width=True)
+                
+                if st.button(f"Download {sel_dr} Report PDF"):
+                    sum_dr = {"Driver": sel_dr, "Period": f"{f_d} to {t_d}", "Total Paid": f"{total_dr:,.2f}"}
+                    fn = create_pdf(f"Driver_{sel_dr}", dr_rep, sum_dr)
+                    with open(fn, "rb") as f: st.download_button("📩 Download Driver PDF", f, file_name=fn)
+            else: st.info("මෙම ඩ්‍රයිවර්ට අදාළ ගෙවීම් වාර්තා වී නැත.")
+
+    # ---------------------------------------------------------
+    # TAB 3: DAILY LOG (සම්පූර්ණ ලොග් එක)
+    # ---------------------------------------------------------
+    with r3:
+        st.subheader("📑 Daily Activity Log")
+        if not df_f.empty:
+            st.dataframe(df_f.sort_values(by="Date", ascending=False), use_container_width=True)
+            total_exp_period = pd.to_numeric(df_f[df_f['Type']=='Expense']['Amount'], errors='coerce').sum()
+            st.write(f"**Total Transactions in this period:** {len(df_f)}")
+            st.write(f"**Total Expenses in this period:** Rs. {total_exp_period:,.2f}")
+        else: st.info("තෝරාගත් කාලය තුළ දත්ත නැත.")
+
+    # ---------------------------------------------------------
+    # TAB 4: SHED REPORT (තෙල් බිල්)
+    # ---------------------------------------------------------
+    with r4:
+        st.subheader("⛽ Shed Fuel Settlement")
+        # Category එකේ Fuel හෝ Shed තියෙන ඒවා පමණක් ගැනීම
+        shed_data = df_f[df_f["Category"].str.contains("Fuel|Shed", na=False, case=False)].copy()
+        
+        fuel_total = pd.to_numeric(shed_data[shed_data["Category"] == "Fuel Entry"]["Amount"], errors='coerce').sum()
+        paid_total = pd.to_numeric(shed_data[shed_data["Category"] == "Shed Payment"]["Amount"], errors='coerce').sum()
+        debt = fuel_total - paid_total
+        
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Total Fuel Bill", f"Rs. {fuel_total:,.2f}")
+        col2.metric("Total Paid", f"Rs. {paid_total:,.2f}")
+        col3.metric("Outstanding Debt", f"Rs. {debt:,.2f}", delta_color="inverse")
+        
+        st.dataframe(shed_data[['Date', 'Vehicle', 'Note', 'Amount']], use_container_width=True)
+        
+        if st.button("Download Shed Report PDF"):
+            sum_sh = {"Report": "Shed Summary", "Total Bill": f"{fuel_total:,.2f}", "Total Paid": f"{paid_total:,.2f}", "Balance": f"{debt:,.2f}"}
+            fn = create_pdf("Shed_Report", shed_data, sum_sh)
+            with open(fn, "rb") as f: st.download_button("📩 Download Shed PDF", f, file_name=fn)
 
 
 # --- 11. DATA MANAGER (EDIT / DELETE) ---
