@@ -123,8 +123,7 @@ st.sidebar.title("🏗️ KSD ERP v5.6")
 # මේ පේළිය පිටුවේ වම් කෙළවරේ සිටම පටන් ගන්න (No spaces)
 menu = st.sidebar.selectbox("MAIN MENU", ["📊 Dashboard", "🏗️ Site Operations", "💰 Finance & Shed", "⚙️ System Setup", "📑 Reports Center", "⚙️ Data Manager"])
 
-# --- 1. DASHBOARD SECTION ---
-# --- 1. DASHBOARD SECTION (UPDATED) ---
+
 # --- 1. DASHBOARD SECTION (සම්පූර්ණ එකම මෙතන තියෙනවා) ---
 if menu == "📊 Dashboard":
     st.markdown("<h2 style='color: #2E86C1;'>📊 Business Overview</h2>", unsafe_allow_html=True)
@@ -197,27 +196,22 @@ if menu == "📊 Dashboard":
 elif menu == "🏗️ Site Operations":
     st.markdown(f"<h2 style='color: #E67E22;'>🏗️ Site Operations & Stock Manager</h2>", unsafe_allow_html=True)
     
-    # මෙතන Activity Type එක තෝරනවා
     op = st.radio("Select Activity Type", ["🚛 Lorry Work Log", "🚜 Excavator Work Log", "💰 Sales Out", "📥 Stock Inward (To Plant)"], horizontal=True)
-    
     v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
     
     with st.form("site_f", clear_on_submit=True):
         col1, col2 = st.columns(2)
         with col1:
-            # Stock inward එකට වාහනයක් ඕනෙම නැති නිසා 'Internal' කියලා එනවා
             v = st.selectbox("Select Vehicle / Machine", v_list if op != "📥 Stock Inward (To Plant)" else ["Internal / Third Party"])
             d = st.date_input("Date", datetime.now().date())
-            # Material එක ඕන වෙන්නේ Sales සහ Stock Inward වලට විතරයි
             material = st.selectbox("Material Type", ["Sand", "Soil", "Other"]) if (op == "💰 Sales Out" or op == "📥 Stock Inward (To Plant)") else ""
         
         with col2:
-            # --- මෙන්න මෙතනදී තමයි Excavator ද ලොරි ද කියලා අඳුරගන්නේ ---
             if "Excavator" in op:
-                val_label = "Work Hours (පැය ගණන)"
+                val_label = "Work Hours"
                 unit = "Hrs"
             else:
-                val_label = "Qty (Cubes - කියුබ් ගණන)"
+                val_label = "Qty (Cubes)"
                 unit = "Cubes"
                 
             val = st.number_input(val_label, min_value=0.0, step=0.5, value=0.0)
@@ -225,7 +219,8 @@ elif menu == "🏗️ Site Operations":
             
         n = st.text_input("Additional Note")
         
-       if st.form_submit_button("📥 Save Record"):
+        # මෙන්න මේ පේළිය (228) දැන් හරියටම with st.form එකට යටින් තියෙනවා
+        if st.form_submit_button("📥 Save Record"):
             if val <= 0: 
                 st.error(f"Enter valid {val_label}!")
             elif r <= 0:
@@ -234,20 +229,17 @@ elif menu == "🏗️ Site Operations":
                 record_type = "Inward" if op == "📥 Stock Inward (To Plant)" else "Process"
                 cat = f"{op} ({material})" if material else op
                 
-                # --- අලුත් ලොජික් එක: මුළු මුදල ගණනය කිරීම (Qty * Rate) ---
+                # Amount එක මෙතනදී Calculate වෙනවා
                 calculated_amount = val * r
-                
-                # Excavator නම් Hours වලටත්, අනෙක්වා Qty_Cubes වලටත් දත්ත වෙන් කරනවා
                 q, h = (0, val) if "Excavator" in op else (val, 0)
                 
-                # Amount තීරුවට 0 වෙනුවට calculated_amount එක එකතු කරනවා
                 new_row = pd.DataFrame([[
                     len(st.session_state.df)+1, d, "", record_type, cat, v, n, calculated_amount, q, 0, h, r, "Done"
                 ]], columns=st.session_state.df.columns)
                 
                 st.session_state.df = pd.concat([st.session_state.df, new_row], ignore_index=True)
                 save_all()
-                st.success(f"Successfully recorded {op} | Total Value: Rs.{calculated_amount:,.2f}")
+                st.success(f"Successfully recorded! Total: Rs.{calculated_amount:,.2f}")
                 st.rerun()
     
     
