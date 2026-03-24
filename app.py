@@ -307,7 +307,15 @@ elif menu == "📑 Reports Center":
     df_raw.rename(columns={'Vehicle No': 'Vehicle', 'Vehicle_No': 'Vehicle', 'Entity': 'Vehicle'}, inplace=True)
 
     # Tabs
-    r1, r2, r3, r4 = st.tabs(["🚜 Vehicle Settlement", "👷 Driver Summary", "📑 Daily Log", "⛽ Shed Report"])
+
+    r_inc, r_prof, r1, r2, r3, r4 = st.tabs([
+        "💰 Daily Income Report", 
+        "📈 Profit/Loss Analysis",
+        "🚜 Vehicle Settlement", 
+        "👷 Driver Summary", 
+        "📑 Daily Log", 
+        "⛽ Shed Report"
+    ])
     
     col_d1, col_d2 = st.columns(2)
     with col_d1:
@@ -317,6 +325,64 @@ elif menu == "📑 Reports Center":
 
     df_raw['Date'] = pd.to_datetime(df_raw['Date']).dt.date
     df_f = df_raw[(df_raw["Date"] >= f_d) & (df_raw["Date"] <= t_d)].copy()
+    
+    # --- TAB: DAILY INCOME REPORT ---
+    with r_inc:
+        st.subheader("Daily Sales & Income Statement")
+        
+        # Sales Out records පමණක් පෙරන්න
+        daily_sales = df_f[df_f["Category"].str.contains("Sales Out", na=False)].copy()
+        
+        if not daily_sales.empty:
+            # පෙන්වන ටේබල් එක ලස්සන කරමු
+            display_sales = daily_sales[['Date', 'Category', 'Entity', 'Qty_Cubes', 'Rate_At_Time', 'Amount']].copy()
+            display_sales.columns = ['Date', 'Material', 'Vehicle/Client', 'Qty', 'Rate', 'Total Amount']
+            
+            st.dataframe(display_sales, use_container_width=True)
+            
+            total_daily_inc = display_sales['Total Amount'].sum()
+            st.success(f"Selected Period Total Income: **LKR {total_daily_inc:,.2f}**")
+            
+            # --- PDF GENERATION ---
+            if st.button("📥 Download Daily Income PDF"):
+                inc_summary = {
+                    "Report Type": "Daily Income Statement",
+                    "Period": f"{f_d} to {t_d}",
+                    "Total Items": len(display_sales),
+                    "Total Gross Income": f"LKR {total_daily_inc:,.2f}"
+                }
+                
+                pdf_fn = create_pdf(f"Daily_Income", daily_sales, inc_summary)
+                with open(pdf_fn, "rb") as f:
+                    st.download_button("📩 Click to Download PDF", f, file_name=f"Income_Report_{f_d}.pdf")
+        else:
+            st.warning("තෝරාගත් දින පරාසය තුළ Sales records කිසිවක් නැත.")
+
+    # --- TAB: PROFIT/LOSS ANALYSIS ---
+    with r_prof:
+        st.subheader("Daily Profit & Loss Analysis")
+        if not df_f.empty:
+            # Income (Sales)
+            inc_data = df_f[df_f["Category"].str.contains("Sales Out", na=False)].copy()
+            inc_data['Val'] = pd.to_numeric(inc_data['Amount'], errors='coerce').fillna(0)
+            
+            # Expense (All Expenses)
+            exp_data = df_f[df_f["Type"] == "Expense"].copy()
+            exp_data['Val'] = pd.to_numeric(exp_data['Amount'], errors='coerce').fillna(0)
+
+            d_inc = inc_data.groupby('Date')['Val'].sum()
+            d_exp = exp_data.groupby('Date')['Val'].sum()
+            
+            profit_df = pd.concat([d_inc, d_exp], axis=1).fillna(0)
+            profit_df.columns = ['Income', 'Expense']
+            profit_df['Net Profit'] = profit_df['Income'] - profit_df['Expense']
+            
+            st.bar_chart(profit_df[['Income', 'Expense']])
+            st.dataframe(profit_df.style.format("{:,.2f}"), use_container_width=True)
+            
+            # Totals
+            t_i, t_e = profit_df['Income'].sum(), profit_df['Expense'].sum()
+            st.info(f"Summary: Total Income: LKR {t_i:,.2f} | Total Expense: LKR {t_e:,.2f} | Net Profit: LKR {t_i-t_e:,.2f}")
 
     # --- TAB 1: VEHICLE SETTLEMENT ---
     with r1:
