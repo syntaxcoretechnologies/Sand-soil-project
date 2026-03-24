@@ -136,22 +136,25 @@ if menu == "📊 Dashboard":
 elif menu == "🏗️ Site Operations":
     st.markdown(f"<h2 style='color: #E67E22;'>🏗️ Site Operations</h2>", unsafe_allow_html=True)
     
-    # මෙතනින් තමයි වර්ගය තෝරන්නේ
-    op = st.radio("Select Activity Type", ["🚛 Lorry Work Log", "🚜 Excavator Work Log", "💰 Sales Out (Sand/Soil)"], horizontal=True)
+    op = st.radio("Select Activity Type", ["🚛 Lorry Work Log", "🚜 Excavator Work Log", "💰 Sales Out"], horizontal=True)
     
     v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
     
+    # clear_on_submit එක මෙතන තියෙනවා
     with st.form("site_f", clear_on_submit=True):
         col1, col2 = st.columns(2)
         
         with col1:
             v = st.selectbox("Select Vehicle / Machine", v_list)
-            # වාහනය තෝරපු ගමන් ඒකට අදාළ පරණ Rate එක default විදිහට ගන්නවා
             def_r = st.session_state.ve_db[st.session_state.ve_db["No"]==v]["Rate_Per_Unit"].values[0] if v != "N/A" else 0.0
             d = st.date_input("Date", datetime.now().date())
+            
+            # --- අලුත් කොටස: වැලි ද පස් ද තෝරන තැන ---
+            material = ""
+            if op == "💰 Sales Out":
+                material = st.selectbox("Material Type", ["Sand", "Soil", "Other"])
         
         with col2:
-            # තෝරන වර්ගය අනුව Label එක වෙනස් කරනවා
             if "Lorry" in op:
                 val_label = "Qty (Cubes)"
                 unit = "Cubes"
@@ -159,44 +162,35 @@ elif menu == "🏗️ Site Operations":
                 val_label = "Work Hours"
                 unit = "Hrs"
             else:
-                val_label = "Sales Qty"
-                unit = "Units"
+                val_label = f"Sales Qty ({material})"
+                unit = "Cubes/Units"
                 
             val = st.number_input(val_label, min_value=0.0, step=0.5)
             r = st.number_input(f"Rate per {unit}", value=float(def_r))
         
-        n = st.text_input("Additional Note (Location, Trip details etc.)")
+        # Note එකට material එකත් auto එකතු කරනවා ලේසියට
+        final_note = st.text_input("Additional Note")
         
         submit = st.form_submit_button("📥 Save Record")
         
         if submit:
             if v == "N/A":
-                st.error("Please add a vehicle in Setup first!")
-            elif val <= 0:
-                st.error(f"Please enter a valid {val_label}")
+                st.error("Please add a vehicle first!")
             else:
-                # දත්ත ගබඩා කරන කොට වර්ගය අනුව Qty සහ Hours වෙන් කරලා යවනවා
+                # Category එකට Sand/Soil කියන එකත් එකතු කරනවා
+                display_cat = f"{op} ({material})" if material else op
+                
                 q, h = (val, 0) if "Lorry" in op or "Sales" in op else (0, val)
                 
                 new_data = pd.DataFrame([[
-                    len(st.session_state.df) + 1, 
-                    d, 
-                    datetime.now().strftime("%H:%M"), 
-                    "Process", 
-                    op, 
-                    v, 
-                    n, 
-                    0, 
-                    q, 
-                    0, 
-                    h, 
-                    r, 
-                    "Done"
+                    len(st.session_state.df) + 1, d, "", "Process", 
+                    display_cat, # මෙතන දැන් "Sales Out (Sand)" වගේ වැටෙනවා
+                    v, final_note, 0, q, 0, h, r, "Done"
                 ]], columns=st.session_state.df.columns)
                 
                 st.session_state.df = pd.concat([st.session_state.df, new_data], ignore_index=True)
                 save_all()
-                st.success(f"Successfully recorded {op} for {v}")
+                st.success(f"Successfully recorded {display_cat}")
                 st.rerun()
 
     # පහළින් අද දවසේ records විතරක් පෙන්වන්න (ලේසියට)
