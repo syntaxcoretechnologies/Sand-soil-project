@@ -534,24 +534,25 @@ elif menu == "📑 Reports Center":
         st.dataframe(shed_f, use_container_width=True)
 
 # --- 10. SYSTEM SETUP (මේ කොටස අලුතින් ඇතුළත් කරන්න) ---
-elif menu == "Setup":
-        st.title("⚙️ System Setup")
-        st.info("Register your Vehicles, Drivers, and Landowners here.")
+elif menu == "⚙️ System Setup":
+        st.title("⚙️ System Setup & Configuration")
+        st.write("Welcome to Setup! Register your resources below.") # මේක පේනවාද බලන්න මචං
 
-        # Session states initialize කිරීම
+        # 1. Initialize Session States (Error නොවෙන්න මුලින්ම මේවා ඕනේ)
         if "drivers" not in st.session_state:
             st.session_state.drivers = []
         if "landowners" not in st.session_state:
             st.session_state.landowners = []
 
-        # Tabs නිර්මාණය
-        t1, t2, t3 = st.tabs(["🚜 Vehicles", "👷 Drivers", "🏡 Landowners"])
+        # 2. Tabs නිර්මාණය කිරීම
+        t_veh, t_dri, t_lan = st.tabs(["🚜 Vehicles", "👷 Drivers", "🏡 Landowners"])
 
-        with t1:
-            st.subheader("Vehicle Registration")
-            with st.form("veh_form", clear_on_submit=True):
-                v_no = st.text_input("Vehicle No")
-                v_type = st.selectbox("Type", ["Lorry", "Excavator", "JCB"])
+        # --- TAB: VEHICLES ---
+        with t_veh:
+            st.subheader("Register Vehicle")
+            with st.form("v_form", clear_on_submit=True):
+                v_no = st.text_input("Vehicle Number")
+                v_type = st.selectbox("Type", ["Lorry", "Excavator", "JCB", "Other"])
                 if st.form_submit_button("Add Vehicle"):
                     if v_no:
                         new_v = pd.DataFrame([{"No": v_no, "Type": v_type}])
@@ -560,25 +561,32 @@ elif menu == "Setup":
                         st.success(f"Added {v_no}")
                         st.rerun()
 
-        with t2:
-            st.subheader("Driver Registration")
-            with st.form("dri_form", clear_on_submit=True):
+        # --- TAB: DRIVERS ---
+        with t_dri:
+            st.subheader("Register Driver")
+            with st.form("d_form", clear_on_submit=True):
                 d_name = st.text_input("Driver Name")
+                d_phone = st.text_input("Phone Number")
                 if st.form_submit_button("Add Driver"):
                     if d_name:
-                        st.session_state.drivers.append({"Name": d_name})
-                        st.success(f"Added {d_name}")
+                        st.session_state.drivers.append({"Name": d_name, "Phone": d_phone})
+                        st.success(f"Added Driver {d_name}")
                         st.rerun()
 
-        with t3:
-            st.subheader("Landowner Registration")
-            with st.form("lan_form", clear_on_submit=True):
+        # --- TAB: LANDOWNERS ---
+        with t_lan:
+            st.subheader("Register Landowner")
+            with st.form("l_form", clear_on_submit=True):
                 l_name = st.text_input("Owner Name")
+                l_loc = st.text_input("Location")
                 if st.form_submit_button("Add Owner"):
                     if l_name:
-                        st.session_state.landowners.append({"Name": l_name})
-                        st.success(f"Added {l_name}")
+                        st.session_state.landowners.append({"Name": l_name, "Location": l_loc})
+                        st.success(f"Added Owner {l_name}")
                         st.rerun()
+
+        st.divider()
+        st.info("Currently registered data can be viewed in the Reports Center.")
 
 # --- 11. DATA MANAGER (EDIT / DELETE) ---
 elif menu == "⚙️ Data Manager":
