@@ -314,31 +314,54 @@ elif menu == "💰 Finance & Shed":
 elif menu == "📑 Reports Center":
     st.markdown("<h2 style='color: #8E44AD;'>📑 Business Reports Center</h2>", unsafe_allow_html=True)
     
-    # Column Fixes
     df_raw = st.session_state.df.copy()
-    df_raw.columns = [str(c).strip() for c in df_raw.columns]
-    df_raw.rename(columns={'Vehicle No': 'Vehicle', 'Vehicle_No': 'Vehicle', 'Entity': 'Vehicle'}, inplace=True)
+    df_raw['Date'] = pd.to_datetime(df_raw['Date']).dt.date
 
-    # Tabs
-
-    r_inc, r_prof, r_gross, r1, r2, r3, r4 = st.tabs([
-        "💰 Daily Income Report", 
-        "📊 Profit/Loss Analysis",
-        "📈 Material Gross Earnings", # Aluth Tab eka
-        "🚜 Vehicle Settlement", 
-        "👷 Driver Summary", 
-        "📑 Daily Log", 
-        "⛽ Shed Report"
+    # 1. ටැබ් ටික හදනවා
+    r_inc, r_prof, r1, r_drv, r_land, r_log = st.tabs([
+        "💰 Income", "📊 P&L", "🚜 Vehicle Settlement", "👷 Driver Summary", "🏡 Landowner Report", "📑 Daily Log"
     ])
     
+    # 2. Date Filter එක
     col_d1, col_d2 = st.columns(2)
-    with col_d1:
-        f_d = st.date_input("From Date", datetime.now().date() - timedelta(days=30), key="r_from")
-    with col_d2:
-        t_d = st.date_input("To Date", datetime.now().date(), key="r_to")
+    with col_d1: f_d = st.date_input("From Date", datetime.now().date() - timedelta(days=30), key="r_from")
+    with col_d2: t_d = st.date_input("To Date", datetime.now().date(), key="r_to")
 
-    df_raw['Date'] = pd.to_datetime(df_raw['Date']).dt.date
     df_f = df_raw[(df_raw["Date"] >= f_d) & (df_raw["Date"] <= t_d)].copy()
+
+    with r_land:
+        st.subheader("🏡 Landowner Ledger & Settlement Report")
+        l_names = [l["Name"] for l in st.session_state.landowners] if st.session_state.landowners else []
+        
+        if not l_names:
+            st.warning("No Landowners registered yet.")
+        else:
+            sel_lan = st.selectbox("Select Landowner", l_names)
+            if sel_lan:
+                # Billing (කපපු පස් ප්‍රමාණය)
+                lan_stock = df_f[(df_f["Note"].fillna("").str.contains(f"Owner: {sel_lan}", case=False)) & (df_f["Record_Type"] == "Inward")].copy()
+                # Payments (ගෙවපු සල්ලි) - මෙතනදී Entity එකේ නම බලනවා
+                lan_pays = df_f[(df_f["Entity"].fillna("").str.contains(sel_lan, case=False)) & (df_f["Category"].str.contains("Payment|Settlement", case=False))].copy()
+                
+                t_cubes = lan_stock['Qty_Cubes'].sum()
+                t_bill = lan_stock['Amount'].sum()
+                t_paid = lan_pays['Amount'].sum()
+                bal = t_bill - t_paid
+                
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("Total Cubes", f"{t_cubes:.2f}")
+                c2.metric("Total Bill", f"{t_bill:,.2f}")
+                c3.metric("Paid", f"{t_paid:,.2f}")
+                c4.metric("Balance Due", f"{bal:,.2f}", delta_color="inverse")
+                
+                st.divider()
+                col_l, col_r = st.columns(2)
+                with col_l:
+                    st.write("🚜 Stock Records")
+                    st.dataframe(lan_stock[['Date', 'Qty_Cubes', 'Rate_At_Time', 'Amount']], use_container_width=True)
+                with col_r:
+                    st.write("💰 Payment Records")
+                    st.dataframe(lan_pays[['Date', 'Amount', 'Note']], use_container_width=True)
     
     # --- TAB: DAILY INCOME REPORT (FIXED) ---
     with r_inc:
