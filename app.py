@@ -121,16 +121,57 @@ st.set_page_config(page_title=SHOP_NAME, layout="wide")
 st.sidebar.title("🏗️ KSD ERP v5.6")
 # Part 01 අන්තිමට තියෙන menu එක මේකට replace කරන්න
 menu = st.sidebar.selectbox("MAIN MENU", ["📊 Dashboard", "🏗️ Site Operations", "💰 Finance & Shed", "⚙️ System Setup", "📑 Reports Center", "⚙️ Data Manager"])
-if menu == "📊 Dashboard":
-    df = st.session_state.df
-    if not df.empty:
-        df['Amount'] = pd.to_numeric(df['Amount'], errors='coerce').fillna(0)
-        ti, te = df[df["Type"] == "Income"]["Amount"].sum(), df[df["Type"] == "Expense"]["Amount"].sum()
-        f_debt = df[df["Category"] == "Fuel Entry"]["Amount"].sum() - df[df["Category"] == "Shed Payment"]["Amount"].sum()
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Total Income", f"Rs. {ti:,.2f}"); m2.metric("Total Expenses", f"Rs. {te:,.2f}")
-        m3.metric("Net Cashflow", f"Rs. {ti-te:,.2f}"); m4.metric("Shed Debt", f"Rs. {f_debt:,.2f}")
-        st.divider(); st.area_chart(df.groupby(['Date', 'Type'])['Amount'].sum().unstack().fillna(0))
+# --- 6. DASHBOARD (v58 FULL UPDATE) ---
+elif menu == "📊 Dashboard":
+    st.markdown(f"<h2 style='color: #2E86C1;'>📊 Business Overview</h2>", unsafe_allow_html=True)
+    
+    if st.session_state.df.empty:
+        st.warning("No data found. Please add records in Site Operations or Finance.")
+    else:
+        # 1. දත්ත පිළියෙල කර ගැනීම
+        df = st.session_state.df.copy()
+        
+        # Income ගණනය කිරීම: (Cubes + Hours) * Rate
+        df['Calculated_Income'] = (df['Qty_Cubes'] + df['Hours']) * df['Rate_At_Time']
+        
+        # 2. ප්‍රධාන අගයන් (Metrics)
+        total_income = df['Calculated_Income'].sum()
+        total_expense = df[df['Type'] == 'Expense']['Amount'].sum()
+        net_profit = total_income - total_expense
+        
+        # Metrics Columns
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Total Income (Gross)", f"Rs. {total_income:,.2f}")
+        m2.metric("Total Expenses", f"Rs. {total_expense:,.2f}", delta_color="inverse")
+        m3.metric("Net Profit / Loss", f"Rs. {net_profit:,.2f}", delta=f"{net_profit:,.2f}")
+        
+        st.divider()
+        
+        # 3. ප්‍රස්තාර සහ විස්තර (Charts)
+        c1, c2 = st.columns(2)
+        
+        with c1:
+            st.subheader("Income by Category")
+            # "Process" වර්ගයේ ඒවා විතරක් Income විදියට ගන්නවා
+            inc_df = df[df['Type'] == 'Process'].groupby('Category')['Calculated_Income'].sum().reset_index()
+            if not inc_df.empty:
+                st.bar_chart(inc_df.set_index('Category'))
+            else:
+                st.info("No income data to show chart.")
+                
+        with c2:
+            st.subheader("Expense Breakdown")
+            exp_df = df[df['Type'] == 'Expense'].groupby('Category')['Amount'].sum().reset_index()
+            if not exp_df.empty:
+                # වියදම් වර්ග පෙන්වන Pie Chart එකක් වැනි සරල බාර් චාර්ට් එකක්
+                st.bar_chart(exp_df.set_index('Category'))
+            else:
+                st.info("No expense data to show chart.")
+
+        # 4. මෑතකාලීන ක්‍රියාකාරකම් (Recent Activity)
+        st.divider()
+        st.subheader("Recent Transactions")
+        st.dataframe(df.sort_values(by="ID", ascending=False).head(10), use_container_width=True)
 
 # --- 7. SITE OPERATIONS (v57 FULL FIX) ---
 elif menu == "🏗️ Site Operations":
