@@ -112,7 +112,7 @@ def create_pdf(title, data_df, summary_dict):
     
     for _, row in data_df.iterrows():
         pdf.cell(w[0], 7, safe_text(row['Date']), 1)
-        pdf.cell(w[1], 7, safe_text(row['Category']), 1)
+        pdf.cell(w[1], 7, safe_text(str(row.get('Category', 'N/A'))), 1)
         pdf.cell(w[2], 7, safe_text(row['Note'])[:30], 1)
         
         qty = row['Work_Hours'] if row['Work_Hours'] > 0 else row['Qty_Cubes']
@@ -502,45 +502,42 @@ elif menu == "📑 Reports Center":
     with r_inc:
         st.subheader("Daily Sales & Income Statement")
         
-        # 1. Column names වල තියෙන හිස්තැන් අයින් කරලා Clean කරමු
         df_f.columns = [c.strip() for c in df_f.columns]
-        
-        # 2. Sales Out records විතරක් පෙරමු
         daily_sales = df_f[df_f["Category"].str.contains("Sales Out", na=False)].copy()
         
         if not daily_sales.empty:
-            # 3. මෙතනදී Column එකක් නැති වුණොත් Error එකක් එන එක නවත්වන්න check එකක් දාමු
+            # 1. පද්ධතියට අවශ්‍ය columns ටික (Name එකත් ඇතුළත් කළා)
+            required_cols = ['Date', 'Category', 'Name', 'Qty_Cubes', 'Rate_At_Time', 'Amount']
             available_cols = daily_sales.columns.tolist()
-            required_cols = ['Date', 'Category', 'Entity', 'Qty_Cubes', 'Rate_At_Time', 'Amount']
-            
-            # පද්ධතියේ තියෙන column ටික විතරක් තෝරා ගමු (KeyError වැළැක්වීමට)
             final_cols = [c for c in required_cols if c in available_cols]
             
-            display_sales = daily_sales[final_cols].copy()
-            
-            # 4. ටේබල් එකේ Column names ලස්සන කරමු (Rename)
+            # --- වැදගත්: PDF එකට යවන්න ඕනේ මේ පරණ නම් තියෙන DataFrame එකයි ---
+            pdf_data = daily_sales[final_cols].copy() 
+
+            # 2. Display කරන්න විතරක් Rename කරපු එකක් හදාගමු
+            display_sales = pdf_data.copy()
             rename_dict = {
-                'Date': 'Date', 'Category': 'Material', 'Entity': 'Vehicle/Client', 
+                'Date': 'Date', 'Category': 'Material', 'Name': 'Client/Owner', 
                 'Qty_Cubes': 'Qty', 'Rate_At_Time': 'Rate', 'Amount': 'Total Amount'
             }
             display_sales.rename(columns=rename_dict, inplace=True)
             
             st.dataframe(display_sales, use_container_width=True)
             
-            # මුළු මුදල පෙන්වීම
             if 'Total Amount' in display_sales.columns:
                 total_daily_inc = display_sales['Total Amount'].sum()
                 st.success(f"Selected Period Total Income: **LKR {total_daily_inc:,.2f}**")
             
-            # PDF Button එක (කලින් විදිහටම)
+            # 3. PDF Button එක
             if st.button("📥 Download Daily Income PDF"):
                 inc_summary = {
                     "Report Type": "Daily Income Statement",
                     "Period": f"{f_d} to {t_d}",
-                    "Total Items": len(display_sales),
-                    "Total Gross Income": f"LKR {display_sales['Total Amount'].sum():,.2f}" if 'Total Amount' in display_sales.columns else "0.00"
+                    "Total Items": len(pdf_data),
+                    "Total Gross Income": f"LKR {pdf_data['Amount'].sum():,.2f}" if 'Amount' in pdf_data.columns else "0.00"
                 }
-                pdf_fn = create_pdf(f"Daily_Income", display_sales, inc_summary)
+                # මෙතනදී අපි යවන්නේ Rename නොකරපු 'pdf_data' එක. එතකොට 'Category' කොලම් එක ඒකේ තියෙනවා.
+                pdf_fn = create_pdf(f"Daily_Income", pdf_data, inc_summary)
                 with open(pdf_fn, "rb") as f:
                     st.download_button("📩 Click to Download PDF", f, file_name=f"Income_Report_{f_d}.pdf")
         else:
