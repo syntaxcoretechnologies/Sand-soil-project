@@ -52,59 +52,74 @@ class PDF(FPDF):
         self.set_font('Arial', 'B', 15); self.set_text_color(230, 126, 34) 
         self.cell(0, 10, SHOP_NAME, 0, 1, 'C'); self.ln(5)
 
-def create_pdf(report_name, df, summary_dict):
+def create_pdf(report_name, df, summary_dict, is_exc=False):
     from fpdf import FPDF
     import os
-    import re
 
-    # Emojis සහ විශේෂ අක්ෂර අයින් කරන Function එක
     def clean_text(text):
-        if not isinstance(text, str):
-            text = str(text)
-        # Latin-1 වලට සහය නොදක්වන අක්ෂර සහ Emojis අයින් කරයි
-        return text.encode('ascii', 'ignore').decode('ascii')
+        return str(text).encode('ascii', 'ignore').decode('ascii')
 
     try:
         pdf = FPDF()
         pdf.add_page()
-        pdf.set_font("Arial", 'B', 16)
         
-        # Title (Cleaned)
-        safe_title = clean_text(report_name).replace("_", " ")
-        pdf.cell(190, 10, txt=safe_title, ln=True, align='C')
+        # Header - Company Name (ඔයාගේ නම මෙතන දාන්න)
+        pdf.set_font("Arial", 'B', 14)
+        pdf.cell(190, 8, txt="K. SIRIWARDHANA SAND CONSTRUCTION PROJECTS", ln=True, align='C')
+        pdf.set_font("Arial", 'B', 11)
+        pdf.cell(190, 8, txt=f"STATEMENT: {clean_text(report_name).upper()}", ln=True, align='C')
         pdf.ln(5)
         
-        # Summary Section
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(190, 10, txt="Summary Information:", ln=True)
-        pdf.set_font("Arial", size=10)
-        
+        # Left Side Summary Box
+        pdf.set_font("Arial", 'B', 10)
         for key, value in summary_dict.items():
-            # Summary එකේ තියෙන Emojis අයින් කරයි
-            safe_key = clean_text(key)
-            safe_val = clean_text(value)
-            pdf.cell(190, 7, txt=f"{safe_key}: {safe_val}", ln=True)
+            pdf.cell(40, 7, txt=f"{clean_text(key)}:", border='TL')
+            pdf.set_font("Arial", size=10)
+            pdf.cell(60, 7, txt=f"{clean_text(value)}", border='TR', ln=True)
+            pdf.set_font("Arial", 'B', 10)
+        pdf.cell(100, 0, border='T', ln=True) # Bottom border
         
-        pdf.ln(8)
+        # --- EXCAVATOR RATE BREAKDOWN (ඔයා එවපු PDF එකේ වගේ) ---
+        if is_exc and 'Work_Hours' in df.columns and 'Rate_At_Time' in df.columns:
+            pdf.ln(8)
+            pdf.set_font("Arial", 'B', 11)
+            pdf.cell(190, 8, txt="Earnings Breakdown (By Rate):", ln=True)
+            
+            # Headers for Breakdown
+            pdf.set_fill_color(230, 230, 230)
+            pdf.set_font("Arial", 'B', 9)
+            pdf.cell(60, 8, "Rate (LKR)", 1, 0, 'C', True)
+            pdf.cell(60, 8, "Qty/Hrs", 1, 0, 'C', True)
+            pdf.cell(70, 8, "Sub-Total (LKR)", 1, 1, 'C', True)
+            
+            # Logic to group by rate
+            breakdown = df.groupby('Rate_At_Time')['Work_Hours'].sum().reset_index()
+            pdf.set_font("Arial", size=9)
+            for _, row in breakdown.iterrows():
+                if row['Work_Hours'] > 0:
+                    sub_total = row['Rate_At_Time'] * row['Work_Hours']
+                    pdf.cell(60, 8, f"{row['Rate_At_Time']:,.2/f}", 1, 0, 'C')
+                    pdf.cell(60, 8, f"{row['Work_Hours']:.2f}", 1, 0, 'C')
+                    pdf.cell(70, 8, f"{sub_total:,.2f}", 1, 1, 'R')
+
+        # --- MAIN TRANSACTION LOG ---
+        pdf.ln(10)
+        pdf.set_font("Arial", 'B', 11)
+        pdf.cell(190, 8, txt="Detailed Transaction Log:", ln=True)
         
-        # Table Headers
         pdf.set_fill_color(200, 220, 255)
         pdf.set_font("Arial", 'B', 8)
-        
         cols = df.columns.tolist()
-        col_width = 190 / len(cols) if len(cols) > 0 else 30
+        col_width = 190 / len(cols)
         
         for col in cols:
             pdf.cell(col_width, 10, clean_text(col), 1, 0, 'C', True)
         pdf.ln()
         
-        # Table Data
         pdf.set_font("Arial", size=8)
         for _, row in df.iterrows():
-            # පේළියේ උස තීරණය කිරීමට (Text wrapping අවශ්‍ය නැති නිසා සරලව ගනිමු)
             for col in cols:
-                val = clean_text(row.get(col, ""))
-                pdf.cell(col_width, 8, val, 1)
+                pdf.cell(col_width, 8, clean_text(row.get(col, "")), 1)
             pdf.ln()
             
         file_path = f"{report_name}.pdf"
@@ -114,7 +129,6 @@ def create_pdf(report_name, df, summary_dict):
     except Exception as e:
         st.error(f"Internal PDF Error: {e}")
         return None
-    
     # --- Summary Section (Basic Info) ---
     pdf.set_font("Arial", 'B', 10)
     for k, v in summary_dict.items():
