@@ -713,21 +713,16 @@ elif menu == "📑 Reports Center":
         st.divider()
         st.subheader("Landowner Settlement")
 
-        # 1. ඔයාගේ 'landowners' ලිස්ට් එකෙන් නම් ටික ගන්නවා
+        # 1. Registered Landowners ලා ඉන්නවාද බලනවා
         registered_landowners = []
-
         if 'landowners' in st.session_state and st.session_state.landowners:
-            # ලිස්ට් එකේ තියෙන හැම Dictionary එකකම 'Name' කියන Key එක බලනවා
-            # (ඔයාගේ CSV එකේ Column එක 'Name' නම්)
             registered_landowners = [owner.get('Name') for owner in st.session_state.landowners if owner.get('Name')]
         
-        # තවමත් ලිස්ට් එක හිස් නම්, Main Data එකේ 'Entity' column එක බලනවා
+        # තවමත් ලිස්ට් එක හිස් නම් 'Entity' column එකෙන් නම් ටික ගන්නවා
         if not registered_landowners:
             if 'df' in st.session_state and not st.session_state.df.empty:
-                # Stock In කරද්දී 'Entity' එකට දාපු නම් ටික ගන්නවා
                 registered_landowners = [name for name in st.session_state.df['Entity'].unique().tolist() if name and str(name) != 'nan']
 
-        # අවසාන වශයෙන් කිසිම නමක් නැත්නම් විතරක් N/A පෙන්වනවා
         if not registered_landowners:
             registered_landowners = ["N/A"]
 
@@ -739,29 +734,30 @@ elif menu == "📑 Reports Center":
         )
 
         if selected_landowner and selected_landowner != "N/A":
-            # 3. Filter කිරීම (st.session_state.df එක පාවිච්චි කරලා)
-            df_f = st.session_state.df
+            # 3. Filter කිරීම
+            df_f = st.session_state.df.copy()
             lo_records = df_f[df_f['Entity'] == selected_landowner].copy()
             
             if not lo_records.empty:
-                # (මීට පල්ලෙහා කොටස ඔයාගේ කලින් තිබ්බ Calculation සහ PDF Button එකම තියන්න)
                 st.success(f"Found {len(lo_records)} records for {selected_landowner}")
-                # ... (ඉතිරි කෝඩ් එක) ...
-            else:
-                st.info(f"No transactions found for {selected_landowner}.")
                 
-                # Inward කියන වචනය තියෙන ඒවා Payable (ගෙවිය යුතු) විදිහට ගන්නවා
+                # මුදල් ගණනය කිරීම (Cleaning Amount column)
+                # 'Amount' එක string එකක් නම් , අයින් කරලා numeric වලට හරවනවා
+                lo_records['Amount'] = pd.to_numeric(
+                    lo_records['Amount'].astype(str).str.replace(',', '').str.replace('Rs.', ''), 
+                    errors='coerce'
+                ).fillna(0)
+                
+                # Calculation Logic
                 total_payable = lo_records[lo_records['Category'].str.contains('Inward', case=False, na=False)]['Amount'].sum()
-                # Advance හෝ Payment කියන ඒවා Paid (ගෙවූ) විදිහට ගන්නවා
                 total_paid = lo_records[lo_records['Category'].str.contains('Advance|Payment', case=False, na=False)]['Amount'].sum()
-                
                 lo_balance = total_payable - total_paid
 
                 # Metrics පෙන්වීම
                 m1, m2, m3 = st.columns(3)
                 m1.metric("Total Payable", f"Rs. {total_payable:,.2f}")
                 m2.metric("Total Paid (Advances)", f"Rs. {total_paid:,.2f}")
-                m3.metric("Net Balance Due", f"Rs. {lo_balance:,.2f}", delta=f"{-lo_balance:,.2f}", delta_color="inverse")
+                m3.metric("Net Balance Due", f"Rs. {lo_balance:,.2f}")
 
                 # PDF Report Button
                 if st.button("📄 Generate Landowner Report"):
@@ -772,7 +768,8 @@ elif menu == "📑 Reports Center":
                         "Total Paid": f"Rs. {total_paid:,.2f}",
                         "Balance Due": f"Rs. {lo_balance:,.2f}"
                     }
-                    # create_pdf function එක පාවිච්චි කිරීම (අර කලින් හදපු එක)
+                    
+                    # create_pdf function එක call කිරීම
                     lo_pdf_path = create_pdf(f"Settlement_{selected_landowner}", lo_records, lo_summary, report_type="Landowner")
                     
                     with open(lo_pdf_path, "rb") as f:
@@ -786,12 +783,11 @@ elif menu == "📑 Reports Center":
                 # Table එක පෙන්වීම
                 st.write(f"**Transaction Log for {selected_landowner}:**")
                 display_cols = ['Date', 'Category', 'Note', 'Amount']
-                # Column එකක් නැති වුණොත් Error නොවී තියෙන ටික පෙන්වන්න
                 existing_cols = [c for c in display_cols if c in lo_records.columns]
                 st.dataframe(lo_records[existing_cols], use_container_width=True)
+                
             else:
-                st.info(f"No transactions found for {selected_landowner} in this period.")
-
+                st.info(f"No transactions found for {selected_landowner}.")
     # --- TAB 2: DRIVER SUMMARY ---
     with r2:
         dr_list = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else []
