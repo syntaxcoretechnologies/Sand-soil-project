@@ -705,64 +705,56 @@ elif menu == "📑 Reports Center":
         st.divider()
         st.subheader("Landowner Settlement")
 
-        # 1. Column එක තියෙනවාද කියලා ෂුවර් එකටම බලමු
-        # ඔයාගේ database එකේ නම තියෙන්න පුළුවන් හැම නමක්ම මෙතන තියෙනවා
-        possible_cols = ['Entity', 'Landowner', 'Owner', 'Name', 'Vehicle_No']
-        target_lo_col = next((c for c in possible_cols if c in df_f.columns), None)
+        # 1. මුලින්ම ඔයාගේ df_f එකේ තියෙන හැම කොලම් එකකම නම් ටික ලිස්ට් එකක් කරගමු
+        available_cols = df_f.columns.tolist()
+        
+        # 2. අයිතිකාරයාගේ නම තියෙන්න පුළුවන් කොලම් එක හොයමු
+        # 'Entity', 'Landowner', 'Owner', 'Name' කියන ඒවා බලනවා
+        target_lo_col = None
+        for c in ['Entity', 'Landowner', 'Owner', 'Name', 'Vehicle_No']:
+            if c in available_cols:
+                target_lo_col = c
+                break
 
+        # --- වැදගත්ම කොටස ---
         if target_lo_col:
-            # 2. ලෑන්ඩ් ඕනර්ස්ලාගේ ලැයිස්තුව හදමු
-            # වාහන අංක ටික අයින් කරලා ඉතිරි අයව විතරක් ගන්නවා
-            all_names = set(df_f[target_lo_col].dropna().unique())
+            # වාහන අංක ටික අයින් කරලා ඉඩම් හිමියෝ විතරක් ගමු
             veh_nos = set(st.session_state.ve_db['No'].unique()) if "ve_db" in st.session_state else set()
-            
+            all_names = set(df_f[target_lo_col].dropna().unique())
             landowner_list = sorted(list(all_names - veh_nos))
 
             if not landowner_list:
-                st.info("No Landowners found in the current records.")
+                st.info("No Landowners found in the current date range.")
             else:
-                selected_landowner = st.selectbox("Select Landowner", landowner_list, key="settle_lo_final_fix")
+                selected_landowner = st.selectbox("Select Landowner", landowner_list, key="lo_final_fix_2")
 
                 if selected_landowner:
-                    # 3. වැදගත්ම තැන: target_lo_col එක පාවිච්චි කරලා filter කරනවා
+                    # මෙතන තමයි කලින් Error එක ආවේ - දැන් ඒක target_lo_col එකෙන් ගන්නවා
                     lo_records = df_f[df_f[target_lo_col] == selected_landowner].copy()
                     
                     if not lo_records.empty:
-                        # මුදල් ගණනය කිරීම (කොමා අයින් කරලා)
+                        # මුදල් ගණනය කිරීම
                         lo_records['Amount'] = pd.to_numeric(lo_records['Amount'].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
                         
-                        # Category එකේ 'Inward' තියෙන ඒවා Payable, 'Advance' තියෙන ඒවා Paid
-                        total_payable = lo_records[lo_records['Category'].str.contains('Inward', case=False, na=False)]['Amount'].sum()
-                        total_paid = lo_records[lo_records['Category'].str.contains('Advance|Payment', case=False, na=False)]['Amount'].sum()
-                        lo_balance = total_payable - total_paid
-
-                        # Metrics පෙන්වීම
-                        l1, l2, l3 = st.columns(3)
-                        l1.metric("Total Payable", f"Rs. {total_payable:,.2f}")
-                        l2.metric("Total Paid", f"Rs. {total_paid:,.2f}")
-                        l3.metric("Net Balance Due", f"Rs. {lo_balance:,.2f}")
-
-                        # PDF Report Button
-                        if st.button("📄 Generate Landowner Report"):
-                            lo_summary = {
-                                "Landowner Name": selected_landowner,
-                                "Report Date": datetime.now().strftime("%Y-%m-%d"),
-                                "Total Cubes": f"{lo_records['Qty_Cubes'].sum() if 'Qty_Cubes' in lo_records else 0} m³"
-                            }
-                            lo_pdf_path = create_landowner_pdf(selected_landowner, lo_records, lo_summary)
-                            with open(lo_pdf_path, "rb") as f:
-                                st.download_button("⬇️ Download PDF", f, file_name=f"Landowner_{selected_landowner}.pdf")
+                        t_payable = lo_records[lo_records['Category'].str.contains('Inward', case=False, na=False)]['Amount'].sum()
+                        t_paid = lo_records[lo_records['Category'].str.contains('Advance|Payment', case=False, na=False)]['Amount'].sum()
                         
-                        # දත්ත වගුව පෙන්වීම
-                        # මෙතන පෙන්වන්න ඕනේ columns ටික ෂුවර් කරගන්නවා
-                        cols_to_show = [c for c in ['Date', 'Category', 'Qty_Cubes', 'Amount'] if c in lo_records.columns]
-                        st.dataframe(lo_records[cols_to_show], use_container_width=True)
-                    else:
-                        st.info(f"No transactions found for {selected_landowner}.")
-        else:
-            # මේ Error එක ආවොත් අනිවාර්යයෙන්ම Column එකේ නම වැරදියි
-            st.error(f"Error: Could not find any name column like 'Entity' or 'Owner' in: {list(df_f.columns)}")
+                        l1, l2, l3 = st.columns(3)
+                        l1.metric("Total Payable", f"Rs. {t_payable:,.2f}")
+                        l2.metric("Total Paid", f"Rs. {t_paid:,.2f}")
+                        l3.metric("Net Balance", f"Rs. {(t_payable - t_paid):,.2f}")
 
+                        if st.button("📄 Generate Landowner Report"):
+                            lo_summary = {"Landowner Name": selected_landowner, "Report Date": datetime.now().strftime("%Y-%m-%d")}
+                            pdf_fn = create_landowner_pdf(selected_landowner, lo_records, lo_summary)
+                            with open(pdf_fn, "rb") as f:
+                                st.download_button("⬇️ Download PDF", f, file_name=pdf_fn)
+                        
+                        st.dataframe(lo_records[['Date', 'Category', 'Qty_Cubes', 'Amount']], use_container_width=True)
+        else:
+            # මචං, මේ පේළිය වැටුණොත් ඒ කියන්නේ ඔයාගේ ඩේටා වල 'Entity' කියලා නමක් ඇත්තෙම නැහැ
+            # එතකොට මෙන්න මේ ලිස්ට් එක බලලා මට කියන්න එතන තියෙන නම් ටික
+            st.error(f"Could not find any name column. Available columns are: {available_cols}")
     # --- TAB 2: DRIVER SUMMARY ---
     with r2:
         dr_list = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else []
