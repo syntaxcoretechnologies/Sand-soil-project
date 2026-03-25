@@ -134,7 +134,9 @@ def create_pdf(title, data_df, summary_dict):
         # --- වැදගත්ම තැන: ආදායම සහ වියදම වෙන් කිරීම ---
         
         # 1. වාහනයේ කුලී ආදායම (Earnings) - Work Log හෝ Hire පමණි
-        if "Work Log" in category or "Hire" in category or row['Type'] == "Process":
+        # row.get පාවිච්චි කිරීමෙන් 'Type' කොලම් එක නැති වුණත් Error එකක් එන්නේ නැහැ
+          row_type = row.get('Type', '') 
+          if "Work Log" in category or "Hire" in category or row_type == "Process":
             total_earn += amt
             pdf.set_text_color(0, 0, 0)
             pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 0, 'R')
@@ -636,18 +638,17 @@ elif menu == "📑 Reports Center":
         stock_data = []
 
         for mat in materials:
-            # මුළු පැමිණි ප්‍රමාණය (Total In)
-            total_in = inward_df[inward_df["Category"].str.contains(mat, na=False)]["Qty_Cubes"].sum()
-            # මුළු විකුණූ ප්‍රමාණය (Total Out)
-            total_out = sales_df[sales_df["Category"].str.contains(mat, na=False)]["Qty_Cubes"].sum()
+            # ... උඩින් total_in සහ total_out ගණනය කරන කෝඩ් එක ඇති ...
             
             current_stock = total_in - total_out
             
+            # --- මෙන්න මේ stock_data.append කියන තැනට තමයි ඇඩ් කරන්න ඕනේ ---
             stock_data.append({
                 "Category": mat,
                 "Total Inward (Cubes)": total_in,
                 "Total Sales (Cubes)": total_out,
-                "Current Stock (Balance)": current_stock
+                "Current Stock (Balance)": current_stock,
+                "Type": "Stock"  # <--- අලුතින් මෙන්න මේ පේළිය ඇඩ් කරන්න
             })
 
         inventory_df = pd.DataFrame(stock_data)
