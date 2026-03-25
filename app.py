@@ -711,39 +711,36 @@ elif menu == "📑 Reports Center":
         st.divider()
         st.subheader("👤 Landowner Settlement")
 
-        # 1. රෙජිස්ටර් කරපු අය ඉන්නවාද බලනවා
         if "landowners" in st.session_state and st.session_state.landowners:
             reg_names = [owner['Name'] for owner in st.session_state.landowners]
-            selected_lo = st.selectbox("Select Landowner", sorted(reg_names), key="lo_settle_main")
+            selected_lo = st.selectbox("Select Landowner", sorted(reg_names), key="final_lo_fix")
 
             if selected_lo:
-                # 2. 'Name' කොලම් එකේ සර්ච් කරනවා (හිස්තැන් සහ අකුරු ප්‍රශ්න නැති වෙන්න)
-                search_term = str(selected_lo).strip().lower()
-                
-                # df_f කියන්නේ ඔයා උඩින් Date Filter කරපු දත්ත ටික
-                lo_records = df_f[df_f['Name'].astype(str).str.strip().str.lower() == search_term].copy()
+                # 'Name' column එක පාවිච්චි කරලා filter කරනවා
+                # strip() සහ lower() දාන්නේ අකුරු වල වැරදි අහුවෙන්න
+                lo_records = df_f[df_f['Name'].astype(str).str.strip().str.lower() == str(selected_lo).strip().lower()].copy()
                 
                 if not lo_records.empty:
-                    # මුදල් ගණනය කිරීම
+                    # Amount එක numeric කරගැනීම
                     lo_records['Amount'] = pd.to_numeric(lo_records['Amount'].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
                     
-                    t_payable = lo_records[lo_records['Category'].str.contains('Inward', case=False, na=False)]['Amount'].sum()
+                    # ගෙවිය යුතු මුදල් (Inward) සහ ගෙවූ මුදල් (Advance)
+                    t_payable = lo_records[lo_records['Record_Type'] == 'Inward']['Amount'].sum()
+                    # මෙතන Category එකේ 'Advance' හෝ 'Payment' තියෙන ඒවා බලනවා
                     t_paid = lo_records[lo_records['Category'].str.contains('Advance|Payment', case=False, na=False)]['Amount'].sum()
 
-                    # Metrics පෙන්වීම
-                    m1, m2, m3 = st.columns(3)
-                    m1.metric("Total Payable", f"Rs. {t_payable:,.2f}")
-                    m2.metric("Total Paid", f"Rs. {t_paid:,.2f}")
-                    m3.metric("Balance Due", f"Rs. {(t_payable - t_paid):,.2f}")
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("Total Payable", f"Rs. {t_payable:,.2f}")
+                    c2.metric("Total Paid", f"Rs. {t_paid:,.2f}")
+                    c3.metric("Net Balance", f"Rs. {(t_payable - t_paid):,.2f}")
 
-                    # Table පෙන්වීම
                     st.dataframe(lo_records[['Date', 'Category', 'Qty_Cubes', 'Amount']], use_container_width=True)
                 else:
-                    st.info(f"Landowner '{selected_lo}' රෙජිස්ටර් කරලා තියෙනවා. හැබැයි තෝරාගත් දින සීමාව ඇතුළත දත්ත නැහැ.")
-                    # ඩේටා නැතිනම් ඩේටාබේස් එකේ තියෙන නම් කිහිපයක් පෙන්වන්න (Debug)
-                    st.write("දැනට ඩේටාබේස් එකේ තියෙන නම්:", df_f['Name'].unique().tolist())
+                    st.info(f"Landowner '{selected_lo}' ගේ දත්ත කිසිවක් මෙම දින සීමාව තුළ නැත.")
+                    # Debug - දැනට තිබෙන නම් බලන්න
+                    st.write("දත්ත පද්ධතියේ ඇති නම්:", df_f['Name'].unique().tolist())
         else:
-            st.warning("කරුණාකර මුලින්ම 'Manage Landowners' වෙත ගොස් අයිතිකරුවන් රෙජිස්ටර් කරන්න.")
+            st.warning("Please register landowners first.")
             
     # --- TAB 2: DRIVER SUMMARY ---
     with r2:
