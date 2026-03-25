@@ -598,36 +598,78 @@ elif menu == "⚙️ System Setup":
     
     # --- VEHICLE MANAGEMENT ---
     with setup_tab1:
-        st.subheader("Add New Vehicle or Machine")
+        st.subheader("🚜 Add New Vehicle / Machine")
         with st.form("v_setup_form", clear_on_submit=True):
             col1, col2 = st.columns(2)
             with col1:
-                v_no = st.text_input("Vehicle Number (Ex: LM-1234)")
-                v_owner = st.text_input("Owner Name")
+                v_no = st.text_input("Vehicle Number (e.g., WP-1234)")
+                v_type = st.selectbox("Vehicle Type", ["Tipper", "Excavator", "JCB", "Tractor", "Other"])
             with col2:
-                v_type = st.selectbox("Category", ["Lorry", "Excavator", "JCB", "Tractor", "Other"])
-                v_rate = st.number_input("Standard Rate (Optional)", min_value=0.0)
+                v_owner = st.text_input("Owner Name")
+                v_rate = st.number_input("Rate per Unit (Cube/Hr)", min_value=0.0, step=100.0)
             
             if st.form_submit_button("✅ Register Vehicle"):
                 if v_no:
+                    # අලුත් වාහනය DataFrame එකට එකතු කිරීම
                     new_v = pd.DataFrame([[v_no, v_type, v_owner, v_rate]], 
                                          columns=["No", "Type", "Owner", "Rate_Per_Unit"])
                     st.session_state.ve_db = pd.concat([st.session_state.ve_db, new_v], ignore_index=True)
                     save_all()
-                    st.success(f"Vehicle {v_no} registered!")
+                    st.success(f"Vehicle {v_no} registered successfully!")
                     st.rerun()
                 else:
                     st.error("Please enter a vehicle number!")
 
         st.divider()
-        st.subheader("Registered Vehicles")
+        st.subheader("Registered Vehicles List")
         st.dataframe(st.session_state.ve_db, use_container_width=True)
-        if st.button("🗑️ Clear Vehicle List"):
+
+        # --- 🛠️ අලුතින් එකතු කළ VEHICLE EDIT & DELETE SECTION ---
+        if not st.session_state.ve_db.empty:
+            st.write("---")
+            st.subheader("🛠️ Manage Existing Vehicles")
+            
+            # පද්ධතියේ ඉන්න වාහන අංක ටික ලිස්ට් එකකට ගැනීම
+            ve_nos = st.session_state.ve_db["No"].tolist()
+            ve_to_manage = st.selectbox("Select Vehicle to Edit or Delete", ve_nos)
+            
+            # තෝරාගත් වාහනයේ දැනට තියෙන දත්ත ටික ලබා ගැනීම
+            curr_ve_data = st.session_state.ve_db[st.session_state.ve_db["No"] == ve_to_manage].iloc[0]
+            
+            with st.expander(f"Edit details for {ve_to_manage}"):
+                edit_type = st.selectbox("Edit Type", ["Tipper", "Excavator", "JCB", "Tractor", "Other"], 
+                                        index=["Tipper", "Excavator", "JCB", "Tractor", "Other"].index(curr_ve_data["Type"]))
+                edit_owner = st.text_input("Edit Owner Name", value=str(curr_ve_data["Owner"]))
+                edit_rate = st.number_input("Edit Rate per Unit", value=float(curr_ve_data["Rate_Per_Unit"]), step=100.0)
+                
+                col_ve1, col_ve2 = st.columns(2)
+                with col_ve1:
+                    if st.button("Update Vehicle ✅", use_container_width=True):
+                        # Index එක හොයාගෙන අදාළ පේළිය Update කිරීම
+                        idx_ve = st.session_state.ve_db[st.session_state.ve_db["No"] == ve_to_manage].index[0]
+                        st.session_state.ve_db.at[idx_ve, "Type"] = edit_type
+                        st.session_state.ve_db.at[idx_ve, "Owner"] = edit_owner
+                        st.session_state.ve_db.at[idx_ve, "Rate_Per_Unit"] = edit_rate
+                        save_all()
+                        st.success(f"Updated {ve_to_manage} details!")
+                        st.rerun()
+                
+                with col_ve2:
+                    if st.button("Delete Vehicle ❌", use_container_width=True):
+                        # ලැයිස්තුවෙන් වාහනය අයින් කිරීම
+                        st.session_state.ve_db = st.session_state.ve_db[st.session_state.ve_db["No"] != ve_to_manage].reset_index(drop=True)
+                        save_all()
+                        st.warning(f"Deleted {ve_to_manage} from the system!")
+                        st.rerun()
+
+        st.divider()
+        if st.button("🗑️ Clear Entire Vehicle List"):
             st.session_state.ve_db = pd.DataFrame(columns=["No", "Type", "Owner", "Rate_Per_Unit"])
-            save_all(); st.rerun()
+            save_all()
+            st.rerun()
 
     # --- DRIVER MANAGEMENT ---
-    with setup_tab2:
+   with setup_tab2:
         st.subheader("Add New Driver / Operator")
         with st.form("d_setup_form", clear_on_submit=True):
             col1, col2 = st.columns(2)
@@ -651,9 +693,47 @@ elif menu == "⚙️ System Setup":
         st.divider()
         st.subheader("Registered Drivers")
         st.dataframe(st.session_state.dr_db, use_container_width=True)
-        if st.button("🗑️ Clear Driver List"):
+
+        # --- 🛠️ අලුතින් එකතු කළ EDIT & DELETE SECTION ---
+        if not st.session_state.dr_db.empty:
+            st.write("---")
+            st.subheader("🛠️ Manage Existing Drivers")
+            
+            # Select driver to edit/delete
+            dr_names = st.session_state.dr_db["Name"].tolist()
+            dr_to_manage = st.selectbox("Select Driver to Edit or Delete", dr_names)
+            
+            # දැනට තියෙන දත්ත ටික ගන්නවා
+            curr_dr_data = st.session_state.dr_db[st.session_state.dr_db["Name"] == dr_to_manage].iloc[0]
+            
+            with st.expander(f"Edit details for {dr_to_manage}"):
+                edit_phone = st.text_input("Edit Phone", value=str(curr_dr_data["Phone"]))
+                edit_salary = st.number_input("Edit Daily Salary", value=float(curr_dr_data["Daily_Salary"]))
+                
+                col_e1, col_e2 = st.columns(2)
+                with col_e1:
+                    if st.button("Update Driver ✅", use_container_width=True):
+                        # Index එක හොයාගෙන Update කිරීම
+                        idx = st.session_state.dr_db[st.session_state.dr_db["Name"] == dr_to_manage].index[0]
+                        st.session_state.dr_db.at[idx, "Phone"] = edit_phone
+                        st.session_state.dr_db.at[idx, "Daily_Salary"] = edit_salary
+                        save_all()
+                        st.success(f"Updated {dr_to_manage}!")
+                        st.rerun()
+                
+                with col_e2:
+                    if st.button("Delete Driver ❌", use_container_width=True):
+                        # ලැයිස්තුවෙන් අයින් කිරීම
+                        st.session_state.dr_db = st.session_state.dr_db[st.session_state.dr_db["Name"] != dr_to_manage].reset_index(drop=True)
+                        save_all()
+                        st.warning(f"Deleted {dr_to_manage}!")
+                        st.rerun()
+
+        st.divider()
+        if st.button("🗑️ Clear Entire Driver List"):
             st.session_state.dr_db = pd.DataFrame(columns=["Name", "Phone", "Daily_Salary"])
-            save_all(); st.rerun()
+            save_all()
+            st.rerun()
 
 # --- මේක වෙනම Menu එකක් විදිහට පල්ලෙහායින් දාන්න ---
 elif menu == "👤 Manage Landowners":
