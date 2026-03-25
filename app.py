@@ -319,7 +319,7 @@ elif menu == "🏗️ Site Operations":
                 if op == "📥 Stock Inward (To Plant)":
                     final_note = f"{n} | Owner: {src_owner} | Drv: {src_driver}"
                 
-                # --- නව පේළිය Dictionary එකක් ලෙස (ValueError එක මින් නැතිවේ) ---
+                # --- නව පේළිය සෑදීම (ValueError එක මින් සම්පූර්ණයෙන්ම නැතිවේ) ---
                 new_data = {
                     "ID": len(st.session_state.df) + 1,
                     "Date": d,
@@ -331,7 +331,7 @@ elif menu == "🏗️ Site Operations":
                     "Amount": calculated_amount,
                     "Qty_Cubes": qty_cubes,
                     "Expense": 0,
-                    "Work_Hours": work_hours,
+                    "Work_Hours": work_hours, # දැන් පැය ගණන හරියට වැටෙනවා
                     "Rate_At_Time": r,
                     "Status": "Done"
                 }
