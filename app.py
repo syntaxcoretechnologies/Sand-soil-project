@@ -704,60 +704,41 @@ elif menu == "📑 Reports Center":
  
      # --- Landowner Settlement Section ---
         st.divider()
-        st.subheader("Landowner Settlement")
+        st.subheader("👤 Landowner Settlement")
 
-        # 1. රෙජිස්ටර් කරපු Landowners ලා ඉන්න ලිස්ට් එක st.session_state.landowners එකෙන් ගමු
+        # 1. රෙජිස්ටර් කරපු අය ඉන්නවාද බලනවා
         if "landowners" in st.session_state and st.session_state.landowners:
-            # Register කරපු අයගේ 'Name' ටික විතරක් අරගන්නවා
-            registered_names = [owner['Name'] for owner in st.session_state.landowners]
-            
-            # 2. Dropdown එකේ ඒ නම් පෙන්වනවා
-            selected_lo = st.selectbox("Select Registered Landowner", sorted(registered_names), key="settle_reg_final_v2")
+            reg_names = [owner['Name'] for owner in st.session_state.landowners]
+            selected_lo = st.selectbox("Select Landowner", sorted(reg_names), key="lo_settle_main")
 
             if selected_lo:
-                # 3. ඔයාගේ database එකේ 'Name' කියන කොලම් එක තමයි පාවිච්චි වෙන්නේ
-                target_col = 'Name' 
+                # 2. 'Name' කොලම් එකේ සර්ච් කරනවා (හිස්තැන් සහ අකුරු ප්‍රශ්න නැති වෙන්න)
+                search_term = str(selected_lo).strip().lower()
                 
-                if target_col in df_f.columns:
-                    # තෝරාගත් අයිතිකාරයාට අදාළ දත්ත filter කිරීම
-                    lo_records = df_f[df_f[target_col] == selected_lo].copy()
+                # df_f කියන්නේ ඔයා උඩින් Date Filter කරපු දත්ත ටික
+                lo_records = df_f[df_f['Name'].astype(str).str.strip().str.lower() == search_term].copy()
+                
+                if not lo_records.empty:
+                    # මුදල් ගණනය කිරීම
+                    lo_records['Amount'] = pd.to_numeric(lo_records['Amount'].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
                     
-                    if not lo_records.empty:
-                        # මුදල් ගණනය කිරීම (Amount එකේ කොමා අයින් කරනවා)
-                        lo_records['Amount'] = pd.to_numeric(lo_records['Amount'].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
-                        
-                        # Inward = ලැබුණු පස්/වැලි (ගෙවිය යුතු මුදල)
-                        # Advance/Payment = ලබාදුන් මුදල්
-                        t_payable = lo_records[lo_records['Category'].str.contains('Inward', case=False, na=False)]['Amount'].sum()
-                        t_paid = lo_records[lo_records['Category'].str.contains('Advance|Payment', case=False, na=False)]['Amount'].sum()
-                        net_balance = t_payable - t_paid
+                    t_payable = lo_records[lo_records['Category'].str.contains('Inward', case=False, na=False)]['Amount'].sum()
+                    t_paid = lo_records[lo_records['Category'].str.contains('Advance|Payment', case=False, na=False)]['Amount'].sum()
 
-                        # Metrics පෙන්වීම
-                        l1, l2, l3 = st.columns(3)
-                        l1.metric("Total Payable", f"Rs. {t_payable:,.2f}")
-                        l2.metric("Total Paid (Advances)", f"Rs. {t_paid:,.2f}")
-                        l3.metric("Net Balance Due", f"Rs. {net_balance:,.2f}")
+                    # Metrics පෙන්වීම
+                    m1, m2, m3 = st.columns(3)
+                    m1.metric("Total Payable", f"Rs. {t_payable:,.2f}")
+                    m2.metric("Total Paid", f"Rs. {t_paid:,.2f}")
+                    m3.metric("Balance Due", f"Rs. {(t_payable - t_paid):,.2f}")
 
-                        # PDF Report Button
-                        if st.button("📄 Generate Landowner Report"):
-                            lo_summary = {
-                                "Landowner Name": selected_lo, 
-                                "Report Date": datetime.now().strftime("%Y-%m-%d"),
-                                "Period": f"{f_d} to {t_d}"
-                            }
-                            pdf_path = create_landowner_pdf(selected_lo, lo_records, lo_summary)
-                            with open(pdf_path, "rb") as f:
-                                st.download_button("⬇️ Download PDF", f, file_name=f"Settlement_{selected_lo}.pdf")
-                        
-                        # දත්ත වගුව පෙන්වීම
-                        st.write(f"**Transaction Log for {selected_lo}:**")
-                        st.dataframe(lo_records[['Date', 'Category', 'Qty_Cubes', 'Amount']], use_container_width=True)
-                    else:
-                        st.info(f"Landowner '{selected_lo}' රෙජිස්ටර් කරලා තියෙනවා. හැබැයි තෝරාගත් දින සීමාව ({f_d} - {t_d}) ඇතුළත කිසිම ගනුදෙනුවක් දත්ත පද්ධතියේ නැහැ.")
+                    # Table පෙන්වීම
+                    st.dataframe(lo_records[['Date', 'Category', 'Qty_Cubes', 'Amount']], use_container_width=True)
                 else:
-                    st.error(f"Error: Database එකේ 'Name' කියන කොලම් එක සොයාගත නොහැක.")
+                    st.info(f"Landowner '{selected_lo}' රෙජිස්ටර් කරලා තියෙනවා. හැබැයි තෝරාගත් දින සීමාව ඇතුළත දත්ත නැහැ.")
+                    # ඩේටා නැතිනම් ඩේටාබේස් එකේ තියෙන නම් කිහිපයක් පෙන්වන්න (Debug)
+                    st.write("දැනට ඩේටාබේස් එකේ තියෙන නම්:", df_f['Name'].unique().tolist())
         else:
-            st.warning("තවම කිසිම Landowner කෙනෙක් රෙජිස්ටර් කරලා නැහැ. කරුණාකර 'Manage Landowners' පේජ් එකෙන් රෙජිස්ටර් කරන්න.")
+            st.warning("කරුණාකර මුලින්ම 'Manage Landowners' වෙත ගොස් අයිතිකරුවන් රෙජිස්ටර් කරන්න.")
             
     # --- TAB 2: DRIVER SUMMARY ---
     with r2:
