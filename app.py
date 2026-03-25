@@ -80,7 +80,7 @@ def create_pdf(title, data_df, summary_dict):
     pdf.cell(0, 10, safe_text(f"STATEMENT: {title.upper()}"), 1, 1, 'L', fill=True)
     pdf.ln(2)
     
-    # --- Summary Section (මුලින්ම තියෙන විස්තර) ---
+    # --- Summary Section (මූලික විස්තර) ---
     pdf.set_font("Arial", 'B', 10)
     for k, v in summary_dict.items():
         if k != "Rate_Breakdown":
@@ -92,7 +92,6 @@ def create_pdf(title, data_df, summary_dict):
     # --- Table Header ---
     pdf.ln(8)
     pdf.set_font("Arial", 'B', 9)
-    # Header වල පිළිවෙළ සහ ප්‍රමාණයන් (Widths)
     headers = ["Date", "Category", "Description", "Qty/Hr", "Rate", "Amount"]
     w = [22, 35, 50, 15, 25, 43]
     pdf.set_fill_color(220, 220, 220)
@@ -100,7 +99,7 @@ def create_pdf(title, data_df, summary_dict):
         pdf.cell(w[i], 8, safe_text(h), 1, 0, 'C', fill=True)
     pdf.ln()
     
-    # --- Data Rows (දත්ත ඇතුළත් කිරීම) ---
+    # --- Data Rows ---
     pdf.set_font("Arial", '', 8)
     total_earn = 0
     total_exp = 0
@@ -108,42 +107,53 @@ def create_pdf(title, data_df, summary_dict):
     for _, row in data_df.iterrows():
         pdf.cell(w[0], 7, safe_text(row['Date']), 1)
         pdf.cell(w[1], 7, safe_text(row['Category']), 1)
-        pdf.cell(w[2], 7, safe_text(row['Note'])[:30], 1) # Note එක පෙන්වීම
+        pdf.cell(w[2], 7, safe_text(row['Note'])[:30], 1)
         
-        # පැය ගණන (Excavator) හෝ කියුබ් (Lorry) පෙන්වීම
         qty = row['Work_Hours'] if row['Work_Hours'] > 0 else row['Qty_Cubes']
         pdf.cell(w[3], 7, f"{qty}" if qty > 0 else "-", 1, 0, 'C')
         
-        # Rate එක පෙන්වීම
         rate = row['Rate_At_Time']
         pdf.cell(w[4], 7, f"{rate:,.2f}" if rate > 0 else "-", 1, 0, 'R')
         
         amt = float(row['Amount'])
+        category = str(row['Category'])
         
-        # --- වැදගත්ම තැන: Earnings ද Expenses ද කියලා වෙන් කිරීම ---
-        # Category එකේ 'Work Log' තියෙනවා නම් හෝ Type එක 'Process' නම් ඒක Earnings (ආදායම)
-        if "Work Log" in str(row['Category']) or row['Type'] == "Process":
+        # --- වැදගත්ම තැන: ආදායම සහ වියදම වෙන් කිරීම ---
+        
+        # 1. වාහනයේ කුලී ආදායම (Earnings) - Work Log හෝ Hire පමණි
+        if "Work Log" in category or "Hire" in category or row['Type'] == "Process":
             total_earn += amt
+            pdf.set_text_color(0, 0, 0)
             pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 0, 'R')
-        else:
-            # අනිත් ඒවා (Fuel, Repair, Payroll) Expenses (වියදම්)
+            
+        # 2. වාහනයේ සැබෑ වියදම් (Expenses) - Fuel, Repair, Payroll, Advance
+        elif any(exp in category for exp in ["Fuel", "Repair", "Advance", "Payroll", "Salary"]):
             total_exp += amt
+            pdf.set_text_color(200, 0, 0) # වියදම් රතු පාටින්
             pdf.cell(w[5], 7, f"({amt:,.2f})", 1, 0, 'R')
+            pdf.set_text_color(0, 0, 0)
+            
+        # 3. අනෙකුත් දේවල් (Sales Out වැනි දෑ) - Table එකේ පෙන්වයි, නමුත් එකතුවට නොගනී
+        else:
+            pdf.set_text_color(100, 100, 100) # ලා අළු පාටින්
+            pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 0, 'R')
+            pdf.set_text_color(0, 0, 0)
+            
         pdf.ln()
     
     # --- අවසාන එකතුව (Final Totals) ---
     pdf.ln(2)
     pdf.set_font("Arial", 'B', 9)
     
-    # Gross Earnings (මෙතනට තමයි 67,150.00 වැටෙන්නේ)
+    # Gross Earnings
     pdf.cell(sum(w[:5]), 8, "GROSS EARNINGS (LKR)", 1, 0, 'R')
     pdf.cell(w[5], 8, f"{total_earn:,.2f}", 1, 1, 'R')
     
-    # Total Expenses (ඩීසල්, රෙපයාර් වගේ වියදම්)
+    # Total Expenses (වාහනයට අදාළ වියදම් පමණි)
     pdf.cell(sum(w[:5]), 8, "TOTAL EXPENSES (LKR)", 1, 0, 'R')
     pdf.cell(w[5], 8, f"{total_exp:,.2f}", 1, 1, 'R')
     
-    # Net Balance (ලාභය)
+    # Net Balance
     pdf.set_fill_color(230, 126, 34); pdf.set_text_color(255, 255, 255)
     pdf.cell(sum(w[:5]), 10, "NET SETTLEMENT BALANCE (LKR)", 1, 0, 'R', fill=True)
     pdf.cell(w[5], 10, f"{(total_earn - total_exp):,.2f}", 1, 1, 'R', fill=True)
