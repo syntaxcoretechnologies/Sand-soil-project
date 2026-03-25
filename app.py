@@ -639,37 +639,22 @@ elif menu == "📑 Reports Center":
                 st.divider()
 
                 # --- 4. PDF GENERATION (මෙතනයි FIX එක තියෙන්නේ) ---
-                if st.button("📥 Generate & Download Report", key="btn_pdf_v3"):
-                    # Summary දත්ත පිළියෙළ කිරීම
+                if st.button("📥 Generate Final Report (Breakdown Style)", key="btn_pdf_v4"):
                     summary = {
-                        "Vehicle/Machine": str(selected_ve),
-                        "Type": "Excavator/Machine" if is_exc else "Lorry",
-                        "Period": f"{f_d} to {t_d}",
-                        "Total Expenses": f"Rs. {total_exp:,.2f}"
+                        "Vehicle No": str(selected_ve),
+                        "Gross Earnings": f"{gross_earning:,.2f}",
+                        "Total Expenses": f"{total_exp:,.2f}",
+                        "Net Settlement": f"{net_profit:,.2f}"
                     }
-                    if is_exc:
-                        summary["Total Hours"] = f"{total_hrs:.2f}"
-                        summary["Gross Earnings"] = f"Rs. {gross_earning:,.2f}"
-                        summary["Net Profit"] = f"Rs. {net_profit:,.2f}"
-                    else:
-                        summary["Total Cubes"] = f"{total_cubes:.2f} m3"
-
-                    # රිපෝට් එකේ පෙන්විය යුතු column ලිස්ට් එක සකස් කිරීම
+                    
                     pdf_final_cols = [c for c in display_cols if c in ve_records.columns]
                     
-                    # PDF එක සෑදීම
-                    pdf_path = create_pdf(f"Settlement_{selected_ve}", ve_records[pdf_final_cols], summary)
+                    # මෙතනදී is_exc=True කියලා යවනවා
+                    pdf_path = create_pdf(f"Settlement_{selected_ve}", ve_records[pdf_final_cols], summary, is_exc=is_exc)
                     
                     if pdf_path and os.path.exists(pdf_path):
                         with open(pdf_path, "rb") as f:
-                            st.download_button(
-                                label="📩 Click here to Save PDF",
-                                data=f,
-                                file_name=f"{selected_ve}_Settlement_{f_d}.pdf",
-                                mime="application/pdf"
-                            )
-                    else:
-                        st.error("PDF generation failed. Please check create_pdf function.")
+                            st.download_button("📩 Download Professional PDF", f, file_name=f"{selected_ve}_Settlement.pdf")
 
                 # --- 5. DATA TABLE ---
                 st.write(f"📊 **Transaction Logs**")
@@ -677,6 +662,7 @@ elif menu == "📑 Reports Center":
                 st.dataframe(ve_records[final_view_cols], use_container_width=True)
             else:
                 st.warning(f"No records found for {selected_ve} in the selected dates.")
+                
     # --- TAB 2: DRIVER SUMMARY (FIXED) ---
     with r2:
         st.subheader("👷 Driver Work & Payment Summary")
