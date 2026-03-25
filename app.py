@@ -760,17 +760,36 @@ elif menu == "📑 Reports Center":
                 m3.metric("Balance Due", f"Rs. {lo_balance:,.2f}")
 
                 # PDF Report Button
+                # PDF Report Button
                 if st.button("📄 Generate Landowner Report"):
+                    # 1. Summary එක මුලින්ම හදාගන්න ඕනේ (TypeError නොවෙන්න)
                     lo_summary = {
-                        "Landowner Name": search_name,
+                        "Landowner Name": str(search_name),
                         "Report Date": datetime.now().strftime("%Y-%m-%d"),
                         "Total Payable": f"Rs. {total_payable:,.2f}",
                         "Total Paid": f"Rs. {total_paid:,.2f}",
                         "Balance Due": f"Rs. {lo_balance:,.2f}"
                     }
-                    lo_pdf_path = create_pdf(f"Settlement_{search_name}", lo_records, lo_summary, report_type="Landowner")
-                    with open(lo_pdf_path, "rb") as f:
-                        st.download_button("⬇️ Download Settlement PDF", f, file_name=f"Settlement_{search_name}.pdf", mime="application/pdf")
+                    
+                    try:
+                        # 2. PDF එක හදන එක (මෙතනදී තමයි error එක ආවේ)
+                        lo_pdf_path = create_pdf(
+                            f"Settlement_{search_name}", 
+                            lo_records, 
+                            lo_summary, 
+                            report_type="Landowner"
+                        )
+                        
+                        # 3. Download Button එක පෙන්වීම
+                        with open(lo_pdf_path, "rb") as f:
+                            st.download_button(
+                                label="⬇️ Download Settlement PDF",
+                                data=f,
+                                file_name=f"Settlement_{search_name}.pdf",
+                                mime="application/pdf"
+                            )
+                    except Exception as e:
+                        st.error(f"PDF එක හදද්දී ප්‍රශ්නයක් වුණා: {e}")
                 
                 # Table එක
                 st.write(f"**Transaction Log for {search_name}:**")
