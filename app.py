@@ -52,20 +52,54 @@ class PDF(FPDF):
         self.set_font('Arial', 'B', 15); self.set_text_color(230, 126, 34) 
         self.cell(0, 10, SHOP_NAME, 0, 1, 'C'); self.ln(5)
 
-def create_pdf(name, df, summary):
-    # ... (අනිත් කෝඩ් ටික) ...
-    for index, row in df.iterrows():
-        # මෙතනදී 'Type' හෝ 'Record_Type' දෙකෙන් මොකක් තිබුණත් වැඩ කරන විදිහට හදමු
-        r_type = row.get('Record_Type', row.get('Type', 'Unknown'))
-    
-    def safe_text(text):
-        if text is None: return ""
-        return str(text).encode("latin-1", "ignore").decode("latin-1")
-
-    pdf.set_font("Arial", 'B', 12)
-    pdf.set_fill_color(240, 240, 240)
-    pdf.cell(0, 10, safe_text(f"STATEMENT: {title.upper()}"), 1, 1, 'L', fill=True)
-    pdf.ln(2)
+def create_pdf(report_name, df, summary_dict):
+    try:
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", 'B', 16)
+        
+        # Report Title
+        pdf.cell(200, 10, txt=str(report_name).replace("_", " "), ln=True, align='C')
+        pdf.ln(5)
+        
+        # Summary Section (ගණන් හිලව් පෙන්වන කොටස)
+        pdf.set_font("Arial", 'B', 12)
+        pdf.cell(200, 10, txt="Summary Report:", ln=True)
+        pdf.set_font("Arial", size=10)
+        
+        for key, value in summary_dict.items():
+            pdf.cell(200, 8, txt=f"{key}: {value}", ln=True)
+        
+        pdf.ln(10)
+        
+        # Table Headers (ටේබල් එකේ මාතෘකා)
+        cols = df.columns.tolist()
+        pdf.set_font("Arial", 'B', 8)
+        
+        # Column පළල තීරණය කිරීම
+        col_width = 190 / len(cols) if len(cols) > 0 else 30
+        
+        for col in cols:
+            pdf.cell(col_width, 10, str(col), 1)
+        pdf.ln()
+        
+        # Table Data (දත්ත පේළි)
+        pdf.set_font("Arial", size=8)
+        for _, row in df.iterrows():
+            for col in cols:
+                # ඕනෑම දත්තයක් String එකක් බවට හරවා පෙන්වීම (KeyError වැළැක්වීමට)
+                val = str(row.get(col, ""))
+                pdf.cell(col_width, 8, val, 1)
+            pdf.ln()
+            
+        # File එක සේව් කිරීම
+        file_path = f"{report_name}.pdf"
+        pdf.output(file_path)
+        return file_path
+        
+    except Exception as e:
+        print(f"PDF Error: {e}")
+        return None
     
     # --- Summary Section (Basic Info) ---
     pdf.set_font("Arial", 'B', 10)
