@@ -105,9 +105,16 @@ def create_pdf(title, data_df, summary_dict):
     total_exp = 0
     
     for _, row in data_df.iterrows():
-        pdf.cell(w[0], 7, safe_text(row['Date']), 1)
-        pdf.cell(w[1], 7, safe_text(row['Category']), 1)
-        pdf.cell(w[2], 7, safe_text(row['Note'])[:30], 1)
+        # 109 පේළිය සහ ඒ අවට මෙන්න මේ විදිහට Safe කරන්න
+        date_val = safe_text(str(row.get('Date', '-')))
+        
+        # Category හෝ Material දෙකෙන් එකක් තියෙනවාද බලනවා
+        category = row.get('Category', row.get('Material', 'N/A'))
+        
+        pdf.cell(w[0], 7, date_val, 1)
+        pdf.cell(w[1], 7, safe_text(str(category)), 1) # මෙතන තමයි කලින් Error එක ආවේ
+        
+        # ඉතිරි ටිකත් මේ වගේම .get පාවිච්චි කරලා ලියන්න...
         
         qty = row['Work_Hours'] if row['Work_Hours'] > 0 else row['Qty_Cubes']
         pdf.cell(w[3], 7, f"{qty}" if qty > 0 else "-", 1, 0, 'C')
