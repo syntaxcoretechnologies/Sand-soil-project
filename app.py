@@ -301,6 +301,7 @@ elif menu == "🏗️ Site Operations":
         n = st.text_input("Additional Note")
         
         # --- 📥 SAVE RECORD BUTTON ---
+        # --- 📥 SAVE RECORD SECTION (FULLY FIXED) ---
         if st.form_submit_button("📥 Save Record"):
             if val <= 0: 
                 st.error(f"Enter valid {val_label}!")
@@ -321,6 +322,7 @@ elif menu == "🏗️ Site Operations":
                     final_note = f"{n} | Owner: {src_owner} | Drv: {src_driver}"
                 
                 # --- නව පේළිය Dictionary එකක් ලෙස (ValueError එක මින් වැලකේ) ---
+                # මෙතන තමයි ඔයාගේ අගයන් 13 ප්‍රශ්නය විසඳෙන්නේ
                 new_data = {
                     "ID": len(st.session_state.df) + 1,
                     "Date": d,
@@ -337,7 +339,7 @@ elif menu == "🏗️ Site Operations":
                     "Status": "Done"
                 }
                 
-                # DataFrame එකට එකතු කිරීම
+                # DataFrame එකට එකතු කිරීම (columns= argument එක මෙතනට අවශ්‍ය නැත)
                 new_row = pd.DataFrame([new_data])
                 st.session_state.df = pd.concat([st.session_state.df, new_row], ignore_index=True)
                 
