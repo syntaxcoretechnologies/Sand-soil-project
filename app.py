@@ -57,11 +57,12 @@ if 'landowners' not in st.session_state:
             st.session_state.landowners = []
     else:
         st.session_state.landowners = []
+# --- 4. PDF ENGINE (පැහැදිලිව Earnings සහ Expenses වෙන් කරන සම්පූර්ණ කෝඩ් එක) ---
 class PDF(FPDF):
     def header(self):
+        # ආයතනයේ නම (Title)
         self.set_font('Arial', 'B', 15)
         self.set_text_color(230, 126, 34) 
-        # ආයතනයේ නම [cite: 1, 5]
         self.cell(0, 10, "K. SIRIWARDHANA SAND CONSTRUCTION PROJECT", 0, 1, 'C')
         self.ln(5)
 
@@ -73,13 +74,13 @@ def create_pdf(title, data_df, summary_dict):
         if text is None or str(text) == "nan": return ""
         return str(text).encode("latin-1", "ignore").decode("latin-1")
 
-    # Statement Title [cite: 2, 6]
+    # Statement Title කොටස
     pdf.set_font("Arial", 'B', 12)
     pdf.set_fill_color(240, 240, 240)
     pdf.cell(0, 10, safe_text(f"STATEMENT: {title.upper()}"), 1, 1, 'L', fill=True)
     pdf.ln(2)
     
-    # --- Summary Section [cite: 3, 7] ---
+    # --- Summary Section (මුලින්ම තියෙන විස්තර) ---
     pdf.set_font("Arial", 'B', 10)
     for k, v in summary_dict.items():
         if k != "Rate_Breakdown":
@@ -88,26 +89,10 @@ def create_pdf(title, data_df, summary_dict):
             pdf.cell(0, 8, " " + safe_text(v), 1, 1)
             pdf.set_font("Arial", 'B', 10)
 
-    # --- Earnings Breakdown (Rate අනුව) [cite: 8, 9] ---
-    if "Rate_Breakdown" in summary_dict:
-        pdf.ln(5)
-        pdf.set_font("Arial", 'B', 11)
-        pdf.cell(0, 8, "Earnings Breakdown (By Rate):", 0, 1)
-        pdf.set_font("Arial", 'B', 9)
-        pdf.set_fill_color(220, 220, 220)
-        pdf.cell(40, 8, "Rate (LKR)", 1, 0, 'C', fill=True)
-        pdf.cell(40, 8, "Qty/Hrs", 1, 0, 'C', fill=True)
-        pdf.cell(50, 8, "Sub-Total (LKR)", 1, 1, 'C', fill=True)
-        pdf.set_font("Arial", '', 9)
-        for rb in summary_dict["Rate_Breakdown"]:
-            pdf.cell(40, 7, f"{rb['rate']:,.2f}", 1, 0, 'R')
-            pdf.cell(40, 7, f"{rb['qty']}", 1, 0, 'C')
-            pdf.cell(50, 7, f"{rb['subtotal']:,.2f}", 1, 1, 'R')
-    
-    # --- Main Table Header ---
+    # --- Table Header ---
     pdf.ln(8)
     pdf.set_font("Arial", 'B', 9)
-    # ඔයාගේ PDF එකේ විදිහටම Headers 
+    # Header වල පිළිවෙළ සහ ප්‍රමාණයන් (Widths)
     headers = ["Date", "Category", "Description", "Qty/Hr", "Rate", "Amount"]
     w = [22, 35, 50, 15, 25, 43]
     pdf.set_fill_color(220, 220, 220)
@@ -115,7 +100,7 @@ def create_pdf(title, data_df, summary_dict):
         pdf.cell(w[i], 8, safe_text(h), 1, 0, 'C', fill=True)
     pdf.ln()
     
-    # --- Data Rows ---
+    # --- Data Rows (දත්ත ඇතුළත් කිරීම) ---
     pdf.set_font("Arial", '', 8)
     total_earn = 0
     total_exp = 0
@@ -123,40 +108,51 @@ def create_pdf(title, data_df, summary_dict):
     for _, row in data_df.iterrows():
         pdf.cell(w[0], 7, safe_text(row['Date']), 1)
         pdf.cell(w[1], 7, safe_text(row['Category']), 1)
-        pdf.cell(w[2], 7, safe_text(row['Note'])[:30], 1)
+        pdf.cell(w[2], 7, safe_text(row['Note'])[:30], 1) # Note එක පෙන්වීම
         
+        # පැය ගණන (Excavator) හෝ කියුබ් (Lorry) පෙන්වීම
         qty = row['Work_Hours'] if row['Work_Hours'] > 0 else row['Qty_Cubes']
         pdf.cell(w[3], 7, f"{qty}" if qty > 0 else "-", 1, 0, 'C')
         
+        # Rate එක පෙන්වීම
         rate = row['Rate_At_Time']
         pdf.cell(w[4], 7, f"{rate:,.2f}" if rate > 0 else "-", 1, 0, 'R')
         
         amt = float(row['Amount'])
-        # මෙන්න මෙතනයි වැදගත්ම දේ: Earnings ද Expenses ද කියලා වෙන් කරගන්නා එක
-        if row['Type'] == "Process" or row['Record_Type'] == "Inward":
+        
+        # --- වැදගත්ම තැන: Earnings ද Expenses ද කියලා වෙන් කිරීම ---
+        # Category එකේ 'Work Log' තියෙනවා නම් හෝ Type එක 'Process' නම් ඒක Earnings (ආදායම)
+        if "Work Log" in str(row['Category']) or row['Type'] == "Process":
             total_earn += amt
             pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 0, 'R')
         else:
+            # අනිත් ඒවා (Fuel, Repair, Payroll) Expenses (වියදම්)
             total_exp += amt
             pdf.cell(w[5], 7, f"({amt:,.2f})", 1, 0, 'R')
         pdf.ln()
     
-    # --- Final Totals  ---
+    # --- අවසාන එකතුව (Final Totals) ---
+    pdf.ln(2)
     pdf.set_font("Arial", 'B', 9)
+    
+    # Gross Earnings (මෙතනට තමයි 67,150.00 වැටෙන්නේ)
     pdf.cell(sum(w[:5]), 8, "GROSS EARNINGS (LKR)", 1, 0, 'R')
     pdf.cell(w[5], 8, f"{total_earn:,.2f}", 1, 1, 'R')
     
+    # Total Expenses (ඩීසල්, රෙපයාර් වගේ වියදම්)
     pdf.cell(sum(w[:5]), 8, "TOTAL EXPENSES (LKR)", 1, 0, 'R')
     pdf.cell(w[5], 8, f"{total_exp:,.2f}", 1, 1, 'R')
     
+    # Net Balance (ලාභය)
     pdf.set_fill_color(230, 126, 34); pdf.set_text_color(255, 255, 255)
     pdf.cell(sum(w[:5]), 10, "NET SETTLEMENT BALANCE (LKR)", 1, 0, 'R', fill=True)
     pdf.cell(w[5], 10, f"{(total_earn - total_exp):,.2f}", 1, 1, 'R', fill=True)
     
+    # PDF එක Save කිරීම
     fn = f"Settlement_{datetime.now().strftime('%H%M%S')}.pdf"
     pdf.output(fn)
     return fn
-
+    
 # --- 5. UI LAYOUT & DASHBOARD ---
 st.set_page_config(page_title=SHOP_NAME, layout="wide")
 st.sidebar.title("🏗️ KSD ERP v5.6")
