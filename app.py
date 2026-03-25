@@ -706,14 +706,27 @@ elif menu == "📑 Reports Center":
         st.divider()
         st.subheader("🔍 Landowner Settlement Search")
 
-        # 1. නම ටයිප් කරලා සර්ච් කරන්න (උදා: Sumith)
-        search_name = st.text_input("Enter Landowner Name to Search", "").strip()
+        if not df_f.empty:
+            # 1. මුලින්ම පාවිච්චි කරන Column එක තෝරන්න (Select Column)
+            # ඔයාගේ ඩේටාබේස් එකේ තියෙන හැම කොලම් එකක්ම මෙතන පේනවා
+            all_cols = df_f.columns.tolist()
+            
+            # පද්ධතියට ලේසි වෙන්න default එකක් ට්‍රයි කරමු
+            def_idx = 0
+            for i, c in enumerate(all_cols):
+                if c in ['Entity', 'Landowner', 'Owner', 'Name']:
+                    def_idx = i
+                    break
+            
+            st.info("පහත Dropdown එකෙන් ඉඩම් හිමියාගේ නම (Landowner Name) තියෙන Column එක තෝරන්න:")
+            chosen_col = st.selectbox("Select Name Column", all_cols, index=def_idx)
 
-        if search_name:
-            # 2. මුළු ඩේටාබේස් එකේම ඒ නම තියෙන පේළි හොයමු
-            # 'Entity' කියන කොලම් එකේ ඒ නම තියෙනවද කියලා බලනවා
-            if 'Entity' in df_f.columns:
-                lo_records = df_f[df_f['Entity'].str.contains(search_name, case=False, na=False)].copy()
+            # 2. නම ටයිප් කරලා සර්ච් කරන්න
+            search_name = st.text_input(f"Enter Name to Search in '{chosen_col}'", "").strip()
+
+            if search_name:
+                # සර්ච් කිරීම
+                lo_records = df_f[df_f[chosen_col].astype(str).str.contains(search_name, case=False, na=False)].copy()
                 
                 if not lo_records.empty:
                     st.success(f"Found {len(lo_records)} records for '{search_name}'")
@@ -724,16 +737,13 @@ elif menu == "📑 Reports Center":
                     t_payable = lo_records[lo_records['Category'].str.contains('Inward', case=False, na=False)]['Amount'].sum()
                     t_paid = lo_records[lo_records['Category'].str.contains('Advance|Payment', case=False, na=False)]['Amount'].sum()
                     
-                    # Metrics පෙන්වීම
                     l1, l2, l3 = st.columns(3)
                     l1.metric("Total Payable", f"Rs. {t_payable:,.2f}")
                     l2.metric("Total Paid", f"Rs. {t_paid:,.2f}")
                     l3.metric("Net Balance", f"Rs. {(t_payable - t_paid):,.2f}")
 
-                    # Table පෙන්වීම
-                    st.dataframe(lo_records[['Date', 'Category', 'Qty_Cubes', 'Amount']], use_container_width=True)
+                    st.dataframe(lo_records, use_container_width=True)
                     
-                    # PDF එක ඕන නම්
                     if st.button("📥 Generate Report PDF"):
                         lo_summary = {"Landowner": search_name, "Date": datetime.now().strftime("%Y-%m-%d")}
                         pdf_file = create_landowner_pdf(search_name, lo_records, lo_summary)
@@ -741,10 +751,8 @@ elif menu == "📑 Reports Center":
                             st.download_button("📩 Download PDF", f, file_name=f"{search_name}_Settlement.pdf")
                 else:
                     st.warning(f"No records found for '{search_name}' in the selected date range.")
-            else:
-                st.error("Error: 'Entity' column not found in database.")
         else:
-            st.info("Please enter a name to see the settlement details.")
+            st.error("No data available in the current date range.")
             
     # --- TAB 2: DRIVER SUMMARY ---
     with r2:
