@@ -110,12 +110,21 @@ def create_pdf(title, data_df, summary_dict):
     total_earn = 0
     total_exp = 0
     
-    for _, row in data_df.iterrows():
+  for _, row in data_df.iterrows():
         pdf.cell(w[0], 7, safe_text(row['Date']), 1)
         pdf.cell(w[1], 7, safe_text(str(row.get('Category', 'N/A'))), 1)
-        pdf.cell(w[2], 7, safe_text(row['Note'])[:30], 1)
         
-        qty = row['Work_Hours'] if row['Work_Hours'] > 0 else row['Qty_Cubes']
+        # Note එකත් Safe විදිහට ගමු (KeyError නොවෙන්න)
+        note_text = safe_text(str(row.get('Note', '')))[:30]
+        pdf.cell(w[2], 7, note_text, 1)
+        
+        # --- මෙන්න මේ කොටස තමයි Safe කරන්න ඕනේ ---
+        w_hrs = row.get('Work_Hours', 0)
+        q_cubes = row.get('Qty_Cubes', 0)
+        
+        # පැය තියෙනවා නම් පැය ගමු, නැත්නම් කියුබ් ගමු
+        qty = w_hrs if w_hrs > 0 else q_cubes
+        
         pdf.cell(w[3], 7, f"{qty}" if qty > 0 else "-", 1, 0, 'C')
         
         rate = row['Rate_At_Time']
@@ -506,12 +515,13 @@ elif menu == "📑 Reports Center":
         daily_sales = df_f[df_f["Category"].str.contains("Sales Out", na=False)].copy()
         
         if not daily_sales.empty:
-            # 1. පද්ධතියට අවශ්‍ය columns ටික (මෙතනට 'Note' එකතු කළා)
-            required_cols = ['Date', 'Category', 'Name', 'Note', 'Qty_Cubes', 'Rate_At_Time', 'Amount']
+            # 1. PDF එකේ calculation වලට අවශ්‍ය හැම column එකක්ම මෙතනට දැම්මා
+            # Work_Hours සහ Qty_Cubes දෙකම අනිවාර්යයෙන්ම තියෙන්න ඕනේ
+            required_cols = ['Date', 'Category', 'Name', 'Note', 'Qty_Cubes', 'Work_Hours', 'Rate_At_Time', 'Amount']
             available_cols = daily_sales.columns.tolist()
             final_cols = [c for c in required_cols if c in available_cols]
             
-            # PDF එකට යවන දත්ත (දැන් මෙතන 'Note' තියෙනවා)
+            # PDF එකට යවන දත්ත (දැන් මෙතන 'Work_Hours' තියෙනවා)
             pdf_data = daily_sales[final_cols].copy() 
 
             # 2. Display කරන්න විතරක් Rename කරපු එකක් හදාගමු
