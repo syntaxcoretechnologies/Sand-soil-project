@@ -315,43 +315,75 @@ elif menu == "💰 Finance & Shed":
             with st.form("fuel", clear_on_submit=True):
                 d, v, l, c = st.date_input("Date"), st.selectbox("Vehicle", v_list), st.number_input("Liters"), st.number_input("Cost")
                 if st.form_submit_button("Save Fuel"):
-                    new = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Expense", "Fuel Entry", v, "Shed bill", c, 0, l, 0, 0, "Pending"]], columns=st.session_state.df.columns)
-                    st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
+                    # Dictionary එකක් ලෙස දත්ත සැකසීම
+                    new_data = {
+                        "ID": len(st.session_state.df) + 1, "Date": d, "Time": "", "Type": "Expense",
+                        "Category": "Fuel Entry", "Entity": v, "Note": "Shed bill", "Amount": c,
+                        "Qty_Cubes": 0, "Fuel_Ltr": l, "Hours": 0, "Rate_At_Time": 0, "Status": "Pending"
+                    }
+                    st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_data])], ignore_index=True)
+                    save_all(); st.rerun()
         with f2:
             with st.form("shed_pay", clear_on_submit=True):
                 am, ref = st.number_input("Amount Paid"), st.text_input("Reference")
                 if st.form_submit_button("Record Payment"):
-                    new = pd.DataFrame([[len(st.session_state.df)+1, datetime.now().date(), "", "Expense", "Shed Payment", "Shed", ref, am, 0, 0, 0, 0, "Paid"]], columns=st.session_state.df.columns)
-                    st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
+                    new_data = {
+                        "ID": len(st.session_state.df) + 1, "Date": datetime.now().date(), "Time": "", "Type": "Expense",
+                        "Category": "Shed Payment", "Entity": "Shed", "Note": ref, "Amount": am,
+                        "Qty_Cubes": 0, "Fuel_Ltr": 0, "Hours": 0, "Rate_At_Time": 0, "Status": "Paid"
+                    }
+                    st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_data])], ignore_index=True)
+                    save_all(); st.rerun()
 
     elif fin == "🔧 Repairs":
         with st.form("rep", clear_on_submit=True):
             d, v, am, nt = st.date_input("Date"), st.selectbox("Vehicle", v_list), st.number_input("Cost"), st.text_input("Detail")
             if st.form_submit_button("Save Repair"):
-                new = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Expense", "Repair", v, nt, am, 0, 0, 0, 0, "Paid"]], columns=st.session_state.df.columns)
-                st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
+                new_data = {
+                    "ID": len(st.session_state.df) + 1, "Date": d, "Time": "", "Type": "Expense",
+                    "Category": "Repair", "Entity": v, "Note": nt, "Amount": am,
+                    "Qty_Cubes": 0, "Fuel_Ltr": 0, "Hours": 0, "Rate_At_Time": 0, "Status": "Paid"
+                }
+                st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_data])], ignore_index=True)
+                save_all(); st.rerun()
 
     elif fin == "💸 Payroll":
+        dr_names = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else ["N/A"]
         with st.form("pay", clear_on_submit=True):
-            dr = st.selectbox("Driver", st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else ["N/A"])
+            dr = st.selectbox("Driver", dr_names)
             am, ty, v_rel = st.number_input("Amount"), st.selectbox("Type", ["Driver Advance", "Salary"]), st.selectbox("Vehicle", v_list)
             if st.form_submit_button("Save Payroll"):
-                new = pd.DataFrame([[len(st.session_state.df)+1, datetime.now().date(), "", "Expense", ty, v_rel, f"Driver: {dr}", am, 0, 0, 0, 0, "Paid"]], columns=st.session_state.df.columns)
-                st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
+                new_data = {
+                    "ID": len(st.session_state.df) + 1, "Date": datetime.now().date(), "Time": "", "Type": "Expense",
+                    "Category": ty, "Entity": v_rel, "Note": f"Driver: {dr}", "Amount": am,
+                    "Qty_Cubes": 0, "Fuel_Ltr": 0, "Hours": 0, "Rate_At_Time": 0, "Status": "Paid"
+                }
+                st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_data])], ignore_index=True)
+                save_all(); st.rerun()
 
     elif fin == "🏦 Owner Advances":
         with st.form("own_adv", clear_on_submit=True):
             d, v, am, nt = st.date_input("Date"), st.selectbox("Vehicle", v_list), st.number_input("Amount"), st.text_input("Note")
             if st.form_submit_button("Save Advance"):
-                new = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Expense", "Owner Advance", v, nt, am, 0, 0, 0, 0, "Paid"]], columns=st.session_state.df.columns)
-                st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
+                new_data = {
+                    "ID": len(st.session_state.df) + 1, "Date": d, "Time": "", "Type": "Expense",
+                    "Category": "Owner Advance", "Entity": v, "Note": nt, "Amount": am,
+                    "Qty_Cubes": 0, "Fuel_Ltr": 0, "Hours": 0, "Rate_At_Time": 0, "Status": "Paid"
+                }
+                st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_data])], ignore_index=True)
+                save_all(); st.rerun()
 
     elif fin == "🧾 Others":
         with st.form("oth"):
             d, cat, nt, am = st.date_input("Date"), st.selectbox("Category", ["Food", "Rent", "Utility", "Misc"]), st.text_input("Note"), st.number_input("Amount")
             if st.form_submit_button("Save Other"):
-                new = pd.DataFrame([[len(st.session_state.df)+1, d, "", "Expense", cat, "Admin", nt, am, 0, 0, 0, 0, "Paid"]], columns=st.session_state.df.columns)
-                st.session_state.df = pd.concat([st.session_state.df, new], ignore_index=True); save_all(); st.rerun()
+                new_data = {
+                    "ID": len(st.session_state.df) + 1, "Date": d, "Time": "", "Type": "Expense",
+                    "Category": cat, "Entity": "Admin", "Note": nt, "Amount": am,
+                    "Qty_Cubes": 0, "Fuel_Ltr": 0, "Hours": 0, "Rate_At_Time": 0, "Status": "Paid"
+                }
+                st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_data])], ignore_index=True)
+                save_all(); st.rerun()
 
 # --- 9. SYSTEM SETUP ---
 elif menu == "📑 Reports Center":
