@@ -129,7 +129,7 @@ def create_pdf(title, data_df, summary_dict):
         pdf.cell(w[4], 7, f"{rate:,.2f}" if rate > 0 else "-", 1, 0, 'R')
         
         amt = float(row.get('Amount', 0.0))
-        category = str(row['Category'])
+        category = str(row.get('Category', row.get('Material', 'N/A')))
         
         # --- වැදගත්ම තැන: ආදායම සහ වියදම වෙන් කිරීම ---
         
@@ -644,7 +644,7 @@ elif menu == "📑 Reports Center":
             current_stock = total_in - total_out
             
             stock_data.append({
-                "Material": mat,
+                "Category": mat,
                 "Total Inward (Cubes)": total_in,
                 "Total Sales (Cubes)": total_out,
                 "Current Stock (Balance)": current_stock
