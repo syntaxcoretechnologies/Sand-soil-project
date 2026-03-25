@@ -105,33 +105,39 @@ def create_pdf(title, data_df, summary_dict):
     total_exp = 0
     
     for _, row in data_df.iterrows():
-        # 109 පේළිය සහ ඒ අවට මෙන්න මේ විදිහට Safe කරන්න
+        # 1. දත්ත Safe විදිහට ගැනීම (.get පාවිච්චි කරමු)
         date_val = safe_text(str(row.get('Date', '-')))
         
-        # Category හෝ Material දෙකෙන් එකක් තියෙනවාද බලනවා
+        # Category හෝ Material දෙකෙන් තියෙන එක ගන්නවා
         category = row.get('Category', row.get('Material', 'N/A'))
+        note_val = safe_text(str(row.get('Note', '')))[:30]
         
+        # 2. PDF එකට මුල් දත්ත ටික පිරවීම
         pdf.cell(w[0], 7, date_val, 1)
-        pdf.cell(w[1], 7, safe_text(str(category)), 1) # මෙතන තමයි කලින් Error එක ආවේ
+        pdf.cell(w[1], 7, safe_text(str(category)), 1)
+        pdf.cell(w[2], 7, note_val, 1)
         
-        # ඉතිරි ටිකත් මේ වගේම .get පාවිච්චි කරලා ලියන්න...
-        
-        qty = row['Work_Hours'] if row['Work_Hours'] > 0 else row['Qty_Cubes']
+        # 3. Qty ගණනය කිරීම (Safe method)
+        w_hrs = row.get('Work_Hours', 0)
+        q_cubes = row.get('Qty_Cubes', 0)
+        qty = w_hrs if w_hrs > 0 else q_cubes
         pdf.cell(w[3], 7, f"{qty}" if qty > 0 else "-", 1, 0, 'C')
         
-        rate = row['Rate_At_Time']
-        pdf.cell(w[4], 7, f"{rate:,.2f}" if rate > 0 else "-", 1, 0, 'R')
+        # 4. Rate සහ Amount ගැනීම (Safe method)
+        # මෙතන තමයි කලින් KeyError එක ආවේ
+        rate = float(row.get('Rate_At_Time', 0.0))
+        amt = float(row.get('Amount', 0.0))
         
-        amt = float(row['Amount'])
-        category = str(row['Category'])
+        # 5. ආදායම/වියදම වෙන් කර පෙන්වීම
+        # මෙතනදී category එක string එකක් බවට සහතික කරගන්නවා
+        cat_str = str(category)
         
-        # --- වැදගත්ම තැන: ආදායම සහ වියදම වෙන් කිරීම ---
-        
-        # 1. වාහනයේ කුලී ආදායම (Earnings) - Work Log හෝ Hire පමණි
-        if "Work Log" in category or "Hire" in category or row['Type'] == "Process":
-            total_earn += amt
-            pdf.set_text_color(0, 0, 0)
-            pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 0, 'R')
+        if any(exp in cat_str for exp in ["Fuel", "Repair", "Advance", "Payroll", "Salary"]):
+            pdf.cell(w[4], 7, "EXPENSE", 1, 0, 'C')
+            pdf.cell(w[5], 7, f"({amt:,.2f})", 1, 1, 'R')
+        else:
+            pdf.cell(w[4], 7, f"{rate:,.2f}" if rate > 0 else "-", 1, 0, 'R')
+            pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 1, 'R')
             
         # 2. වාහනයේ සැබෑ වියදම් (Expenses) - Fuel, Repair, Payroll, Advance
         elif any(exp in category for exp in ["Fuel", "Repair", "Advance", "Payroll", "Salary"]):
