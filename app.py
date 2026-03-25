@@ -713,46 +713,42 @@ elif menu == "📑 Reports Center":
         st.divider()
         st.subheader("Landowner Settlement")
 
-        # 1. Registered Landowners ලා ගන්නා ක්‍රමය (Robust logic)
+        # 1. ඔයාගේ 'landowners' ලිස්ට් එකෙන් නම් ටික ගන්නවා
         registered_landowners = []
 
-        # Session state එකේ landownersලා ඉන්නවාද බලනවා
-        if "lo_db" in st.session_state and not st.session_state.lo_db.empty:
-            db_cols = st.session_state.lo_db.columns.tolist()
-            
-            # Column නම 'Name' හෝ 'Landowner Name' ද කියලා චෙක් කරනවා
-            if 'Name' in db_cols:
-                registered_landowners = st.session_state.lo_db['Name'].unique().tolist()
-            elif 'Landowner Name' in db_cols:
-                registered_landowners = st.session_state.lo_db['Landowner Name'].unique().tolist()
-            else:
-                # මේ දෙකම නැත්නම් database එකේ තියෙන පලවෙනි column එකේ දත්ත ගන්නවා
-                registered_landowners = st.session_state.lo_db.iloc[:, 0].unique().tolist()
+        if 'landowners' in st.session_state and st.session_state.landowners:
+            # ලිස්ට් එකේ තියෙන හැම Dictionary එකකම 'Name' කියන Key එක බලනවා
+            # (ඔයාගේ CSV එකේ Column එක 'Name' නම්)
+            registered_landowners = [owner.get('Name') for owner in st.session_state.landowners if owner.get('Name')]
         
-        # Database එක හිස් නම් හෝ නැත්නම්, දැනට තියෙන ලොග් වලින් නම් ටික ගන්නවා
+        # තවමත් ලිස්ට් එක හිස් නම්, Main Data එකේ 'Entity' column එක බලනවා
         if not registered_landowners:
-            if 'Entity' in df_f.columns:
-                registered_landowners = df_f['Entity'].unique().tolist()
-            else:
-                registered_landowners = ["N/A"]
+            if 'df' in st.session_state and not st.session_state.df.empty:
+                # Stock In කරද්දී 'Entity' එකට දාපු නම් ටික ගන්නවා
+                registered_landowners = [name for name in st.session_state.df['Entity'].unique().tolist() if name and str(name) != 'nan']
+
+        # අවසාන වශයෙන් කිසිම නමක් නැත්නම් විතරක් N/A පෙන්වනවා
+        if not registered_landowners:
+            registered_landowners = ["N/A"]
 
         # 2. Dropdown එක පෙන්වීම
         selected_landowner = st.selectbox(
             "Select Registered Landowner", 
             options=registered_landowners, 
-            key="settle_lo_reg_unique"
+            key="settle_lo_final_fix"
         )
 
         if selected_landowner and selected_landowner != "N/A":
-            # 3. තෝරාගත් Landowner ට අදාළ දත්ත Filter කිරීම
+            # 3. Filter කිරීම (st.session_state.df එක පාවිච්චි කරලා)
+            df_f = st.session_state.df
             lo_records = df_f[df_f['Entity'] == selected_landowner].copy()
             
             if not lo_records.empty:
-                # මුදල් ගණනය කිරීම (Cleaning the Amount column first)
-                lo_records['Amount'] = pd.to_numeric(
-                    lo_records['Amount'].astype(str).str.replace(',', '').str.replace('Rs.', ''), 
-                    errors='coerce'
-                ).fillna(0)
+                # (මීට පල්ලෙහා කොටස ඔයාගේ කලින් තිබ්බ Calculation සහ PDF Button එකම තියන්න)
+                st.success(f"Found {len(lo_records)} records for {selected_landowner}")
+                # ... (ඉතිරි කෝඩ් එක) ...
+            else:
+                st.info(f"No transactions found for {selected_landowner}.")
                 
                 # Inward කියන වචනය තියෙන ඒවා Payable (ගෙවිය යුතු) විදිහට ගන්නවා
                 total_payable = lo_records[lo_records['Category'].str.contains('Inward', case=False, na=False)]['Amount'].sum()
