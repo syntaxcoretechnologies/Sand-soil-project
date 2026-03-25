@@ -275,6 +275,7 @@ elif menu == "🏗️ Site Operations":
     d_list = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else ["No Drivers Registered"]
     l_list = [l["Name"] for l in st.session_state.landowners] if st.session_state.landowners else ["No Owners Registered"]
 
+    # --- 🏗️ SITE OPERATIONS FORM SECTION (FULLY FIXED) ---
     with st.form("site_f", clear_on_submit=True):
         col1, col2 = st.columns(2)
         with col1:
@@ -299,7 +300,7 @@ elif menu == "🏗️ Site Operations":
             
         n = st.text_input("Additional Note")
         
-        # --- 📥 SAVE RECORD SECTION (FIXED) ---
+        # --- 📥 SAVE RECORD BUTTON ---
         if st.form_submit_button("📥 Save Record"):
             if val <= 0: 
                 st.error(f"Enter valid {val_label}!")
@@ -319,7 +320,7 @@ elif menu == "🏗️ Site Operations":
                 if op == "📥 Stock Inward (To Plant)":
                     final_note = f"{n} | Owner: {src_owner} | Drv: {src_driver}"
                 
-                # --- නව පේළිය සෑදීම (ValueError එක මින් සම්පූර්ණයෙන්ම නැතිවේ) ---
+                # --- නව පේළිය Dictionary එකක් ලෙස (ValueError එක මින් වැලකේ) ---
                 new_data = {
                     "ID": len(st.session_state.df) + 1,
                     "Date": d,
@@ -331,7 +332,7 @@ elif menu == "🏗️ Site Operations":
                     "Amount": calculated_amount,
                     "Qty_Cubes": qty_cubes,
                     "Expense": 0,
-                    "Work_Hours": work_hours, # දැන් පැය ගණන හරියට වැටෙනවා
+                    "Work_Hours": work_hours,
                     "Rate_At_Time": r,
                     "Status": "Done"
                 }
