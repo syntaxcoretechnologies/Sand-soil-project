@@ -264,6 +264,7 @@ if menu == "📊 Dashboard":
         st.info("පද්ධතියේ දත්ත කිසිවක් නැත.")
 
 # --- 2. SITE OPERATIONS SECTION ---
+# --- 2. SITE OPERATIONS SECTION (FULLY FIXED) ---
 elif menu == "🏗️ Site Operations":
     st.markdown(f"<h2 style='color: #E67E22;'>🏗️ Site Operations & Stock Manager</h2>", unsafe_allow_html=True)
     
@@ -281,7 +282,6 @@ elif menu == "🏗️ Site Operations":
             d = st.date_input("Date", datetime.now().date())
             material = st.selectbox("Material Type", ["Sand", "Soil", "Other"]) if (op == "💰 Sales Out" or op == "📥 Stock Inward (To Plant)") else ""
             
-            # Stock Inward එකකදී පමණක් Landowner සහ Driver තෝරන්න දෙනවා
             if op == "📥 Stock Inward (To Plant)":
                 src_owner = st.selectbox("Source (Landowner)", l_list)
                 src_driver = st.selectbox("Driver/Operator", d_list)
@@ -313,12 +313,11 @@ elif menu == "🏗️ Site Operations":
                 qty_cubes = 0 if "Excavator" in op else val
                 work_hours = val if "Excavator" in op else 0
                 
-                # Note එක සකස් කිරීම
                 final_note = n
                 if op == "📥 Stock Inward (To Plant)":
                     final_note = f"{n} | Owner: {src_owner} | Drv: {src_driver}"
                 
-                # නව පේළිය සෑදීම (Dictionary ක්‍රමයට - වැරදීමේ සම්භාවිතාව අඩුයි)
+                # Dictionary ක්‍රමයට දත්ත සකස් කිරීම (ValueError වැලැක්වීමට)
                 new_data = {
                     "ID": len(st.session_state.df) + 1,
                     "Date": d,
@@ -336,15 +335,16 @@ elif menu == "🏗️ Site Operations":
                 }
                 
                 new_row = pd.DataFrame([new_data])
-                
-                # දත්ත එකතු කිරීම (පිළිවෙළට)
                 st.session_state.df = pd.concat([st.session_state.df, new_row], ignore_index=True)
-                save_all() # Indentation එක දැන් හරියටම තියෙනවා
+                save_all()
                 st.success(f"Successfully recorded! Total: Rs.{calculated_amount:,.2f}")
                 st.rerun()
 
+    # --- Fuel Entry කොටස (Line 362 අවට ඇති වැරදි ටික මෙතනින් Fix වෙයි) ---
     st.divider()
     st.subheader("Today's Logs")
+    # Date column එක datetime format එකට තියාගන්න
+    st.session_state.df['Date'] = pd.to_datetime(st.session_state.df['Date']).dt.date
     today_df = st.session_state.df[st.session_state.df["Date"] == datetime.now().date()]
     st.dataframe(today_df, use_container_width=True)
     
