@@ -701,7 +701,7 @@ elif menu == "📑 Reports Center":
             else:
                 st.error("Could not find a 'Vehicle' or 'Entity' column in your data records.")
                 # --- මෙන්න මෙතනින් පටන් ගන්න (Landowner Settlement Section) ---
-      # --- Landowner Settlement Section ---
+     # --- Landowner Settlement Section ---
         st.divider()
         st.subheader("Landowner Settlement")
 
@@ -721,15 +721,15 @@ elif menu == "📑 Reports Center":
             # වාහන අංක ටික අයින් කරලා ඉඩම් හිමියෝ විතරක් ගමු
             veh_nos = set(st.session_state.ve_db['No'].unique()) if "ve_db" in st.session_state else set()
             all_names = set(df_f[target_lo_col].dropna().unique())
-            landowner_list = sorted(list(all_names - veh_nos))
+            landowner_list = sorted([str(name) for name in all_names if str(name) not in veh_nos])
 
             if not landowner_list:
-                st.info("No Landowners found in the current date range.")
+                st.info("No Landowners found in the current selection.")
             else:
-                selected_landowner = st.selectbox("Select Landowner", landowner_list, key="lo_final_fix_2")
+                selected_landowner = st.selectbox("Select Landowner", landowner_list, key="lo_final_fix_3")
 
                 if selected_landowner:
-                    # මෙතන තමයි කලින් Error එක ආවේ - දැන් ඒක target_lo_col එකෙන් ගන්නවා
+                    # දැන් ඒක target_lo_col එකෙන් ගන්නවා
                     lo_records = df_f[df_f[target_lo_col] == selected_landowner].copy()
                     
                     if not lo_records.empty:
@@ -750,11 +750,13 @@ elif menu == "📑 Reports Center":
                             with open(pdf_fn, "rb") as f:
                                 st.download_button("⬇️ Download PDF", f, file_name=pdf_fn)
                         
-                        st.dataframe(lo_records[['Date', 'Category', 'Qty_Cubes', 'Amount']], use_container_width=True)
+                        # Column එක තියෙනවාද බලලා table එක පෙන්වීම
+                        disp_cols = [c for c in ['Date', 'Category', 'Qty_Cubes', 'Amount'] if c in lo_records.columns]
+                        st.dataframe(lo_records[disp_cols], use_container_width=True)
         else:
             # මචං, මේ පේළිය වැටුණොත් ඒ කියන්නේ ඔයාගේ ඩේටා වල 'Entity' කියලා නමක් ඇත්තෙම නැහැ
-            # එතකොට මෙන්න මේ ලිස්ට් එක බලලා මට කියන්න එතන තියෙන නම් ටික
             st.error(f"Could not find any name column. Available columns are: {available_cols}")
+            
     # --- TAB 2: DRIVER SUMMARY ---
     with r2:
         dr_list = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else []
