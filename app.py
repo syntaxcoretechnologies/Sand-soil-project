@@ -308,19 +308,41 @@ elif menu == "🏗️ Site Operations":
                 record_type = "Inward" if op == "📥 Stock Inward (To Plant)" else "Process"
                 cat = f"{op} ({material})" if material else op
                 
-                # Amount එක Calculate කිරීම
+                # ගණනය කිරීම්
                 calculated_amount = val * r
-                q, h = (0, val) if "Excavator" in op else (val, 0)
                 
-                # Note එකට Landowner සහ Driver ගේ විස්තර එකතු කිරීම (රිපෝට් වලදී ලේසි වෙන්න)
+                # Excavator එකක් නම් පැය ගණනට 'val' දානවා, නැත්නම් කියුබ් වලට 'val' දානවා
+                qty_cubes = 0 if "Excavator" in op else val
+                work_hours = val if "Excavator" in op else 0
+                
+                # Note එක සකස් කිරීම
                 final_note = n
                 if op == "📥 Stock Inward (To Plant)":
                     final_note = f"{n} | Owner: {src_owner} | Drv: {src_driver}"
                 
-                new_row = pd.DataFrame([[
-                    len(st.session_state.df)+1, d, "", record_type, cat, v, final_note, calculated_amount, q, 0, h, r, "Done"
-                ]], columns=st.session_state.df.columns)
+                # --- මෙන්න මෙතනයි වැදගත්ම දේ (DataFrame Columns ටික පිළිවෙළට) ---
+                # ඔයාගේ DataFrame එකේ Columns තියෙන පිළිවෙළට මේවා ගැලපෙන්න ඕනේ.
+                # සාමාන්‍යයෙන් පිළිවෙළ: ID, Date, Name, Type, Category, Entity, Note, Amount, Qty_Cubes, Expense, Work_Hours, Rate_At_Time, Status
                 
+                new_data = {
+                    "ID": len(st.session_state.df) + 1,
+                    "Date": d,
+                    "Name": "",
+                    "Record_Type": record_type,
+                    "Category": cat,
+                    "Entity": v,
+                    "Note": final_note,
+                    "Amount": calculated_amount,
+                    "Qty_Cubes": qty_cubes,
+                    "Expense": 0,
+                    "Work_Hours": work_hours,      # මෙන්න මෙතනට දැන් 'val' වැටෙනවා
+                    "Rate_At_Time": r,             # මෙතනට 'r' වැටෙනවා
+                    "Status": "Done"
+                }
+                
+                new_row = pd.DataFrame([new_data])
+                
+                # දත්ත එකතු කිරීම
                 st.session_state.df = pd.concat([st.session_state.df, new_row], ignore_index=True)
                 save_all()
                 st.success(f"Successfully recorded! Total: Rs.{calculated_amount:,.2f}")
