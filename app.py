@@ -705,31 +705,32 @@ elif menu == "📑 Reports Center":
         st.divider()
         st.subheader("Landowner Settlement")
 
-        # 1. Column එක තියෙනවාද කියලා මුලින්ම බලමු
-        col_options = ['Entity', 'Vehicle', 'Vehicle_No', 'Owner']
+        # 1. අයිතිකාරයාගේ නම තියෙන්න පුළුවන් Column එක බුද්ධිමත්ව සොයා ගැනීම
+        col_options = ['Entity', 'Vehicle', 'Vehicle_No', 'Owner', 'Name']
         target_lo_col = next((c for c in col_options if c in df_f.columns), None)
 
         if target_lo_col:
-            # මෙන්න මේ පේළි ටික 'if' එකට වඩා ටිකක් ඇතුළට වෙලා තිබිය යුතුයි
+            # මෙතනින් තමයි dropdown එකට නම් ටික ගන්නේ
             landowner_list = df_f[target_lo_col].unique().tolist()
             selected_landowner = st.selectbox("Select Landowner to Settle", landowner_list, key="settle_lo")
 
-            if selected_landowner and selected_landowner != "N/A":
+            if selected_landowner:
+                # තෝරාගත් අයිතිකාරයාගේ දත්ත වෙන් කරගැනීම
                 lo_records = df_f[df_f[target_lo_col] == selected_landowner].copy()
                 
                 if not lo_records.empty:
-                    # ගණනය කිරීම්
+                    # මුදල් ගණනය කිරීම (Inward = ගෙවිය යුතු, Advance = ගෙවූ)
                     total_payable = pd.to_numeric(lo_records[lo_records['Category'].str.contains('Inward', case=False, na=False)]['Amount'], errors='coerce').sum()
                     total_paid = pd.to_numeric(lo_records[lo_records['Category'].str.contains('Advance|Payment', case=False, na=False)]['Amount'], errors='coerce').sum()
                     lo_balance = total_payable - total_paid
 
-                    # Metrics පෙන්වීම
+                    # තිරය මත පෙන්වීම (Metrics)
                     l1, l2, l3 = st.columns(3)
                     l1.metric("Total Payable (Cubes)", f"Rs. {total_payable:,.2f}")
                     l2.metric("Total Advances Paid", f"Rs. {total_paid:,.2f}")
                     l3.metric("Net Balance Due", f"Rs. {lo_balance:,.2f}")
 
-                    # Download Button
+                    # PDF Report එක හදන Button එක
                     if st.button("📄 Generate Landowner Report"):
                         lo_summary = {
                             "Landowner Name": selected_landowner,
@@ -741,12 +742,14 @@ elif menu == "📑 Reports Center":
                         with open(lo_pdf_path, "rb") as f:
                             st.download_button("⬇️ Download Landowner PDF", f, file_name=f"Landowner_{selected_landowner}.pdf")
                     
+                    # විස්තර සහිත වගුව
                     st.write(f"**Transaction Log for {selected_landowner}:**")
                     st.dataframe(lo_records[['Date', 'Category', 'Qty_Cubes', 'Rate_At_Time', 'Amount']], use_container_width=True)
                 else:
                     st.info(f"No records found for {selected_landowner}.")
         else:
-            st.error("Could not find a valid Name/Entity column for Landowners.")
+            # 'Entity' හෝ වෙනත් නමක් නැතිනම් මේ පණිවිඩය පෙන්වයි
+            st.warning("Please ensure your data has a column for Landowner/Entity names.")
         
 
     # --- TAB 2: DRIVER SUMMARY ---
