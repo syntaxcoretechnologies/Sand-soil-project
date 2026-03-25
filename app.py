@@ -36,16 +36,10 @@ def save_all():
         pd.DataFrame(st.session_state.landowners).to_csv(LANDOWNER_FILE, index=False)
 
 # --- 3. SESSION STATE (මෙතන තමයි ඔක්කොම ලෝඩ් වෙන්නේ) ---
-
-# 1. 'Name' කියන එක cols_master එකට අලුතින් එකතු කළා
-cols_master = ["ID", "Date", "Time", "Type", "Category", "Name", "Entity", "Note", "Amount", "Qty_Cubes", "Fuel_Ltr", "Hours", "Rate_At_Time", "Status"]
+cols_master = ["ID", "Date", "Time", "Type", "Category", "Entity", "Note", "Amount", "Qty_Cubes", "Fuel_Ltr", "Hours", "Rate_At_Time", "Status"]
 
 if 'df' not in st.session_state:
     st.session_state.df = load_data(DATA_FILE, cols_master)
-    
-    # වැදගත්ම දේ: පරණ File එකේ 'Name' කොලම් එක නැත්නම් ඒක අලුතින් පද්ධතියට හඳුන්වා දෙනවා
-    if not st.session_state.df.empty and "Name" not in st.session_state.df.columns:
-        st.session_state.df["Name"] = ""
 
 if 've_db' not in st.session_state:
     st.session_state.ve_db = load_data(VE_FILE, ["No", "Type", "Owner", "Rate_Per_Unit"])
@@ -111,18 +105,11 @@ def create_pdf(title, data_df, summary_dict):
     total_exp = 0
     
     for _, row in data_df.iterrows():
-        pdf.cell(w[0], 7, safe_text(str(row.get('Date', '-'))), 1)
-        pdf.cell(w[1], 7, safe_text(str(row.get('Category', 'N/A'))), 1)
+        pdf.cell(w[0], 7, safe_text(row['Date']), 1)
+        pdf.cell(w[1], 7, safe_text(row['Category']), 1)
+        pdf.cell(w[2], 7, safe_text(row['Note'])[:30], 1)
         
-        # Note එක Safe විදිහට ගැනීම
-        note_val = str(row.get('Note', ''))
-        pdf.cell(w[2], 7, safe_text(note_val)[:30], 1)
-        
-        # Qty සහ Work Hours ගණනය කිරීම
-        w_hrs = row.get('Work_Hours', 0)
-        q_cubes = row.get('Qty_Cubes', 0)
-        qty = w_hrs if w_hrs > 0 else q_cubes
-        
+        qty = row['Work_Hours'] if row['Work_Hours'] > 0 else row['Qty_Cubes']
         pdf.cell(w[3], 7, f"{qty}" if qty > 0 else "-", 1, 0, 'C')
         
         rate = row['Rate_At_Time']
@@ -173,80 +160,6 @@ def create_pdf(title, data_df, summary_dict):
     
     # PDF එක Save කිරීම
     fn = f"Settlement_{datetime.now().strftime('%H%M%S')}.pdf"
-    pdf.output(fn)
-    return fn
-
-# --- Landowner PDF Engine (මේක අලුතින්ම දාන කොටස) ---
-def create_landowner_pdf(title, data_df, summary_dict):
-    pdf = PDF() # මෙතන PDF කියන්නේ ඔයා උඩින්ම හදපු class එක
-    pdf.add_page()
-    
-    def safe_text(text):
-        if text is None or str(text) == "nan": return ""
-        return str(text).encode("latin-1", "ignore").decode("latin-1")
-
-    pdf.set_font("Arial", 'B', 12)
-    pdf.set_fill_color(240, 240, 240)
-    pdf.cell(0, 10, safe_text(f"LANDOWNER STATEMENT: {title.upper()}"), 1, 1, 'L', fill=True)
-    pdf.ln(2)
-    
-    # Summary Section
-    pdf.set_font("Arial", 'B', 10)
-    for k, v in summary_dict.items():
-        pdf.cell(50, 8, safe_text(k) + ":", 1)
-        pdf.set_font("Arial", '', 10)
-        pdf.cell(0, 8, " " + safe_text(v), 1, 1)
-        pdf.set_font("Arial", 'B', 10)
-
-    pdf.ln(8)
-    pdf.set_font("Arial", 'B', 9)
-    headers = ["Date", "Category", "Note", "Cubes", "Rate", "Amount"]
-    w = [22, 35, 50, 15, 25, 43]
-    pdf.set_fill_color(220, 220, 220)
-    for i, h in enumerate(headers):
-        pdf.cell(w[i], 8, safe_text(h), 1, 0, 'C', fill=True)
-    pdf.ln()
-    
-    pdf.set_font("Arial", '', 8)
-    total_payable = 0
-    total_paid = 0
-    
-    for _, row in data_df.iterrows():
-        pdf.cell(w[0], 7, safe_text(row['Date']), 1)
-        pdf.cell(w[1], 7, safe_text(row['Category']), 1)
-        pdf.cell(w[2], 7, safe_text(row['Note'])[:30], 1)
-        
-        cubes = row['Qty_Cubes']
-        pdf.cell(w[3], 7, f"{cubes}" if cubes > 0 else "-", 1, 0, 'C')
-        
-        rate = row['Rate_At_Time']
-        pdf.cell(w[4], 7, f"{rate:,.2f}" if rate > 0 else "-", 1, 0, 'R')
-        
-        amt = float(row['Amount'])
-        category = str(row['Category'])
-        
-        if "Inward" in category or "Inward" in str(row.get('Record_Type', '')):
-            total_payable += amt
-            pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 0, 'R')
-        elif any(x in category for x in ["Advance", "Payment"]):
-            total_paid += amt
-            pdf.set_text_color(200, 0, 0)
-            pdf.cell(w[5], 7, f"({amt:,.2f})", 1, 0, 'R')
-            pdf.set_text_color(0, 0, 0)
-        else:
-            pdf.cell(w[5], 7, "-", 1, 0, 'R')
-        pdf.ln()
-    
-    pdf.ln(2); pdf.set_font("Arial", 'B', 9)
-    pdf.cell(sum(w[:5]), 8, "TOTAL PAYABLE FOR CUBES (LKR)", 1, 0, 'R')
-    pdf.cell(w[5], 8, f"{total_payable:,.2f}", 1, 1, 'R')
-    pdf.cell(sum(w[:5]), 8, "TOTAL ADVANCES PAID (LKR)", 1, 0, 'R')
-    pdf.cell(w[5], 8, f"{total_paid:,.2f}", 1, 1, 'R')
-    pdf.set_fill_color(39, 174, 96); pdf.set_text_color(255, 255, 255)
-    pdf.cell(sum(w[:5]), 10, "NET BALANCE TO BE PAID (LKR)", 1, 0, 'R', fill=True)
-    pdf.cell(w[5], 10, f"{(total_payable - total_paid):,.2f}", 1, 1, 'R', fill=True)
-    
-    fn = f"Landowner_Settlement_{datetime.now().strftime('%H%M%S')}.pdf"
     pdf.output(fn)
     return fn
     
@@ -332,8 +245,13 @@ elif menu == "🏗️ Site Operations":
     
     op = st.radio("Select Activity Type", ["🚜 Excavator Work Log", "💰 Sales Out", "📥 Stock Inward (To Plant)"], horizontal=True)
     
+    # 1. වාහන ලිස්ට් එක
     v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
+    
+    # 2. ඩ්‍රයිවර්ලාගේ ලිස්ට් එක
     d_list = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else ["No Drivers Registered"]
+    
+    # 3. Register කරපු Landownersලාගේ නම් ලිස්ට් එක (අලුතින් එකතු කළා)
     l_list = [owner["Name"] for owner in st.session_state.landowners] if st.session_state.landowners else ["No Owners Registered"]
 
     with st.form("site_f", clear_on_submit=True):
@@ -343,52 +261,71 @@ elif menu == "🏗️ Site Operations":
             d = st.date_input("Date", datetime.now().date())
             material = st.selectbox("Material Type", ["Sand", "Soil", "Other"]) if (op == "💰 Sales Out" or op == "📥 Stock Inward (To Plant)") else ""
             
+            # Stock Inward එකේදී විතරක් Landowner සහ Driver තෝරන්න දෙනවා
             if op == "📥 Stock Inward (To Plant)":
                 src_owner = st.selectbox("Source (Landowner)", l_list)
                 src_driver = st.selectbox("Driver/Operator", d_list)
         
         with col2:
-            val_label = "Work Hours" if "Excavator" in op else "Qty (Cubes)"
-            unit = "Hrs" if "Excavator" in op else "Cubes"
+            if "Excavator" in op:
+                val_label = "Work Hours"
+                unit = "Hrs"
+            else:
+                val_label = "Qty (Cubes)"
+                unit = "Cubes"
+                
             val = st.number_input(val_label, min_value=0.0, step=0.5, value=0.0)
             r = st.number_input(f"Enter Rate per {unit} (LKR)", min_value=0.0, step=100.0, value=0.0)
             
         n = st.text_input("Additional Note")
         
         if st.form_submit_button("📥 Save Record"):
-            # ... (අනිත් වැලිඩේෂන් ටික තිබුණාවෙ) ...
-            
-            # මචං, අපි බලමු මේ variable එකට නම එනවද කියලා
-            entry_name = str(src_owner) if op == "📥 Stock Inward (To Plant)" else str(v)
-            
-            # --- DEBUG: මේකෙන් අපිට බලාගන්න පුළුවන් නම මොකක්ද කියලා සේව් වෙන්න කලින් ---
-            st.write(f"Saving name: {entry_name}") 
-
-            new_data = {
-                "ID": int(len(st.session_state.df) + 1),
-                "Date": d,
-                "Name": entry_name,  # <--- කෙලින්ම variable එක දැම්මා
-                "Record_Type": "Inward" if op == "📥 Stock Inward (To Plant)" else "Process",
-                "Category": f"{op} ({material})" if material else op,
-                "Entity": v,
-                "Note": f"{n} | Drv: {src_driver}" if op == "📥 Stock Inward (To Plant)" else n,
-                "Amount": float(val * r),
-                "Qty_Cubes": float(val) if "Qty" in val_label else 0.0,
-                "Expense": 0.0,
-                "Work_Hours": float(val) if "Hours" in val_label else 0.0,
-                "Rate_At_Time": float(r),
-                "Status": "Done"
-            }
-            
-            # DataFrame එකට එකතු කිරීම
-            st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_data])], ignore_index=True)
-            save_all()
-            st.success(f"Saved: {entry_name}")
-            st.rerun()
-
-    # Today's Logs පෙන්වීම
+            if val <= 0: 
+                st.error(f"Enter valid {val_label}!")
+            elif r <= 0:
+                st.error("Enter valid Rate!")
+            else:
+                record_type = "Inward" if op == "📥 Stock Inward (To Plant)" else "Process"
+                cat = f"{op} ({material})" if material else op
+                
+                # ගණනය කිරීම්
+                calculated_amount = val * r
+                q, h = (0, val) if "Excavator" in op else (val, 0)
+                
+                # Note එකට Owner සහ Driver එකතු කිරීම (Stock Inward නම්)
+                final_note = n
+                if op == "📥 Stock Inward (To Plant)":
+                    final_note = f"{n} | Owner: {src_owner} | Drv: {src_driver}"
+                
+                # --- නව පේළිය Dictionary එකක් ලෙස (ValueError එක මින් වැලකේ) ---
+                new_data = {
+                    "ID": len(st.session_state.df) + 1,
+                    "Date": d,
+                    "Name": "",
+                    "Record_Type": record_type,
+                    "Category": cat,
+                    "Entity": v,
+                    "Note": final_note,
+                    "Amount": calculated_amount,
+                    "Qty_Cubes": q,
+                    "Expense": 0,
+                    "Work_Hours": h,
+                    "Rate_At_Time": r,
+                    "Status": "Done"
+                }
+                
+                # DataFrame එකට එකතු කර සේව් කිරීම
+                new_row = pd.DataFrame([new_data])
+                st.session_state.df = pd.concat([st.session_state.df, new_row], ignore_index=True)
+                
+                save_all()
+                st.success(f"Successfully recorded! Total: Rs.{calculated_amount:,.2f}")
+                st.rerun()
+    
+    # පල්ලෙහා Today's Logs පෙන්වන කොටස
     st.divider()
     st.subheader("Today's Logs")
+    # Date format එක හරියට තියාගන්න
     temp_df = st.session_state.df.copy()
     temp_df['Date'] = pd.to_datetime(temp_df['Date']).dt.date
     today_df = temp_df[temp_df["Date"] == datetime.now().date()]
@@ -486,16 +423,15 @@ elif menu == "📑 Reports Center":
 
     # Tabs
 
-    r_inc, r_prof, r_gross, r_stock, r1, r2, r3, r4 = st.tabs([
-      "💰 Daily Income Report", 
-      "📊 Profit/Loss Analysis",
-      "📈 Material Gross Earnings",
-      "📦 Inventory Report", # <--- අලුතින් එකතු කළා
-      "🚜 Vehicle Settlement", 
-      "👷 Driver Summary", 
-      "📑 Daily Log", 
-      "⛽ Shed Report"
-   ])
+    r_inc, r_prof, r_gross, r1, r2, r3, r4 = st.tabs([
+        "💰 Daily Income Report", 
+        "📊 Profit/Loss Analysis",
+        "📈 Material Gross Earnings", # Aluth Tab eka
+        "🚜 Vehicle Settlement", 
+        "👷 Driver Summary", 
+        "📑 Daily Log", 
+        "⛽ Shed Report"
+    ])
     
     col_d1, col_d2 = st.columns(2)
     with col_d1:
@@ -510,42 +446,45 @@ elif menu == "📑 Reports Center":
     with r_inc:
         st.subheader("Daily Sales & Income Statement")
         
+        # 1. Column names වල තියෙන හිස්තැන් අයින් කරලා Clean කරමු
         df_f.columns = [c.strip() for c in df_f.columns]
+        
+        # 2. Sales Out records විතරක් පෙරමු
         daily_sales = df_f[df_f["Category"].str.contains("Sales Out", na=False)].copy()
         
         if not daily_sales.empty:
-            # මෙතනට 'Type' කියන එකත් අලුතින් එකතු කළා
-            required_cols = ['Date', 'Category', 'Name', 'Note', 'Type', 'Qty_Cubes', 'Work_Hours', 'Rate_At_Time', 'Amount']
+            # 3. මෙතනදී Column එකක් නැති වුණොත් Error එකක් එන එක නවත්වන්න check එකක් දාමු
             available_cols = daily_sales.columns.tolist()
+            required_cols = ['Date', 'Category', 'Entity', 'Qty_Cubes', 'Rate_At_Time', 'Amount']
+            
+            # පද්ධතියේ තියෙන column ටික විතරක් තෝරා ගමු (KeyError වැළැක්වීමට)
             final_cols = [c for c in required_cols if c in available_cols]
             
-            # PDF එකට යවන දත්ත (දැන් මෙතන 'Work_Hours' තියෙනවා)
-            pdf_data = daily_sales[final_cols].copy() 
-
-            # 2. Display කරන්න විතරක් Rename කරපු එකක් හදාගමු
-            display_sales = pdf_data.copy()
+            display_sales = daily_sales[final_cols].copy()
+            
+            # 4. ටේබල් එකේ Column names ලස්සන කරමු (Rename)
             rename_dict = {
-                'Date': 'Date', 'Category': 'Material', 'Name': 'Client/Owner', 
-                'Note': 'Description', 'Qty_Cubes': 'Qty', 'Rate_At_Time': 'Rate', 'Amount': 'Total Amount'
+                'Date': 'Date', 'Category': 'Material', 'Entity': 'Vehicle/Client', 
+                'Qty_Cubes': 'Qty', 'Rate_At_Time': 'Rate', 'Amount': 'Total Amount'
             }
             display_sales.rename(columns=rename_dict, inplace=True)
             
             st.dataframe(display_sales, use_container_width=True)
             
+            # මුළු මුදල පෙන්වීම
             if 'Total Amount' in display_sales.columns:
                 total_daily_inc = display_sales['Total Amount'].sum()
                 st.success(f"Selected Period Total Income: **LKR {total_daily_inc:,.2f}**")
             
-            # 3. PDF Button එක
+            # PDF Button එක (කලින් විදිහටම)
             if st.button("📥 Download Daily Income PDF"):
                 inc_summary = {
                     "Report Type": "Daily Income Statement",
                     "Period": f"{f_d} to {t_d}",
-                    "Total Items": len(pdf_data),
-                    "Total Gross Income": f"LKR {pdf_data['Amount'].sum():,.2f}" if 'Amount' in pdf_data.columns else "0.00"
+                    "Total Items": len(display_sales),
+                    "Total Gross Income": f"LKR {display_sales['Total Amount'].sum():,.2f}" if 'Total Amount' in display_sales.columns else "0.00"
                 }
-                # මෙතනදී අපි යවන්නේ Rename නොකරපු 'pdf_data' එක. එතකොට 'Category' කොලම් එක ඒකේ තියෙනවා.
-                pdf_fn = create_pdf(f"Daily_Income", pdf_data, inc_summary)
+                pdf_fn = create_pdf(f"Daily_Income", display_sales, inc_summary)
                 with open(pdf_fn, "rb") as f:
                     st.download_button("📩 Click to Download PDF", f, file_name=f"Income_Report_{f_d}.pdf")
         else:
@@ -619,70 +558,6 @@ elif menu == "📑 Reports Center":
         else:
             st.info("No sales records found for the selected period.")
 
-    with r_stock:
-        st.subheader("📦 Material Inventory & Stock Balance")
-        
-        # 1. දත්ත පිරිසිදු කරගැනීම
-        df_s = st.session_state.df.copy()
-        
-        # 2. Inward සහ Sales Out වෙන් කරගැනීම
-        # Inward (ලෑන්ඩ් ඕනර්ලාගෙන් ආපු ඒවා)
-        inward_df = df_s[df_s["Record_Type"] == "Inward"].copy()
-        # Sales Out (පිටතට විකුණපු ඒවා)
-        sales_df = df_s[df_s["Category"].str.contains("Sales Out", na=False)].copy()
-        
-        # 3. Material එක අනුව Summary එකක් හැදීම
-        materials = ["Sand", "Soil", "Other"]
-        stock_data = []
-
-        for mat in materials:
-            # මුළු පැමිණි ප්‍රමාණය (Total In)
-            total_in = inward_df[inward_df["Category"].str.contains(mat, na=False)]["Qty_Cubes"].sum()
-            # මුළු විකුණූ ප්‍රමාණය (Total Out)
-            total_out = sales_df[sales_df["Category"].str.contains(mat, na=False)]["Qty_Cubes"].sum()
-            
-            current_stock = total_in - total_out
-            
-            stock_data.append({
-                "Material": mat,
-                "Total Inward (Cubes)": total_in,
-                "Total Sales (Cubes)": total_out,
-                "Current Stock (Balance)": current_stock
-            })
-
-        inventory_df = pd.DataFrame(stock_data)
-
-        # 4. Metrics පෙන්වීම
-        m1, m2, m3 = st.columns(3)
-        with m1:
-            st.metric("Total Sand Balance", f"{inventory_df.iloc[0]['Current Stock (Balance)']} Cubes")
-        with m2:
-            st.metric("Total Soil Balance", f"{inventory_df.iloc[1]['Current Stock (Balance)']} Cubes")
-        with m3:
-            st.metric("Other Balance", f"{inventory_df.iloc[2]['Current Stock (Balance)']} Cubes")
-
-        st.divider()
-        
-        # 5. Inventory Table එක පෙන්වීම
-        st.table(inventory_df)
-
-        # 6. Stock එක අඩු නම් Warning එකක් දීම
-        for index, row in inventory_df.iterrows():
-            if row["Current Stock (Balance)"] < 10:
-                st.warning(f"⚠️ Low Stock Alert: {row['Material']} balance is low ({row['Current Stock (Balance)']} Cubes)!")
-
-        # 7. PDF Report එකක් ඕනෙ නම් (මේක create_pdf එකට සමාන එකක්)
-        if st.button("📥 Download Stock Report PDF"):
-            stock_summary = {
-                "Report Type": "Stock Inventory Report",
-                "Date": datetime.now().strftime("%Y-%m-%d"),
-                "Generated By": "Syntaxcore System"
-            }
-            # මෙතනදී inventory_df එක PDF එකට යවන්න පුළුවන්
-            pdf_fn = create_pdf("Stock_Report", inventory_df, stock_summary)
-            with open(pdf_fn, "rb") as f:
-                st.download_button("📩 Download PDF", f, file_name="Stock_Report.pdf")
-
     # --- TAB 1: VEHICLE SETTLEMENT ---
    # 1. වාහන ලැයිස්තුව ලබා ගනිමු
     v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
@@ -751,33 +626,7 @@ elif menu == "📑 Reports Center":
                     st.info(f"No records found for {selected_ve} in the selected period.")
             else:
                 st.error("Could not find a 'Vehicle' or 'Entity' column in your data records.")
-                # --- මෙන්න මෙතනින් පටන් ගන්න (Landowner Settlement Section) ---
- 
-     # --- Landowner Settlement Section (No Date Filter Version) ---
-        st.divider()
-        st.subheader("👤 Landowner Settlement (Testing)")
 
-        if "landowners" in st.session_state and st.session_state.landowners:
-            reg_names = [owner['Name'] for owner in st.session_state.landowners]
-            selected_lo = st.selectbox("Select Landowner", sorted(reg_names), key="test_fix_101")
-
-            if selected_lo:
-                # අපි කෙලින්ම මුළු ඩේටාබේස් එකම (st.session_state.df) පාවිච්චි කරමු
-                full_db = st.session_state.df.copy()
-                
-                # නම සර්ච් කිරීම
-                search_n = str(selected_lo).strip().lower()
-                lo_records = full_db[full_db['Name'].astype(str).str.strip().str.lower() == search_n].copy()
-                
-                if not lo_records.empty:
-                    st.success(f"දත්ත {len(lo_records)} ක් හමු වුණා!")
-                    st.dataframe(lo_records)
-                else:
-                    st.error(f"'{selected_lo}' නමින් කිසිදු දත්තයක් මුළු ඩේටාබේස් එකේම නැහැ.")
-                    st.write("ඩේටාබේස් එකේ දැනට තියෙන නම්:", full_db['Name'].unique().tolist())
-        else:
-            st.warning("No Registered Landowners.")
-            
     # --- TAB 2: DRIVER SUMMARY ---
     with r2:
         dr_list = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else []
