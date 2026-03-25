@@ -514,7 +514,7 @@ elif menu == "📑 Reports Center":
    # 1. වාහන ලැයිස්තුව ලබා ගනිමු
     v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
 
-    # --- TAB: VEHICLE SETTLEMENT (EXCAVATOR EARNINGS FIXED) ---
+   # --- TAB: VEHICLE SETTLEMENT (STABLE VERSION) ---
     with r1:
         st.subheader("🚜 Vehicle & Machine Settlement")
         
@@ -526,25 +526,28 @@ elif menu == "📑 Reports Center":
             ve_records = df_f[df_f['Entity'] == selected_ve].copy()
             
             if not ve_records.empty:
-                # 2. Excavator එකක්ද කියලා බලනවා (නමේ EX, PC හෝ EXCAVATOR තියෙනවා නම්)
+                # 'Record_Type' column එක ඇත්දැයි බලා, නැතිනම් හිස්ව තබා ගැනීම (KeyError වැළැක්වීමට)
+                if "Record_Type" not in ve_records.columns:
+                    ve_records["Record_Type"] = "Unknown"
+
+                # 2. Excavator එකක්ද කියලා බලනවා
                 is_exc = any(x in selected_ve.upper() for x in ["EX", "PC", "EXCAVATOR"])
                 
-                # 3. ආදායම ගණනය කිරීම (Excavator නම් පැය ගණන අනුව)
+                # 3. ආදායම ගණනය කිරීම
                 if is_exc:
-                    # Work_Hours සහ Rate_At_Time numeric කරගන්නවා
-                    ve_records['Work_Hours'] = pd.to_numeric(ve_records.get('Work_Hours', 0), errors='coerce').fillna(0)
-                    ve_records['Rate_At_Time'] = pd.to_numeric(ve_records.get('Rate_At_Time', 0), errors='coerce').fillna(0)
-                    
-                    # පැය ගණනින් රේට් එක වැඩි කරලා Gross Earning එක හදනවා
-                    ve_records['Calculated_Earning'] = ve_records['Work_Hours'] * ve_records['Rate_At_Time']
+                    w_hrs = pd.to_numeric(ve_records.get('Work_Hours', 0), errors='coerce').fillna(0)
+                    r_rate = pd.to_numeric(ve_records.get('Rate_At_Time', 0), errors='coerce').fillna(0)
+                    ve_records['Calculated_Earning'] = w_hrs * r_rate
                     gross_earning = ve_records['Calculated_Earning'].sum()
                 else:
-                    # සාමාන්‍ය ලොරියක් නම් (Rented) කෙලින්ම Amount එක ගන්නවා
-                    gross_earning = pd.to_numeric(ve_records['Amount'], errors='coerce').sum()
+                    gross_earning = pd.to_numeric(ve_records.get('Amount', 0), errors='coerce').sum()
 
-                # 4. වියදම් ගණනය කිරීම (Diesel, Repairs, Food, etc.)
-                # Type එක 'Expense' කියලා තියෙන ඒවා විතරක් ගන්නවා
-                total_exp = pd.to_numeric(ve_records[ve_records["Record_Type"] == "Expense"]["Amount"], errors='coerce').sum()
+                # 4. වියදම් ගණනය කිරීම (Safe Filter)
+                # මෙතනදී Record_Type එක 'Expense' වන හෝ Category එකේ Fuel/Repair තියෙන ඒවා ගන්නවා
+                exp_mask = (ve_records["Record_Type"] == "Expense") | \
+                           (ve_records["Category"].str.contains("Fuel|Repair|Food|Service", na=False, case=False))
+                
+                total_exp = pd.to_numeric(ve_records[exp_mask]["Amount"], errors='coerce').sum()
                 
                 # 5. ශුද්ධ ලාභය
                 net_balance = gross_earning - total_exp
@@ -559,12 +562,11 @@ elif menu == "📑 Reports Center":
                 st.divider()
                 st.write(f"📊 **Detailed Logs for {selected_ve}**")
                 
-                # ටේබල් එකේ පෙන්විය යුතු Columns
+                # පෙන්විය යුතු Columns
                 show_cols = ['Date', 'Category', 'Work_Hours', 'Rate_At_Time', 'Amount', 'Note']
                 available = [c for c in show_cols if c in ve_records.columns]
                 
-                # Excavator එකක් නම් අර අපි හදපු Calculated_Earning එකත් පෙන්වමු
-                if is_exc:
+                if is_exc and 'Calculated_Earning' in ve_records.columns:
                     st.dataframe(ve_records[available + ['Calculated_Earning']], use_container_width=True)
                 else:
                     st.dataframe(ve_records[available], use_container_width=True)
