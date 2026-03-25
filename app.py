@@ -640,17 +640,28 @@ elif menu == "📑 Reports Center":
         stock_data = []
 
         for mat in materials:
-            # ... උඩින් total_in සහ total_out ගණනය කරන කෝඩ් එක ඇති ...
+            # 1. මුලින්ම variables දෙක 0 ට සමාන කරගන්න (NameError එක වැළැක්වීමට)
+            total_in = 0
+            total_out = 0
             
+            # 2. Inward Table එකෙන් අදාළ Material එකේ එකතුව ගැනීම
+            if not inward_df.empty:
+                total_in = inward_df[inward_df["Category"].str.contains(mat, na=False)]["Qty_Cubes"].sum()
+            
+            # 3. Sales Table එකෙන් අදාළ Material එකේ එකතුව ගැනීම
+            if not sales_df.empty:
+                total_out = sales_df[sales_df["Category"].str.contains(mat, na=False)]["Qty_Cubes"].sum()
+            
+            # 4. දැන් Balance එක ගණනය කිරීම (දැන් මේ පේළිය Error වෙන්නේ නැහැ)
             current_stock = total_in - total_out
             
-            # --- මෙන්න මේ stock_data.append කියන තැනට තමයි ඇඩ් කරන්න ඕනේ ---
+            # 5. Stock Data එකට එකතු කිරීම
             stock_data.append({
                 "Category": mat,
                 "Total Inward (Cubes)": total_in,
                 "Total Sales (Cubes)": total_out,
                 "Current Stock (Balance)": current_stock,
-                "Type": "Stock"  # <--- අලුතින් මෙන්න මේ පේළිය ඇඩ් කරන්න
+                "Type": "Stock"
             })
 
         inventory_df = pd.DataFrame(stock_data)
