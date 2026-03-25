@@ -701,6 +701,10 @@ elif menu == "📑 Reports Center":
             else:
                 st.error("Could not find a 'Vehicle' or 'Entity' column in your data records.")
                 # --- මෙන්න මෙතනින් පටන් ගන්න (Landowner Settlement Section) ---
+        st.write("--- Debugging ---")
+st.write(f"දැනට තෝරාගත් දින සීමාව ඇතුළත ඇති මුළු දත්ත ගණන: {len(df_f)}")
+if not df_f.empty:
+    st.write("තිබෙන Columns:", df_f.columns.tolist())
      # --- Landowner Settlement Section ---
         st.divider()
         st.subheader("Landowner Settlement")
