@@ -36,10 +36,16 @@ def save_all():
         pd.DataFrame(st.session_state.landowners).to_csv(LANDOWNER_FILE, index=False)
 
 # --- 3. SESSION STATE (මෙතන තමයි ඔක්කොම ලෝඩ් වෙන්නේ) ---
-cols_master = ["ID", "Date", "Time", "Type", "Category", "Entity", "Note", "Amount", "Qty_Cubes", "Fuel_Ltr", "Hours", "Rate_At_Time", "Status"]
+
+# 1. 'Name' කියන එක cols_master එකට අලුතින් එකතු කළා
+cols_master = ["ID", "Date", "Time", "Type", "Category", "Name", "Entity", "Note", "Amount", "Qty_Cubes", "Fuel_Ltr", "Hours", "Rate_At_Time", "Status"]
 
 if 'df' not in st.session_state:
     st.session_state.df = load_data(DATA_FILE, cols_master)
+    
+    # වැදගත්ම දේ: පරණ File එකේ 'Name' කොලම් එක නැත්නම් ඒක අලුතින් පද්ධතියට හඳුන්වා දෙනවා
+    if not st.session_state.df.empty and "Name" not in st.session_state.df.columns:
+        st.session_state.df["Name"] = ""
 
 if 've_db' not in st.session_state:
     st.session_state.ve_db = load_data(VE_FILE, ["No", "Type", "Owner", "Rate_Per_Unit"])
@@ -343,33 +349,35 @@ elif menu == "🏗️ Site Operations":
         n = st.text_input("Additional Note")
         
         if st.form_submit_button("📥 Save Record"):
-            if val <= 0 or r <= 0:
-                st.error("Please enter valid Quantity and Rate!")
-            else:
-                # --- නම තීරණය කිරීම (මෙන්න මේක වැදගත්) ---
-                entry_name = src_owner if op == "📥 Stock Inward (To Plant)" else v
-                record_type = "Inward" if op == "📥 Stock Inward (To Plant)" else "Process"
-                
-                new_data = {
-                    "ID": len(st.session_state.df) + 1,
-                    "Date": d,
-                    "Name": entry_name,  # <--- මෙතනට නම යනවා
-                    "Record_Type": record_type,
-                    "Category": f"{op} ({material})" if material else op,
-                    "Entity": v,
-                    "Note": f"{n} | Drv: {src_driver}" if op == "📥 Stock Inward (To Plant)" else n,
-                    "Amount": val * r,
-                    "Qty_Cubes": 0 if "Excavator" in op else val,
-                    "Expense": 0,
-                    "Work_Hours": val if "Excavator" in op else 0,
-                    "Rate_At_Time": r,
-                    "Status": "Done"
-                }
-                
-                st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_data])], ignore_index=True)
-                save_all()
-                st.success(f"Successfully recorded for {entry_name}!")
-                st.rerun()
+            # ... (අනිත් වැලිඩේෂන් ටික තිබුණාවෙ) ...
+            
+            # මචං, අපි බලමු මේ variable එකට නම එනවද කියලා
+            entry_name = str(src_owner) if op == "📥 Stock Inward (To Plant)" else str(v)
+            
+            # --- DEBUG: මේකෙන් අපිට බලාගන්න පුළුවන් නම මොකක්ද කියලා සේව් වෙන්න කලින් ---
+            st.write(f"Saving name: {entry_name}") 
+
+            new_data = {
+                "ID": int(len(st.session_state.df) + 1),
+                "Date": d,
+                "Name": entry_name,  # <--- කෙලින්ම variable එක දැම්මා
+                "Record_Type": "Inward" if op == "📥 Stock Inward (To Plant)" else "Process",
+                "Category": f"{op} ({material})" if material else op,
+                "Entity": v,
+                "Note": f"{n} | Drv: {src_driver}" if op == "📥 Stock Inward (To Plant)" else n,
+                "Amount": float(val * r),
+                "Qty_Cubes": float(val) if "Qty" in val_label else 0.0,
+                "Expense": 0.0,
+                "Work_Hours": float(val) if "Hours" in val_label else 0.0,
+                "Rate_At_Time": float(r),
+                "Status": "Done"
+            }
+            
+            # DataFrame එකට එකතු කිරීම
+            st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_data])], ignore_index=True)
+            save_all()
+            st.success(f"Saved: {entry_name}")
+            st.rerun()
 
     # Today's Logs පෙන්වීම
     st.divider()
