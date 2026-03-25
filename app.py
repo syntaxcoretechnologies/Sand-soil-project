@@ -713,51 +713,49 @@ elif menu == "📑 Reports Center":
         st.divider()
         st.subheader("Landowner Settlement")
 
-        # 1. නම් ටික ගන්නා ක්‍රමය (Robust logic)
+        # 1. නම් ටික ගන්නා ක්‍රමය
         registered_landowners = []
         if 'landowners' in st.session_state and st.session_state.landowners:
             registered_landowners = [owner.get('Name') for owner in st.session_state.landowners if owner.get('Name')]
         
         if not registered_landowners:
             if 'df' in st.session_state and not st.session_state.df.empty:
-                # Entity column එකේ තියෙන unique නම් ටික ගන්නවා
                 registered_landowners = [name for name in st.session_state.df['Entity'].unique().tolist() if name and str(name).lower() != 'nan']
 
         if not registered_landowners:
             registered_landowners = ["N/A"]
 
         # 2. Dropdown
-        selected_landowner = st.selectbox("Select Landowner", options=registered_landowners, key="settle_lo_final_v3")
+        selected_landowner = st.selectbox("Select Landowner", options=registered_landowners, key="settle_lo_final_v4")
 
         if selected_landowner and selected_landowner != "N/A":
-            # df එකේ copy එකක් ගන්නවා filter කරන්න කලින්
             df_f = st.session_state.df.copy()
-            
-            # පරතරයන් අයින් කරලා හරියටම නම match කරනවා
             search_name = str(selected_landowner).strip()
-            lo_records = df_f[df_f['Entity'].astype(str).str.strip() == search_name].copy()
+            
+            # Filter Logic - Case Insensitive (Capital/Simple ප්‍රශ්නයක් නොවෙන්න)
+            lo_records = df_f[df_f['Entity'].astype(str).str.strip().str.lower() == search_name.lower()].copy()
             
             if not lo_records.empty:
                 st.success(f"Found {len(lo_records)} records for {search_name}")
                 
-                # Amount clean කරලා numeric වලට ගන්නවා
+                # Amount clean කිරීම
                 lo_records['Amount'] = pd.to_numeric(
                     lo_records['Amount'].astype(str).str.replace(',', '').str.replace('Rs.', ''), 
                     errors='coerce'
                 ).fillna(0)
                 
-                # ගණනය කිරීම් (Inward = ගෙවිය යුතු, Advance/Payment = ගෙවූ)
+                # ගණනය කිරීම්
                 total_payable = lo_records[lo_records['Category'].str.contains('Inward|Stock In', case=False, na=False)]['Amount'].sum()
                 total_paid = lo_records[lo_records['Category'].str.contains('Advance|Payment', case=False, na=False)]['Amount'].sum()
                 lo_balance = total_payable - total_paid
 
-                # Metrics පෙන්වීම
+                # Metrics
                 m1, m2, m3 = st.columns(3)
                 m1.metric("Total Payable", f"Rs. {total_payable:,.2f}")
                 m2.metric("Total Paid", f"Rs. {total_paid:,.2f}")
                 m3.metric("Balance Due", f"Rs. {lo_balance:,.2f}")
 
-                # PDF Report Button (මේක දැන් if not records.empty එක ඇතුළේ තියෙන්නේ)
+                # PDF Report Button
                 if st.button("📄 Generate Landowner Report"):
                     lo_summary = {
                         "Landowner Name": search_name,
@@ -766,26 +764,34 @@ elif menu == "📑 Reports Center":
                         "Total Paid": f"Rs. {total_paid:,.2f}",
                         "Balance Due": f"Rs. {lo_balance:,.2f}"
                     }
-                    
-                    # create_pdf function එක call කිරීම
                     lo_pdf_path = create_pdf(f"Settlement_{search_name}", lo_records, lo_summary, report_type="Landowner")
-                    
                     with open(lo_pdf_path, "rb") as f:
-                        st.download_button(
-                            label="⬇️ Download Settlement PDF",
-                            data=f,
-                            file_name=f"Settlement_{search_name}.pdf",
-                            mime="application/pdf"
-                        )
+                        st.download_button("⬇️ Download Settlement PDF", f, file_name=f"Settlement_{search_name}.pdf", mime="application/pdf")
                 
-                # Table එක පෙන්වීම
+                # Table එක
                 st.write(f"**Transaction Log for {search_name}:**")
                 display_cols = ['Date', 'Category', 'Qty_Cubes', 'Amount', 'Note']
                 existing_cols = [c for c in display_cols if c in lo_records.columns]
                 st.dataframe(lo_records[existing_cols], use_container_width=True)
                 
             else:
-                st.info(f"No records linked to '{search_name}' in the database.")
+                # --- මෙන්න මෙතන තමයි Debug කොටස පටන් ගන්නේ ---
+                st.warning(f"No records linked to '{search_name}' in the database.")
+                
+                with st.expander("🔍 Click here for Debug Info (ඇයි දත්ත පේන්නේ නැත්තේ?)"):
+                    st.write("1. Database එකේ දැනට තියෙන ඔක්කොම නම් (Entity List):")
+                    all_entities = df_f['Entity'].unique().tolist()
+                    st.write(all_entities)
+                    
+                    st.write(f"2. Note එකේ '{search_name}' කියන නම තියෙන දත්ත තියෙනවාද බලමු:")
+                    # Note එකේ Search කරලා බලනවා
+                    debug_df = df_f[df_f['Note'].fillna("").astype(str).str.contains(search_name, case=False)]
+                    
+                    if not debug_df.empty:
+                        st.dataframe(debug_df[['Date', 'Category', 'Entity', 'Note', 'Amount']])
+                        st.info("💡 මචං, මෙතන දත්ත පේනවා නම්, ඒ කියන්නේ ඔයා නම දාලා තියෙන්නේ Note එකේ මිසක් Landowner (Entity) විදිහට නෙවෙයි.")
+                    else:
+                        st.error(f"නම Note එකෙත් නැහැ. කරුණාකර Stock Inward එකේදී '{search_name}' කියන නම හරියටම ඇතුළත් කළාද බලන්න.")
                         
     # --- TAB 2: DRIVER SUMMARY ---
     with r2:
