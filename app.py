@@ -552,89 +552,103 @@ elif menu == "📑 Reports Center":
 
    # --- TAB: VEHICLE SETTLEMENT (STABLE VERSION) ---
     
+    # --- TAB: VEHICLE & MACHINE SETTLEMENT (SK & EXCAVATOR FIXED) ---
     with r1:
         st.subheader("🚜 Vehicle & Machine Settlement")
         
-        # වාහන ලැයිස්තුව ලබා ගැනීම
         v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
-        selected_ve = st.selectbox("Select Vehicle/Machine", v_list, key="v_settle_select_final")
+        selected_ve = st.selectbox("Select Vehicle/Machine", v_list, key="v_settle_select_v3")
         
         if selected_ve and selected_ve != "N/A":
-            # 1. දත්ත පෙරමු (අදාළ වාහනයට පමණක්)
             ve_records = df_f[df_f['Entity'] == selected_ve].copy()
             
             if not ve_records.empty:
-                # 'Record_Type' සහ 'Work_Hours' නැතිනම් හදාගන්නවා
+                # 1. 'Record_Type' සහ 'Work_Hours' column පද්ධතියට හඳුන්වා දීම
                 if "Record_Type" not in ve_records.columns: ve_records["Record_Type"] = "Unknown"
                 if "Work_Hours" not in ve_records.columns: ve_records["Work_Hours"] = 0
+                if "Qty_Cubes" not in ve_records.columns: ve_records["Qty_Cubes"] = 0
                 
-                # 2. වර්ගය හඳුනා ගැනීම
-                is_exc = any(x in str(selected_ve).upper() for x in ["EX", "PC", "EXCAVATOR"])
+                # 2. මැෂින් එක Excavator එකක්ද කියා බුද්ධිමත්ව පරීක්ෂා කිරීම (SK එකත් එකතු කළා)
+                # EX, PC, SK, CAT, EXCAVATOR වැනි වචන තිබේ නම් එය මැෂින් එකකි.
+                machine_keywords = ["EX", "PC", "SK", "CAT", "EXCAVATOR", "BACKHOE", "JCB"]
+                is_exc = any(x in str(selected_ve).upper() for x in machine_keywords)
                 
-                # 3. පොදු වියදම් (Fuel, Advance, Repair)
+                # 3. වියදම් පෙරීම (Fuel, Repair, etc.)
                 exp_mask = (ve_records["Record_Type"] == "Expense") | \
-                           (ve_records["Category"].str.contains("Fuel|Repair|Food|Advance", na=False, case=False))
+                           (ve_records["Category"].str.contains("Fuel|Repair|Food|Advance|Service", na=False, case=False))
                 total_exp = pd.to_numeric(ve_records[exp_mask]["Amount"], errors='coerce').sum()
 
-                # --- UI DISPLAY (වර්ගය අනුව වෙනස් වේ) ---
-                st.info(f"📍 Viewing Report for: **{selected_ve}** ({'Excavator' if is_exc else 'Lorry'})")
+                st.info(f"📋 Reporting for: **{selected_ve}** ({'Excavator/Machine' if is_exc else 'Lorry'})")
                 
                 c1, c2, c3 = st.columns(3)
 
                 if is_exc:
-                    # --- EXCAVATOR UI ---
-                    # පැය ගණන සහ රේට් එක numeric කරගමු
+                    # --- EXCAVATOR CALCULATIONS ---
                     ve_records['Work_Hours'] = pd.to_numeric(ve_records['Work_Hours'], errors='coerce').fillna(0)
                     ve_records['Rate_At_Time'] = pd.to_numeric(ve_records.get('Rate_At_Time', 0), errors='coerce').fillna(0)
                     
                     total_hrs = ve_records['Work_Hours'].sum()
-                    gross_earning = (ve_records['Work_Hours'] * ve_records['Rate_At_Time']).sum()
+                    # පැය ගණනින් රේට් එක වැඩි කර ආදායම හදමු
+                    ve_records['Calculated_Income'] = ve_records['Work_Hours'] * ve_records['Rate_At_Time']
+                    gross_earning = ve_records['Calculated_Income'].sum()
                     net_profit = gross_earning - total_exp
 
-                    c1.metric("Total Work Hours", f"{total_hrs:.2f} hrs")
+                    c1.metric("Total Hours Worked", f"{total_hrs:.2f} hrs")
                     c2.metric("Gross Earning", f"Rs. {gross_earning:,.2f}")
-                    c3.metric("Net Profit", f"Rs. {net_profit:,.2f}", delta=f"{net_profit:,.2f}")
+                    c3.metric("Net Settlement", f"Rs. {net_profit:,.2f}", delta=f"{net_profit:,.2f}")
                     
-                    # Excavator එකට වැදගත් columns
-                    display_cols = ['Date', 'Category', 'Work_Hours', 'Rate_At_Time', 'Amount', 'Note']
+                    display_cols = ['Date', 'Category', 'Work_Hours', 'Rate_At_Time', 'Calculated_Income', 'Note']
                 else:
-                    # --- LORRY UI ---
-                    total_cubes = pd.to_numeric(ve_records.get('Qty_Cubes', 0), errors='coerce').sum()
+                    # --- LORRY CALCULATIONS ---
+                    total_cubes = pd.to_numeric(ve_records['Qty_Cubes'], errors='coerce').sum()
                     
-                    c1.metric("Total Cubes", f"{total_cubes:.2f} m3")
+                    c1.metric("Total Cubes Transported", f"{total_cubes:.2f} m3")
                     c2.metric("Total Expenses", f"Rs. {total_exp:,.2f}")
-                    c3.write("ℹ️ Rented Lorry. No hourly earnings tracked.")
+                    c3.write("ℹ️ Rented Lorry settlement based on cubes.")
                     
-                    # Lorry එකට වැදගත් columns
                     display_cols = ['Date', 'Category', 'Qty_Cubes', 'Amount', 'Note']
 
                 st.divider()
 
-                # --- PDF GENERATION ---
-                if st.button("📥 Download Settlement PDF", key="btn_pdf_v_final"):
+                # --- 4. PDF GENERATION (මෙතනයි FIX එක තියෙන්නේ) ---
+                if st.button("📥 Generate & Download Report", key="btn_pdf_v3"):
+                    # Summary දත්ත පිළියෙළ කිරීම
                     summary = {
-                        "Vehicle": selected_ve,
+                        "Vehicle/Machine": str(selected_ve),
+                        "Type": "Excavator/Machine" if is_exc else "Lorry",
                         "Period": f"{f_d} to {t_d}",
                         "Total Expenses": f"Rs. {total_exp:,.2f}"
                     }
                     if is_exc:
                         summary["Total Hours"] = f"{total_hrs:.2f}"
+                        summary["Gross Earnings"] = f"Rs. {gross_earning:,.2f}"
                         summary["Net Profit"] = f"Rs. {net_profit:,.2f}"
                     else:
-                        summary["Total Cubes"] = f"{total_cubes:.2f}"
+                        summary["Total Cubes"] = f"{total_cubes:.2f} m3"
 
-                    available_pdf = [c for c in display_cols if c in ve_records.columns]
-                    pdf_path = create_pdf(f"Settlement_{selected_ve}", ve_records[available_pdf], summary)
+                    # රිපෝට් එකේ පෙන්විය යුතු column ලිස්ට් එක සකස් කිරීම
+                    pdf_final_cols = [c for c in display_cols if c in ve_records.columns]
+                    
+                    # PDF එක සෑදීම
+                    pdf_path = create_pdf(f"Settlement_{selected_ve}", ve_records[pdf_final_cols], summary)
+                    
                     if pdf_path and os.path.exists(pdf_path):
                         with open(pdf_path, "rb") as f:
-                            st.download_button("📩 Save PDF", f, file_name=f"{selected_ve}_Report.pdf")
+                            st.download_button(
+                                label="📩 Click here to Save PDF",
+                                data=f,
+                                file_name=f"{selected_ve}_Settlement_{f_d}.pdf",
+                                mime="application/pdf"
+                            )
+                    else:
+                        st.error("PDF generation failed. Please check create_pdf function.")
 
-                # --- TABLE DISPLAY ---
-                st.write(f"📋 **Detailed Transaction Log**")
-                final_cols = [c for c in display_cols if c in ve_records.columns]
-                st.dataframe(ve_records[final_cols], use_container_width=True)
+                # --- 5. DATA TABLE ---
+                st.write(f"📊 **Transaction Logs**")
+                final_view_cols = [c for c in display_cols if c in ve_records.columns]
+                st.dataframe(ve_records[final_view_cols], use_container_width=True)
             else:
-                st.warning(f"No records found for {selected_ve} in the selected period.")
+                st.warning(f"No records found for {selected_ve} in the selected dates.")
     # --- TAB 2: DRIVER SUMMARY (FIXED) ---
     with r2:
         st.subheader("👷 Driver Work & Payment Summary")
