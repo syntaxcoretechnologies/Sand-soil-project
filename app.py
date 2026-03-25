@@ -310,8 +310,6 @@ elif menu == "🏗️ Site Operations":
                 
                 # ගණනය කිරීම්
                 calculated_amount = val * r
-                
-                # Excavator එකක් නම් පැය ගණනට 'val' දානවා, නැත්නම් කියුබ් වලට 'val' දානවා
                 qty_cubes = 0 if "Excavator" in op else val
                 work_hours = val if "Excavator" in op else 0
                 
@@ -320,33 +318,28 @@ elif menu == "🏗️ Site Operations":
                 if op == "📥 Stock Inward (To Plant)":
                     final_note = f"{n} | Owner: {src_owner} | Drv: {src_driver}"
                 
-                # --- මෙන්න මෙතනයි වැදගත්ම දේ (DataFrame Columns ටික පිළිවෙළට) ---
-                # ඔයාගේ DataFrame එකේ Columns තියෙන පිළිවෙළට මේවා ගැලපෙන්න ඕනේ.
-                # සාමාන්‍යයෙන් පිළිවෙළ: ID, Date, Name, Type, Category, Entity, Note, Amount, Qty_Cubes, Expense, Work_Hours, Rate_At_Time, Status
+                # නව පේළිය සෑදීම (Dictionary ක්‍රමයට - වැරදීමේ සම්භාවිතාව අඩුයි)
+                new_data = {
+                    "ID": len(st.session_state.df) + 1,
+                    "Date": d,
+                    "Name": "",
+                    "Record_Type": record_type,
+                    "Category": cat,
+                    "Entity": v,
+                    "Note": final_note,
+                    "Amount": calculated_amount,
+                    "Qty_Cubes": qty_cubes,
+                    "Expense": 0,
+                    "Work_Hours": work_hours,
+                    "Rate_At_Time": r,
+                    "Status": "Done"
+                }
                 
-       # --- නව පේළිය සෑදීම (පැටලෙන්නේ නැති වෙන්න) ---
-new_data = {
-    "ID": len(st.session_state.df) + 1,
-    "Date": d,
-    "Name": "",
-    "Record_Type": "Expense",
-    "Category": "Fuel Entry",
-    "Entity": v,
-    "Note": "Shed bill",
-    "Amount": c,
-    "Qty_Cubes": 0,
-    "Expense": l,
-    "Work_Hours": 0,
-    "Rate_At_Time": 0,
-    "Status": "Pending"
-}
-
-# Dictionary එක නිසා නම අනුව column එකට අගය ගැලපෙනවා
-new_row = pd.DataFrame([new_data])
-
-# ඉන්පසු කලින් වගේම concat කරන්න
-st.session_state.df = pd.concat([st.session_state.df, new_row], ignore_index=True)
-                save_all()
+                new_row = pd.DataFrame([new_data])
+                
+                # දත්ත එකතු කිරීම (පිළිවෙළට)
+                st.session_state.df = pd.concat([st.session_state.df, new_row], ignore_index=True)
+                save_all() # Indentation එක දැන් හරියටම තියෙනවා
                 st.success(f"Successfully recorded! Total: Rs.{calculated_amount:,.2f}")
                 st.rerun()
 
