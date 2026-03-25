@@ -676,40 +676,30 @@ elif menu == "📑 Reports Center":
                 st.error("Could not find a 'Vehicle' or 'Entity' column in your data records.")
                 # --- මෙන්න මෙතනින් පටන් ගන්න (Landowner Settlement Section) ---
  
-     # --- Landowner Settlement Section ---
+     # --- Landowner Settlement Section (No Date Filter Version) ---
         st.divider()
-        st.subheader("👤 Landowner Settlement")
+        st.subheader("👤 Landowner Settlement (Testing)")
 
         if "landowners" in st.session_state and st.session_state.landowners:
             reg_names = [owner['Name'] for owner in st.session_state.landowners]
-            selected_lo = st.selectbox("Select Landowner", sorted(reg_names), key="final_lo_fix")
+            selected_lo = st.selectbox("Select Landowner", sorted(reg_names), key="test_fix_101")
 
             if selected_lo:
-                # 'Name' column එක පාවිච්චි කරලා filter කරනවා
-                # strip() සහ lower() දාන්නේ අකුරු වල වැරදි අහුවෙන්න
-                lo_records = df_f[df_f['Name'].astype(str).str.strip().str.lower() == str(selected_lo).strip().lower()].copy()
+                # අපි කෙලින්ම මුළු ඩේටාබේස් එකම (st.session_state.df) පාවිච්චි කරමු
+                full_db = st.session_state.df.copy()
+                
+                # නම සර්ච් කිරීම
+                search_n = str(selected_lo).strip().lower()
+                lo_records = full_db[full_db['Name'].astype(str).str.strip().str.lower() == search_n].copy()
                 
                 if not lo_records.empty:
-                    # Amount එක numeric කරගැනීම
-                    lo_records['Amount'] = pd.to_numeric(lo_records['Amount'].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
-                    
-                    # ගෙවිය යුතු මුදල් (Inward) සහ ගෙවූ මුදල් (Advance)
-                    t_payable = lo_records[lo_records['Record_Type'] == 'Inward']['Amount'].sum()
-                    # මෙතන Category එකේ 'Advance' හෝ 'Payment' තියෙන ඒවා බලනවා
-                    t_paid = lo_records[lo_records['Category'].str.contains('Advance|Payment', case=False, na=False)]['Amount'].sum()
-
-                    c1, c2, c3 = st.columns(3)
-                    c1.metric("Total Payable", f"Rs. {t_payable:,.2f}")
-                    c2.metric("Total Paid", f"Rs. {t_paid:,.2f}")
-                    c3.metric("Net Balance", f"Rs. {(t_payable - t_paid):,.2f}")
-
-                    st.dataframe(lo_records[['Date', 'Category', 'Qty_Cubes', 'Amount']], use_container_width=True)
+                    st.success(f"දත්ත {len(lo_records)} ක් හමු වුණා!")
+                    st.dataframe(lo_records)
                 else:
-                    st.info(f"Landowner '{selected_lo}' ගේ දත්ත කිසිවක් මෙම දින සීමාව තුළ නැත.")
-                    # Debug - දැනට තිබෙන නම් බලන්න
-                    st.write("දත්ත පද්ධතියේ ඇති නම්:", df_f['Name'].unique().tolist())
+                    st.error(f"'{selected_lo}' නමින් කිසිදු දත්තයක් මුළු ඩේටාබේස් එකේම නැහැ.")
+                    st.write("ඩේටාබේස් එකේ දැනට තියෙන නම්:", full_db['Name'].unique().tolist())
         else:
-            st.warning("Please register landowners first.")
+            st.warning("No Registered Landowners.")
             
     # --- TAB 2: DRIVER SUMMARY ---
     with r2:
