@@ -52,9 +52,11 @@ class PDF(FPDF):
         self.set_font('Arial', 'B', 15); self.set_text_color(230, 126, 34) 
         self.cell(0, 10, SHOP_NAME, 0, 1, 'C'); self.ln(5)
 
-def create_pdf(title, data_df, summary_dict):
-    pdf = PDF()
-    pdf.add_page()
+def create_pdf(name, df, summary):
+    # ... (අනිත් කෝඩ් ටික) ...
+    for index, row in df.iterrows():
+        # මෙතනදී 'Type' හෝ 'Record_Type' දෙකෙන් මොකක් තිබුණත් වැඩ කරන විදිහට හදමු
+        r_type = row.get('Record_Type', row.get('Type', 'Unknown'))
     
     def safe_text(text):
         if text is None: return ""
@@ -111,7 +113,7 @@ def create_pdf(title, data_df, summary_dict):
         rate_val = f"{row['Rate_At_Time']:,.2f}" if row['Rate_At_Time'] > 0 else "-"
         pdf.cell(w[3], 7, safe_text(rate_val), 1, 0, 'R')
         
-        amt = float(row['Amount']) if row['Type'] == "Expense" else 0.0
+        amt = float(row.get('Amount', 0)) if r_type == "Expense" else 0.0
         total_exp += amt
         pdf.cell(w[4], 7, f"{amt:,.2f}", 1, 0, 'R')
         pdf.ln()
