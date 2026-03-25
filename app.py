@@ -506,19 +506,19 @@ elif menu == "📑 Reports Center":
         daily_sales = df_f[df_f["Category"].str.contains("Sales Out", na=False)].copy()
         
         if not daily_sales.empty:
-            # 1. පද්ධතියට අවශ්‍ය columns ටික (Name එකත් ඇතුළත් කළා)
-            required_cols = ['Date', 'Category', 'Name', 'Qty_Cubes', 'Rate_At_Time', 'Amount']
+            # 1. පද්ධතියට අවශ්‍ය columns ටික (මෙතනට 'Note' එකතු කළා)
+            required_cols = ['Date', 'Category', 'Name', 'Note', 'Qty_Cubes', 'Rate_At_Time', 'Amount']
             available_cols = daily_sales.columns.tolist()
             final_cols = [c for c in required_cols if c in available_cols]
             
-            # --- වැදගත්: PDF එකට යවන්න ඕනේ මේ පරණ නම් තියෙන DataFrame එකයි ---
+            # PDF එකට යවන දත්ත (දැන් මෙතන 'Note' තියෙනවා)
             pdf_data = daily_sales[final_cols].copy() 
 
             # 2. Display කරන්න විතරක් Rename කරපු එකක් හදාගමු
             display_sales = pdf_data.copy()
             rename_dict = {
                 'Date': 'Date', 'Category': 'Material', 'Name': 'Client/Owner', 
-                'Qty_Cubes': 'Qty', 'Rate_At_Time': 'Rate', 'Amount': 'Total Amount'
+                'Note': 'Description', 'Qty_Cubes': 'Qty', 'Rate_At_Time': 'Rate', 'Amount': 'Total Amount'
             }
             display_sales.rename(columns=rename_dict, inplace=True)
             
