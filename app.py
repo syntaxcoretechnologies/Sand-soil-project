@@ -110,19 +110,17 @@ def create_pdf(title, data_df, summary_dict):
     total_earn = 0
     total_exp = 0
     
-  for _, row in data_df.iterrows():
-        pdf.cell(w[0], 7, safe_text(row['Date']), 1)
+    for _, row in data_df.iterrows():
+        pdf.cell(w[0], 7, safe_text(str(row.get('Date', '-'))), 1)
         pdf.cell(w[1], 7, safe_text(str(row.get('Category', 'N/A'))), 1)
         
-        # Note එකත් Safe විදිහට ගමු (KeyError නොවෙන්න)
-        note_text = safe_text(str(row.get('Note', '')))[:30]
-        pdf.cell(w[2], 7, note_text, 1)
+        # Note එක Safe විදිහට ගැනීම
+        note_val = str(row.get('Note', ''))
+        pdf.cell(w[2], 7, safe_text(note_val)[:30], 1)
         
-        # --- මෙන්න මේ කොටස තමයි Safe කරන්න ඕනේ ---
+        # Qty සහ Work Hours ගණනය කිරීම
         w_hrs = row.get('Work_Hours', 0)
         q_cubes = row.get('Qty_Cubes', 0)
-        
-        # පැය තියෙනවා නම් පැය ගමු, නැත්නම් කියුබ් ගමු
         qty = w_hrs if w_hrs > 0 else q_cubes
         
         pdf.cell(w[3], 7, f"{qty}" if qty > 0 else "-", 1, 0, 'C')
