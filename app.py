@@ -761,8 +761,9 @@ elif menu == "📑 Reports Center":
 
                 # PDF Report Button
                 # PDF Report Button
+                # PDF Report Button
                 if st.button("📄 Generate Landowner Report"):
-                    # 1. Summary එක මුලින්ම හදාගන්න ඕනේ (TypeError නොවෙන්න)
+                    # 1. Summary එක පිරවීම
                     lo_summary = {
                         "Landowner Name": str(search_name),
                         "Report Date": datetime.now().strftime("%Y-%m-%d"),
@@ -772,15 +773,15 @@ elif menu == "📑 Reports Center":
                     }
                     
                     try:
-                        # 2. PDF එක හදන එක (මෙතනදී තමයි error එක ආවේ)
+                        # 2. PDF එක හැදීම (TypeError එක එන්නේ නැති වෙන්න report_type අයින් කළා)
+                        # ඔයාගේ create_pdf එකේ arguments තියෙන පිළිවෙළටම මේවා යනවා
                         lo_pdf_path = create_pdf(
                             f"Settlement_{search_name}", 
                             lo_records, 
-                            lo_summary, 
-                            report_type="Landowner"
+                            lo_summary
                         )
                         
-                        # 3. Download Button එක පෙන්වීම
+                        # 3. Download Button
                         with open(lo_pdf_path, "rb") as f:
                             st.download_button(
                                 label="⬇️ Download Settlement PDF",
@@ -789,6 +790,7 @@ elif menu == "📑 Reports Center":
                                 mime="application/pdf"
                             )
                     except Exception as e:
+                        # මෙතනදී arguments ගණන මදි වුණොත් error එකක් ඒවි, එහෙම වුණොත් මට කියන්න
                         st.error(f"PDF එක හදද්දී ප්‍රශ්නයක් වුණා: {e}")
                 
                 # Table එක
