@@ -319,7 +319,7 @@ elif menu == "🏗️ Site Operations":
                 if op == "📥 Stock Inward (To Plant)":
                     final_note = f"{n} | Owner: {src_owner} | Drv: {src_driver}"
                 
-                # --- නව පේළිය සෑදීම (Dictionary ක්‍රමය - මේකෙන් තමයි ValueError එක නැති වෙන්නේ) ---
+                # --- නව පේළිය Dictionary එකක් ලෙස (ValueError එක මින් නැතිවේ) ---
                 new_data = {
                     "ID": len(st.session_state.df) + 1,
                     "Date": d,
@@ -340,11 +340,11 @@ elif menu == "🏗️ Site Operations":
                 new_row = pd.DataFrame([new_data])
                 st.session_state.df = pd.concat([st.session_state.df, new_row], ignore_index=True)
                 
-                # දත්ත සේව් කිරීම (Indentation එක නිවැරදියි)
+                # දත්ත සේව් කිරීම සහ රිෆ්‍රෙෂ් කිරීම
                 save_all()
                 st.success(f"Successfully recorded! Total: Rs.{calculated_amount:,.2f}")
                 st.rerun()
-
+                
     # --- FUEL / EXPENSE SECTION (මෙහි එන Line 362 Error එකත් මේ විදිහටම හදාගන්න) ---
     # මම මේකත් හදලා දුන්නා, ඔයාගේ code එකේ Fuel Entry එක තියෙන තැනට මේ logic එක පාවිච්චි කරන්න
 
