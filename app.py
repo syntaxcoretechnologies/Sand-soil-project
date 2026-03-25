@@ -53,52 +53,54 @@ class PDF(FPDF):
         self.cell(0, 10, SHOP_NAME, 0, 1, 'C'); self.ln(5)
 
 def create_pdf(report_name, df, summary_dict):
+    from fpdf import FPDF
+    import os
     try:
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("Arial", 'B', 16)
         
-        # Report Title
-        pdf.cell(200, 10, txt=str(report_name).replace("_", " "), ln=True, align='C')
+        # Title
+        pdf.cell(190, 10, txt=str(report_name).replace("_", " "), ln=True, align='C')
         pdf.ln(5)
         
-        # Summary Section (ගණන් හිලව් පෙන්වන කොටස)
+        # Summary Section
         pdf.set_font("Arial", 'B', 12)
-        pdf.cell(200, 10, txt="Summary Report:", ln=True)
+        pdf.cell(190, 10, txt="Summary Information:", ln=True)
         pdf.set_font("Arial", size=10)
         
         for key, value in summary_dict.items():
-            pdf.cell(200, 8, txt=f"{key}: {value}", ln=True)
+            pdf.cell(190, 7, txt=f"{key}: {str(value)}", ln=True)
         
-        pdf.ln(10)
+        pdf.ln(8)
         
-        # Table Headers (ටේබල් එකේ මාතෘකා)
-        cols = df.columns.tolist()
+        # Table Headers
+        pdf.set_fill_color(200, 220, 255) # ලස්සනට පේන්න පාටක්
         pdf.set_font("Arial", 'B', 8)
         
-        # Column පළල තීරණය කිරීම
+        cols = df.columns.tolist()
         col_width = 190 / len(cols) if len(cols) > 0 else 30
         
         for col in cols:
-            pdf.cell(col_width, 10, str(col), 1)
+            pdf.cell(col_width, 10, str(col), 1, 0, 'C', True)
         pdf.ln()
         
-        # Table Data (දත්ත පේළි)
+        # Table Data
         pdf.set_font("Arial", size=8)
         for _, row in df.iterrows():
             for col in cols:
-                # ඕනෑම දත්තයක් String එකක් බවට හරවා පෙන්වීම (KeyError වැළැක්වීමට)
+                # ඕනෑම data එකක් string එකක් කරලා පෙන්වීම
                 val = str(row.get(col, ""))
                 pdf.cell(col_width, 8, val, 1)
             pdf.ln()
             
-        # File එක සේව් කිරීම
         file_path = f"{report_name}.pdf"
         pdf.output(file_path)
         return file_path
         
     except Exception as e:
-        print(f"PDF Error: {e}")
+        # මෙතනින් තමයි ඇයි Fail වෙන්නේ කියලා බලාගන්නේ
+        st.error(f"Internal PDF Error: {e}")
         return None
     
     # --- Summary Section (Basic Info) ---
