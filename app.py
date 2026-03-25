@@ -98,7 +98,7 @@ def create_pdf(report_name, df, summary_dict, is_exc=False):
             for _, row in breakdown.iterrows():
                 if row['Work_Hours'] > 0:
                     sub_total = row['Rate_At_Time'] * row['Work_Hours']
-                    pdf.cell(60, 8, f"{row['Rate_At_Time']:,.2/f}", 1, 0, 'C')
+                    pdf.cell(60, 8, f"{row['Rate_At_Time']:,.2f}", 1, 0, 'C')
                     pdf.cell(60, 8, f"{row['Work_Hours']:.2f}", 1, 0, 'C')
                     pdf.cell(70, 8, f"{sub_total:,.2f}", 1, 1, 'R')
 
