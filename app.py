@@ -704,59 +704,47 @@ elif menu == "📑 Reports Center":
  
      # --- Landowner Settlement Section ---
         st.divider()
-        st.subheader("Landowner Settlement")
+        st.subheader("🔍 Landowner Settlement Search")
 
-        # 1. මුලින්ම ඔයාගේ df_f එකේ තියෙන හැම කොලම් එකකම නම් ටික ලිස්ට් එකක් කරගමු
-        available_cols = df_f.columns.tolist()
-        
-        # 2. අයිතිකාරයාගේ නම තියෙන්න පුළුවන් කොලම් එක හොයමු
-        # 'Entity', 'Landowner', 'Owner', 'Name' කියන ඒවා බලනවා
-        target_lo_col = None
-        for c in ['Entity', 'Landowner', 'Owner', 'Name', 'Vehicle_No']:
-            if c in available_cols:
-                target_lo_col = c
-                break
+        # 1. නම ටයිප් කරලා සර්ච් කරන්න (උදා: Sumith)
+        search_name = st.text_input("Enter Landowner Name to Search", "").strip()
 
-        # --- වැදගත්ම කොටස ---
-        if target_lo_col:
-            # වාහන අංක ටික අයින් කරලා ඉඩම් හිමියෝ විතරක් ගමු
-            veh_nos = set(st.session_state.ve_db['No'].unique()) if "ve_db" in st.session_state else set()
-            all_names = set(df_f[target_lo_col].dropna().unique())
-            landowner_list = sorted([str(name) for name in all_names if str(name) not in veh_nos])
-
-            if not landowner_list:
-                st.info("No Landowners found in the current selection.")
-            else:
-                selected_landowner = st.selectbox("Select Landowner", landowner_list, key="lo_final_fix_3")
-
-                if selected_landowner:
-                    # දැන් ඒක target_lo_col එකෙන් ගන්නවා
-                    lo_records = df_f[df_f[target_lo_col] == selected_landowner].copy()
+        if search_name:
+            # 2. මුළු ඩේටාබේස් එකේම ඒ නම තියෙන පේළි හොයමු
+            # 'Entity' කියන කොලම් එකේ ඒ නම තියෙනවද කියලා බලනවා
+            if 'Entity' in df_f.columns:
+                lo_records = df_f[df_f['Entity'].str.contains(search_name, case=False, na=False)].copy()
+                
+                if not lo_records.empty:
+                    st.success(f"Found {len(lo_records)} records for '{search_name}'")
                     
-                    if not lo_records.empty:
-                        # මුදල් ගණනය කිරීම
-                        lo_records['Amount'] = pd.to_numeric(lo_records['Amount'].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
-                        
-                        t_payable = lo_records[lo_records['Category'].str.contains('Inward', case=False, na=False)]['Amount'].sum()
-                        t_paid = lo_records[lo_records['Category'].str.contains('Advance|Payment', case=False, na=False)]['Amount'].sum()
-                        
-                        l1, l2, l3 = st.columns(3)
-                        l1.metric("Total Payable", f"Rs. {t_payable:,.2f}")
-                        l2.metric("Total Paid", f"Rs. {t_paid:,.2f}")
-                        l3.metric("Net Balance", f"Rs. {(t_payable - t_paid):,.2f}")
+                    # මුදල් ගණනය කිරීම
+                    lo_records['Amount'] = pd.to_numeric(lo_records['Amount'].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
+                    
+                    t_payable = lo_records[lo_records['Category'].str.contains('Inward', case=False, na=False)]['Amount'].sum()
+                    t_paid = lo_records[lo_records['Category'].str.contains('Advance|Payment', case=False, na=False)]['Amount'].sum()
+                    
+                    # Metrics පෙන්වීම
+                    l1, l2, l3 = st.columns(3)
+                    l1.metric("Total Payable", f"Rs. {t_payable:,.2f}")
+                    l2.metric("Total Paid", f"Rs. {t_paid:,.2f}")
+                    l3.metric("Net Balance", f"Rs. {(t_payable - t_paid):,.2f}")
 
-                        if st.button("📄 Generate Landowner Report"):
-                            lo_summary = {"Landowner Name": selected_landowner, "Report Date": datetime.now().strftime("%Y-%m-%d")}
-                            pdf_fn = create_landowner_pdf(selected_landowner, lo_records, lo_summary)
-                            with open(pdf_fn, "rb") as f:
-                                st.download_button("⬇️ Download PDF", f, file_name=pdf_fn)
-                        
-                        # Column එක තියෙනවාද බලලා table එක පෙන්වීම
-                        disp_cols = [c for c in ['Date', 'Category', 'Qty_Cubes', 'Amount'] if c in lo_records.columns]
-                        st.dataframe(lo_records[disp_cols], use_container_width=True)
+                    # Table පෙන්වීම
+                    st.dataframe(lo_records[['Date', 'Category', 'Qty_Cubes', 'Amount']], use_container_width=True)
+                    
+                    # PDF එක ඕන නම්
+                    if st.button("📥 Generate Report PDF"):
+                        lo_summary = {"Landowner": search_name, "Date": datetime.now().strftime("%Y-%m-%d")}
+                        pdf_file = create_landowner_pdf(search_name, lo_records, lo_summary)
+                        with open(pdf_file, "rb") as f:
+                            st.download_button("📩 Download PDF", f, file_name=f"{search_name}_Settlement.pdf")
+                else:
+                    st.warning(f"No records found for '{search_name}' in the selected date range.")
+            else:
+                st.error("Error: 'Entity' column not found in database.")
         else:
-            # මචං, මේ පේළිය වැටුණොත් ඒ කියන්නේ ඔයාගේ ඩේටා වල 'Entity' කියලා නමක් ඇත්තෙම නැහැ
-            st.error(f"Could not find any name column. Available columns are: {available_cols}")
+            st.info("Please enter a name to see the settlement details.")
             
     # --- TAB 2: DRIVER SUMMARY ---
     with r2:
