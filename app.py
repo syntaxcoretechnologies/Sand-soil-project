@@ -24,6 +24,12 @@ def load_data(file, cols):
         except: return pd.DataFrame(columns=cols)
     return pd.DataFrame(columns=cols)
 
+def save_data(file_path, df):
+    try:
+        df.to_csv(file_path, index=False)
+    except Exception as e:
+        st.error(f"Error saving data: {e}")
+
 def save_all():
     st.session_state.df.to_csv(DATA_FILE, index=False)
     st.session_state.ve_db.to_csv(VE_FILE, index=False)
