@@ -513,9 +513,8 @@ elif menu == "📑 Reports Center":
         daily_sales = df_f[df_f["Category"].str.contains("Sales Out", na=False)].copy()
         
         if not daily_sales.empty:
-            # 1. PDF එකේ calculation වලට අවශ්‍ය හැම column එකක්ම මෙතනට දැම්මා
-            # Work_Hours සහ Qty_Cubes දෙකම අනිවාර්යයෙන්ම තියෙන්න ඕනේ
-            required_cols = ['Date', 'Category', 'Name', 'Note', 'Qty_Cubes', 'Work_Hours', 'Rate_At_Time', 'Amount']
+            # මෙතනට 'Type' කියන එකත් අලුතින් එකතු කළා
+            required_cols = ['Date', 'Category', 'Name', 'Note', 'Type', 'Qty_Cubes', 'Work_Hours', 'Rate_At_Time', 'Amount']
             available_cols = daily_sales.columns.tolist()
             final_cols = [c for c in required_cols if c in available_cols]
             
