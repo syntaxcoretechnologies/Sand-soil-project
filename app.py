@@ -324,26 +324,28 @@ elif menu == "🏗️ Site Operations":
                 # ඔයාගේ DataFrame එකේ Columns තියෙන පිළිවෙළට මේවා ගැලපෙන්න ඕනේ.
                 # සාමාන්‍යයෙන් පිළිවෙළ: ID, Date, Name, Type, Category, Entity, Note, Amount, Qty_Cubes, Expense, Work_Hours, Rate_At_Time, Status
                 
-                new_data = {
-                    "ID": len(st.session_state.df) + 1,
-                    "Date": d,
-                    "Name": "",
-                    "Record_Type": "Expense",
-                    "Category": "Fuel Entry",
-                    "Entity": v,
-                    "Note": "Shed bill",
-                    "Amount": c,
-                    "Qty_Cubes": 0,
-                    "Expense": l,
-                    "Work_Hours": work_hours,      # මෙන්න මෙතනට දැන් 'val' වැටෙනවා
-                    "Rate_At_Time": r,             # මෙතනට 'r' වැටෙනවා
-                    "Status": "Done"
-                }
-                
-                new_row = pd.DataFrame([new_data])
-                
-                # දත්ත එකතු කිරීම
-                st.session_state.df = pd.concat([st.session_state.df, new_row], ignore_index=True)
+       # --- නව පේළිය සෑදීම (පැටලෙන්නේ නැති වෙන්න) ---
+new_data = {
+    "ID": len(st.session_state.df) + 1,
+    "Date": d,
+    "Name": "",
+    "Record_Type": "Expense",
+    "Category": "Fuel Entry",
+    "Entity": v,
+    "Note": "Shed bill",
+    "Amount": c,
+    "Qty_Cubes": 0,
+    "Expense": l,
+    "Work_Hours": 0,
+    "Rate_At_Time": 0,
+    "Status": "Pending"
+}
+
+# Dictionary එක නිසා නම අනුව column එකට අගය ගැලපෙනවා
+new_row = pd.DataFrame([new_data])
+
+# ඉන්පසු කලින් වගේම concat කරන්න
+st.session_state.df = pd.concat([st.session_state.df, new_row], ignore_index=True)
                 save_all()
                 st.success(f"Successfully recorded! Total: Rs.{calculated_amount:,.2f}")
                 st.rerun()
