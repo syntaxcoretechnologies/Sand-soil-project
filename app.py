@@ -701,42 +701,41 @@ elif menu == "📑 Reports Center":
             else:
                 st.error("Could not find a 'Vehicle' or 'Entity' column in your data records.")
                 # --- මෙන්න මෙතනින් පටන් ගන්න (Landowner Settlement Section) ---
-        # --- Landowner Settlement Section ---
+       # --- Landowner Settlement Section ---
         st.divider()
         st.subheader("Landowner Settlement")
 
-        # 1. Column එක බුද්ධිමත්ව සොයා ගැනීම
         col_options = ['Entity', 'Vehicle', 'Vehicle_No', 'Owner']
         target_lo_col = next((c for c in col_options if c in df_f.columns), None)
 
         if target_lo_col:
-            # --- වැදගත්ම කොටස: මෙතනින් තමයි Landowners ලා විතරක් වෙන් කරගන්නේ ---
-            # 'Category' එකේ 'Inward' කියන වචනය තියෙන පේළි වල ඉන්න අයව විතරක් ගන්නවා
-            inward_mask = df_f['Category'].str.contains('Inward', case=False, na=False)
-            landowner_list = df_f[inward_mask][target_lo_col].unique().tolist()
+            # --- මෙන්න මෙතනයි වෙනස් කළේ ---
+            # Inward (පස් ගැනීම්), Advance හෝ Payment (අත්තිකාරම්) තියෙන ඔක්කොම අයව ගන්නවා
+            lo_mask = df_f['Category'].str.contains('Inward|Advance|Payment', case=False, na=False)
+            landowner_list = df_f[lo_mask][target_lo_col].unique().tolist()
 
             if not landowner_list:
-                st.info("No Landowners found in the current records (Stock Inward).")
+                st.info("No Landowners found. Please check if you have entered 'Stock Inward' or 'Advance' for them.")
             else:
                 selected_landowner = st.selectbox("Select Landowner to Settle", landowner_list, key="settle_lo")
 
                 if selected_landowner:
-                    # තෝරාගත් landowner ට අදාළ රෙකෝඩ්ස් (පස් ගැනීම් සහ අත්තිකාරම් දෙකම)
                     lo_records = df_f[df_f[target_lo_col] == selected_landowner].copy()
                     
                     if not lo_records.empty:
-                        # ගණනය කිරීම්
-                        total_payable = pd.to_numeric(lo_records[lo_records['Category'].str.contains('Inward', case=False, na=False)]['Amount'], errors='coerce').sum()
-                        total_paid = pd.to_numeric(lo_records[lo_records['Category'].str.contains('Advance|Payment', case=False, na=False)]['Amount'], errors='coerce').sum()
+                        # මුදල් ගණනය කිරීම
+                        # Amount එකේ කොමා (,) තිබ්බොත් අයින් කරලා Numeric කරනවා
+                        lo_records['Amount'] = pd.to_numeric(lo_records['Amount'].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
+                        
+                        total_payable = lo_records[lo_records['Category'].str.contains('Inward', case=False, na=False)]['Amount'].sum()
+                        total_paid = lo_records[lo_records['Category'].str.contains('Advance|Payment', case=False, na=False)]['Amount'].sum()
                         lo_balance = total_payable - total_paid
 
-                        # Metrics
                         l1, l2, l3 = st.columns(3)
                         l1.metric("Total Payable (Cubes)", f"Rs. {total_payable:,.2f}")
                         l2.metric("Total Advances Paid", f"Rs. {total_paid:,.2f}")
                         l3.metric("Net Balance Due", f"Rs. {lo_balance:,.2f}")
 
-                        # PDF Button
                         if st.button("📄 Generate Landowner Report"):
                             lo_summary = {
                                 "Landowner Name": selected_landowner,
@@ -751,7 +750,7 @@ elif menu == "📑 Reports Center":
                         st.write(f"**Transaction Log for {selected_landowner}:**")
                         st.dataframe(lo_records[['Date', 'Category', 'Qty_Cubes', 'Rate_At_Time', 'Amount']], use_container_width=True)
         else:
-            st.warning("Please ensure your data has a column for Landowner names.")
+            st.warning("Column not found. Please check your data sheet.")
 
     # --- TAB 2: DRIVER SUMMARY ---
     with r2:
