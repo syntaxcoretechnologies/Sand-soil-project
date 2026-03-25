@@ -701,11 +701,25 @@ elif menu == "📑 Reports Center":
             else:
                 st.error("Could not find a 'Vehicle' or 'Entity' column in your data records.")
                 # --- මෙන්න මෙතනින් පටන් ගන්න (Landowner Settlement Section) ---
+        # --- Landowner Settlement Section ---
         st.divider()
         st.subheader("Landowner Settlement")
 
-        # 1. 'Entity' column එකෙන් Landowner ලැයිස්තුව ලබා ගැනීම
-        if not df_f.empty:
+        # මෙන්න මේ පේළිය මම මේ විදිහට වෙනස් කළා Column එක හොයාගන්න ලේසි වෙන්න
+        # 'Entity' වෙනුවට 'Vehicle' හෝ 'Vehicle_No' තිබුණත් මේක වැඩ කරයි
+        col_options = ['Entity', 'Vehicle', 'Vehicle_No', 'Owner', 'No']
+        target_lo_col = next((c for c in col_options if c in df_f.columns), None)
+
+        if target_lo_col:
+            landowner_list = df_f[target_lo_col].unique().tolist()
+            selected_landowner = st.selectbox("Select Landowner to Settle", landowner_list, key="settle_lo")
+
+            if selected_landowner and selected_landowner != "N/A":
+                # මෙතනත් [target_lo_col] කියලා වෙනස් කරන්න
+                lo_records = df_f[df_f[target_lo_col] == selected_landowner].copy()
+                
+                if not lo_records.empty:
+                    # ඉතිරි කෝඩ් එක සාමාන්‍ය විදිහටම තියන්න...
             landowner_list = df_f['Entity'].unique().tolist()
         else:
             landowner_list = ["N/A"]
