@@ -111,47 +111,43 @@ def create_pdf(title, data_df, summary_dict):
     total_exp = 0
     
     for _, row in data_df.iterrows():
-        # 1. දත්ත Safe විදිහට ගැනීම
-        date_val = safe_text(str(row.get('Date', '-')))
-        category = str(row.get('Category', row.get('Material', 'N/A')))
-        note_val = safe_text(str(row.get('Note', '')))[:30]
-        row_type = str(row.get('Type', ''))
+        pdf.cell(w[0], 7, safe_text(str(row.get('Date', '-'))), 1)
+        pdf.cell(w[1], 7, safe_text(str(row.get('Category', 'N/A'))), 1)
         
-        # 2. මුල් Columns 3 PDF එකට දැමීම
-        pdf.cell(w[0], 7, date_val, 1)
-        pdf.cell(w[1], 7, safe_text(category), 1)
-        pdf.cell(w[2], 7, note_val, 1)
+        # Note එක Safe විදිහට ගැනීම
+        note_val = str(row.get('Note', ''))
+        pdf.cell(w[2], 7, safe_text(note_val)[:30], 1)
         
-        # 3. Quantity (Qty) ගණනය කිරීම
+        # Qty සහ Work Hours ගණනය කිරීම
         w_hrs = row.get('Work_Hours', 0)
         q_cubes = row.get('Qty_Cubes', 0)
         qty = w_hrs if w_hrs > 0 else q_cubes
+        
         pdf.cell(w[3], 7, f"{qty}" if qty > 0 else "-", 1, 0, 'C')
         
-        # 4. Rate සහ Amount ගැනීම
-        rate = float(row.get('Rate_At_Time', 0.0))
-        amt = float(row.get('Amount', 0.0))
-
-        # --- ආදායම සහ වියදම වෙන් කිරීම ---
+        rate = row.get('Rate_At_Time', 0.0)
+        pdf.cell(w[4], 7, f"{rate:,.2f}" if rate > 0 else "-", 1, 0, 'R')
         
-        # A. ආදායම් මාර්ග (Work Log, Hire, Process)
-        if "Work Log" in category or "Hire" in category or row_type == "Process":
+        amt = float(row.get('Amount', 0.0))
+        category = str(row['Category'])
+        
+        # --- වැදගත්ම තැන: ආදායම සහ වියදම වෙන් කිරීම ---
+        
+        # 1. වාහනයේ කුලී ආදායම (Earnings) - Work Log හෝ Hire පමණි
+        if "Work Log" in category or "Hire" in category or row['Type'] == "Process":
             total_earn += amt
-            pdf.cell(w[4], 7, f"{rate:,.2f}", 1, 0, 'R')
-            pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 1, 'R')
+            pdf.set_text_color(0, 0, 0)
+            pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 0, 'R')
             
-        # B. වියදම් මාර්ග (Fuel, Repair, Advance, Payroll, Salary)
+        # 2. වාහනයේ සැබෑ වියදම් (Expenses) - Fuel, Repair, Payroll, Advance
         elif any(exp in category for exp in ["Fuel", "Repair", "Advance", "Payroll", "Salary"]):
             total_exp += amt
             pdf.set_text_color(200, 0, 0) # වියදම් රතු පාටින්
-            pdf.cell(w[4], 7, "EXPENSE", 1, 0, 'C')
-            pdf.cell(w[5], 7, f"({amt:,.2f})", 1, 1, 'R')
-            pdf.set_text_color(0, 0, 0) # ආපහු කළු පාටට
+            pdf.cell(w[5], 7, f"({amt:,.2f})", 1, 0, 'R')
+            pdf.set_text_color(0, 0, 0)
             
-        # C. අනෙකුත් (Sales Out / Stock වැනි දෑ)
+        # 3. අනෙකුත් දේවල් (Sales Out වැනි දෑ) - Table එකේ පෙන්වයි, නමුත් එකතුවට නොගනී
         else:
-            pdf.cell(w[4], 7, f"{rate:,.2f}", 1, 0, 'R')
-            pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 1, 'R')
             pdf.set_text_color(100, 100, 100) # ලා අළු පාටින්
             pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 0, 'R')
             pdf.set_text_color(0, 0, 0)
@@ -640,28 +636,18 @@ elif menu == "📑 Reports Center":
         stock_data = []
 
         for mat in materials:
-            # 1. මුලින්ම variables දෙක 0 ට සමාන කරගන්න (NameError එක වැළැක්වීමට)
-            total_in = 0
-            total_out = 0
+            # මුළු පැමිණි ප්‍රමාණය (Total In)
+            total_in = inward_df[inward_df["Category"].str.contains(mat, na=False)]["Qty_Cubes"].sum()
+            # මුළු විකුණූ ප්‍රමාණය (Total Out)
+            total_out = sales_df[sales_df["Category"].str.contains(mat, na=False)]["Qty_Cubes"].sum()
             
-            # 2. Inward Table එකෙන් අදාළ Material එකේ එකතුව ගැනීම
-            if not inward_df.empty:
-                total_in = inward_df[inward_df["Category"].str.contains(mat, na=False)]["Qty_Cubes"].sum()
-            
-            # 3. Sales Table එකෙන් අදාළ Material එකේ එකතුව ගැනීම
-            if not sales_df.empty:
-                total_out = sales_df[sales_df["Category"].str.contains(mat, na=False)]["Qty_Cubes"].sum()
-            
-            # 4. දැන් Balance එක ගණනය කිරීම (දැන් මේ පේළිය Error වෙන්නේ නැහැ)
             current_stock = total_in - total_out
             
-            # 5. Stock Data එකට එකතු කිරීම
             stock_data.append({
-                "Category": mat,
+                "Material": mat,
                 "Total Inward (Cubes)": total_in,
                 "Total Sales (Cubes)": total_out,
-                "Current Stock (Balance)": current_stock,
-                "Type": "Stock"
+                "Current Stock (Balance)": current_stock
             })
 
         inventory_df = pd.DataFrame(stock_data)
@@ -682,10 +668,9 @@ elif menu == "📑 Reports Center":
 
         # 6. Stock එක අඩු නම් Warning එකක් දීම
         for index, row in inventory_df.iterrows():
-            # මෙතන row['Material'] වෙනුවට row['Category'] කියලා දාන්න
             if row["Current Stock (Balance)"] < 10:
-                st.warning(f"⚠️ Low Stock Alert: {row['Category']} balance is low ({row['Current Stock (Balance)']} Cubes)!")
-                
+                st.warning(f"⚠️ Low Stock Alert: {row['Material']} balance is low ({row['Current Stock (Balance)']} Cubes)!")
+
         # 7. PDF Report එකක් ඕනෙ නම් (මේක create_pdf එකට සමාන එකක්)
         if st.button("📥 Download Stock Report PDF"):
             stock_summary = {
