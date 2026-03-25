@@ -705,59 +705,48 @@ elif menu == "📑 Reports Center":
         st.divider()
         st.subheader("Landowner Settlement")
 
-        # මෙන්න මේ පේළිය මම මේ විදිහට වෙනස් කළා Column එක හොයාගන්න ලේසි වෙන්න
-        # 'Entity' වෙනුවට 'Vehicle' හෝ 'Vehicle_No' තිබුණත් මේක වැඩ කරයි
-        col_options = ['Entity', 'Vehicle', 'Vehicle_No', 'Owner', 'No']
+        # 1. Column එක තියෙනවාද කියලා මුලින්ම බලමු
+        col_options = ['Entity', 'Vehicle', 'Vehicle_No', 'Owner']
         target_lo_col = next((c for c in col_options if c in df_f.columns), None)
 
         if target_lo_col:
+            # මෙන්න මේ පේළි ටික 'if' එකට වඩා ටිකක් ඇතුළට වෙලා තිබිය යුතුයි
             landowner_list = df_f[target_lo_col].unique().tolist()
             selected_landowner = st.selectbox("Select Landowner to Settle", landowner_list, key="settle_lo")
 
             if selected_landowner and selected_landowner != "N/A":
-                # මෙතනත් [target_lo_col] කියලා වෙනස් කරන්න
                 lo_records = df_f[df_f[target_lo_col] == selected_landowner].copy()
                 
                 if not lo_records.empty:
-                    # ඉතිරි කෝඩ් එක සාමාන්‍ය විදිහටම තියන්න...
-            landowner_list = df_f['Entity'].unique().tolist()
+                    # ගණනය කිරීම්
+                    total_payable = pd.to_numeric(lo_records[lo_records['Category'].str.contains('Inward', case=False, na=False)]['Amount'], errors='coerce').sum()
+                    total_paid = pd.to_numeric(lo_records[lo_records['Category'].str.contains('Advance|Payment', case=False, na=False)]['Amount'], errors='coerce').sum()
+                    lo_balance = total_payable - total_paid
+
+                    # Metrics පෙන්වීම
+                    l1, l2, l3 = st.columns(3)
+                    l1.metric("Total Payable (Cubes)", f"Rs. {total_payable:,.2f}")
+                    l2.metric("Total Advances Paid", f"Rs. {total_paid:,.2f}")
+                    l3.metric("Net Balance Due", f"Rs. {lo_balance:,.2f}")
+
+                    # Download Button
+                    if st.button("📄 Generate Landowner Report"):
+                        lo_summary = {
+                            "Landowner Name": selected_landowner,
+                            "Report Date": datetime.now().strftime("%Y-%m-%d"),
+                            "Total Cubes": f"{lo_records['Qty_Cubes'].sum()} m³",
+                            "Period": f"{f_d} to {t_d}"
+                        }
+                        lo_pdf_path = create_landowner_pdf(selected_landowner, lo_records, lo_summary)
+                        with open(lo_pdf_path, "rb") as f:
+                            st.download_button("⬇️ Download Landowner PDF", f, file_name=f"Landowner_{selected_landowner}.pdf")
+                    
+                    st.write(f"**Transaction Log for {selected_landowner}:**")
+                    st.dataframe(lo_records[['Date', 'Category', 'Qty_Cubes', 'Rate_At_Time', 'Amount']], use_container_width=True)
+                else:
+                    st.info(f"No records found for {selected_landowner}.")
         else:
-            landowner_list = ["N/A"]
-            
-        selected_landowner = st.selectbox("Select Landowner to Settle", landowner_list, key="settle_lo")
-
-        if selected_landowner and selected_landowner != "N/A":
-            lo_records = df_f[df_f["Entity"] == selected_landowner].copy()
-            
-            if not lo_records.empty:
-                # ගණනය කිරීම්
-                total_payable = pd.to_numeric(lo_records[lo_records['Category'].str.contains('Inward', case=False, na=False)]['Amount'], errors='coerce').sum()
-                total_paid = pd.to_numeric(lo_records[lo_records['Category'].str.contains('Advance|Payment', case=False, na=False)]['Amount'], errors='coerce').sum()
-                lo_balance = total_payable - total_paid
-
-                # Metrics පෙන්වීම
-                l1, l2, l3 = st.columns(3)
-                l1.metric("Total Payable (Cubes)", f"Rs. {total_payable:,.2f}")
-                l2.metric("Total Advances Paid", f"Rs. {total_paid:,.2f}")
-                l3.metric("Net Balance Due", f"Rs. {lo_balance:,.2f}")
-
-                # Download Button
-                if st.button("📄 Generate Landowner Report"):
-                    lo_summary = {
-                        "Landowner Name": selected_landowner,
-                        "Report Date": datetime.now().strftime("%Y-%m-%d"),
-                        "Total Cubes": f"{lo_records['Qty_Cubes'].sum()} m³",
-                        "Period": f"{f_d} to {t_d}"
-                    }
-                    lo_pdf_path = create_landowner_pdf(selected_landowner, lo_records, lo_summary)
-                    with open(lo_pdf_path, "rb") as f:
-                        st.download_button("⬇️ Download Landowner PDF", f, file_name=f"Landowner_{selected_landowner}.pdf")
-                
-                # Table එක පෙන්වීම
-                st.write(f"**Transaction Log for {selected_landowner}:**")
-                st.dataframe(lo_records[['Date', 'Category', 'Qty_Cubes', 'Rate_At_Time', 'Amount']], use_container_width=True)
-            else:
-                st.info(f"No records found for {selected_landowner}.")
+            st.error("Could not find a valid Name/Entity column for Landowners.")
         
 
     # --- TAB 2: DRIVER SUMMARY ---
