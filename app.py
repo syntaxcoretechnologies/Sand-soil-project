@@ -319,87 +319,56 @@ elif menu == "🏗️ Site Operations":
     
     op = st.radio("Select Activity Type", ["🚜 Excavator Work Log", "💰 Sales Out", "📥 Stock Inward (To Plant)"], horizontal=True)
     
-    # 1. වාහන ලිස්ට් එක
     v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
-    
-    # 2. ඩ්‍රයිවර්ලාගේ ලිස්ට් එක
     d_list = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else ["No Drivers Registered"]
-    
-    # 3. Register කරපු Landownersලාගේ නම් ලිස්ට් එක
     l_list = [owner["Name"] for owner in st.session_state.landowners] if st.session_state.landowners else ["No Owners Registered"]
 
     with st.form("site_f", clear_on_submit=True):
         col1, col2 = st.columns(2)
         with col1:
-            # Stock Inward නම් වාහනය "Internal / Third Party" ලෙස පෙන්වයි
             v = st.selectbox("Select Vehicle / Machine", v_list if op != "📥 Stock Inward (To Plant)" else ["Internal / Third Party"])
             d = st.date_input("Date", datetime.now().date())
             material = st.selectbox("Material Type", ["Sand", "Soil", "Other"]) if (op == "💰 Sales Out" or op == "📥 Stock Inward (To Plant)") else ""
             
-            # Stock Inward එකේදී විතරක් Landowner සහ Driver තෝරන්න
             if op == "📥 Stock Inward (To Plant)":
                 src_owner = st.selectbox("Source (Landowner)", l_list)
                 src_driver = st.selectbox("Driver/Operator", d_list)
         
         with col2:
-            if "Excavator" in op:
-                val_label = "Work Hours"
-                unit = "Hrs"
-            else:
-                val_label = "Qty (Cubes)"
-                unit = "Cubes"
-                
+            val_label = "Work Hours" if "Excavator" in op else "Qty (Cubes)"
+            unit = "Hrs" if "Excavator" in op else "Cubes"
             val = st.number_input(val_label, min_value=0.0, step=0.5, value=0.0)
             r = st.number_input(f"Enter Rate per {unit} (LKR)", min_value=0.0, step=100.0, value=0.0)
             
         n = st.text_input("Additional Note")
         
         if st.form_submit_button("📥 Save Record"):
-            if val <= 0: 
-                st.error(f"Enter valid {val_label}!")
-            elif r <= 0:
-                st.error("Enter valid Rate!")
+            if val <= 0 or r <= 0:
+                st.error("Please enter valid Quantity and Rate!")
             else:
+                # --- නම තීරණය කිරීම (මෙන්න මේක වැදගත්) ---
+                entry_name = src_owner if op == "📥 Stock Inward (To Plant)" else v
                 record_type = "Inward" if op == "📥 Stock Inward (To Plant)" else "Process"
-                cat = f"{op} ({material})" if material else op
                 
-                # ගණනය කිරීම්
-                calculated_amount = val * r
-                q, h = (0, val) if "Excavator" in op else (val, 0)
-                
-                # --- නම සහ Note එක තීරණය කිරීම ---
-                current_entry_name = ""
-                final_note = n
-                
-                if op == "📥 Stock Inward (To Plant)":
-                    current_entry_name = src_owner  # Landowner නම මෙතනට වැටේ
-                    final_note = f"{n} | Drv: {src_driver}"
-                else:
-                    current_entry_name = v  # අනිත් ඒවාට වාහන අංකය වැටේ
-                
-                # --- නව පේළිය Dictionary එකක් ලෙස ---
                 new_data = {
                     "ID": len(st.session_state.df) + 1,
                     "Date": d,
-                    "Name": current_entry_name,  # දැන් මෙතනට නම නිවැරදිව වැටෙනවා
+                    "Name": entry_name,  # <--- මෙතනට නම යනවා
                     "Record_Type": record_type,
-                    "Category": cat,
+                    "Category": f"{op} ({material})" if material else op,
                     "Entity": v,
-                    "Note": final_note,
-                    "Amount": calculated_amount,
-                    "Qty_Cubes": q,
+                    "Note": f"{n} | Drv: {src_driver}" if op == "📥 Stock Inward (To Plant)" else n,
+                    "Amount": val * r,
+                    "Qty_Cubes": 0 if "Excavator" in op else val,
                     "Expense": 0,
-                    "Work_Hours": h,
+                    "Work_Hours": val if "Excavator" in op else 0,
                     "Rate_At_Time": r,
                     "Status": "Done"
                 }
                 
-                # DataFrame එකට එකතු කර සේව් කිරීම
-                new_row = pd.DataFrame([new_data])
-                st.session_state.df = pd.concat([st.session_state.df, new_row], ignore_index=True)
-                
+                st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_data])], ignore_index=True)
                 save_all()
-                st.success(f"Successfully recorded for {current_entry_name}!")
+                st.success(f"Successfully recorded for {entry_name}!")
                 st.rerun()
 
     # Today's Logs පෙන්වීම
