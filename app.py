@@ -552,6 +552,7 @@ elif menu == "📑 Reports Center":
 
    # --- TAB: VEHICLE SETTLEMENT (STABLE VERSION) ---
     # --- TAB: VEHICLE SETTLEMENT (PDF FIX) ---
+    # --- TAB: VEHICLE & MACHINE SETTLEMENT (HYBRID LOGIC) ---
     with r1:
         st.subheader("🚜 Vehicle & Machine Settlement")
         
@@ -559,65 +560,71 @@ elif menu == "📑 Reports Center":
         selected_ve = st.selectbox("Select Vehicle/Machine", v_list, key="v_settle_select")
         
         if selected_ve and selected_ve != "N/A":
+            # 1. දත්ත පෙරමු
             ve_records = df_f[df_f['Entity'] == selected_ve].copy()
             
             if not ve_records.empty:
-                if "Record_Type" not in ve_records.columns:
-                    ve_records["Record_Type"] = "Unknown"
+                # 'Record_Type' සහ 'Qty_Cubes' column නැත්නම් ඒවා safe කරගන්නවා
+                if "Record_Type" not in ve_records.columns: ve_records["Record_Type"] = "Unknown"
+                if "Qty_Cubes" not in ve_records.columns: ve_records["Qty_Cubes"] = 0
 
-                is_exc = any(x in selected_ve.upper() for x in ["EX", "PC", "EXCAVATOR"])
+                # 2. මේක Excavator එකක්ද කියලා බලනවා
+                is_exc = any(x in str(selected_ve).upper() for x in ["EX", "PC", "EXCAVATOR"])
                 
+                # 3. වියදම් ගණනය කිරීම (හොරියටයි මැෂින් එකටයි දෙකටම පොදුයි)
+                exp_mask = (ve_records["Record_Type"] == "Expense") | \
+                           (ve_records["Category"].str.contains("Fuel|Repair|Food|Service|Advance", na=False, case=False))
+                total_exp = pd.to_numeric(ve_records[exp_mask]["Amount"], errors='coerce').sum()
+
+                # --- 4. ප්‍රධාන ගණනය කිරීම් (Logic split) ---
+                c1, c2, c3 = st.columns(3)
+
                 if is_exc:
+                    # EXCAVATOR LOGIC: Hours * Rate = Gross Earning
                     w_hrs = pd.to_numeric(ve_records.get('Work_Hours', 0), errors='coerce').fillna(0)
                     r_rate = pd.to_numeric(ve_records.get('Rate_At_Time', 0), errors='coerce').fillna(0)
                     ve_records['Calculated_Earning'] = w_hrs * r_rate
                     gross_earning = ve_records['Calculated_Earning'].sum()
+                    net_balance = gross_earning - total_exp
+                    
+                    c1.metric("Gross Earning (Hrs × Rate)", f"Rs. {gross_earning:,.2f}")
+                    c2.metric("Total Expenses", f"Rs. {total_exp:,.2f}")
+                    c3.metric("Net Profit", f"Rs. {net_balance:,.2f}", delta=f"{net_balance:,.2f}")
                 else:
-                    gross_earning = pd.to_numeric(ve_records.get('Amount', 0), errors='coerce').sum()
+                    # LORRY LOGIC: Total Cubes and Expenses
+                    total_cubes = pd.to_numeric(ve_records['Qty_Cubes'], errors='coerce').sum()
+                    
+                    c1.metric("Total Cubes Transported", f"{total_cubes:.2f} m3")
+                    c2.metric("Total Expenses (Diesel/Adv)", f"Rs. {total_exp:,.2f}")
+                    c3.info("Rented Lorry - No Gross Earning")
 
-                exp_mask = (ve_records["Record_Type"] == "Expense") | \
-                           (ve_records["Category"].str.contains("Fuel|Repair|Food|Service", na=False, case=False))
-                total_exp = pd.to_numeric(ve_records[exp_mask]["Amount"], errors='coerce').sum()
-                net_balance = gross_earning - total_exp
-                
-                c1, c2, c3 = st.columns(3)
-                label = "Gross Earning (Hours × Rate)" if is_exc else "Gross Sales"
-                c1.metric(label, f"Rs. {gross_earning:,.2f}")
-                c2.metric("Total Expenses", f"Rs. {total_exp:,.2f}")
-                c3.metric("Net Settlement", f"Rs. {net_balance:,.2f}", delta=f"{net_balance:,.2f}")
-                
                 st.divider()
 
-                # --- PDF GENERATION SECTION (මෙන්න මෙතනයි හරිගැස්සුවේ) ---
-                if st.button("📥 Download Settlement PDF", key="btn_pdf_ve"):
+                # --- 5. PDF GENERATION ---
+                if st.button("📥 Download Report PDF", key="btn_pdf_hybrid"):
                     summary_data = {
-                        "Vehicle/Machine": selected_ve,
+                        "Vehicle/Machine": str(selected_ve),
                         "Type": "Excavator (Own)" if is_exc else "Lorry (Rented)",
                         "Period": f"{f_d} to {t_d}",
-                        "Gross Earnings": f"Rs. {gross_earning:,.2f}",
-                        "Total Expenses": f"Rs. {total_exp:,.2f}",
-                        "Net Balance": f"Rs. {net_balance:,.2f}"
+                        "Total Expenses": f"Rs. {total_exp:,.2f}"
                     }
+                    if is_exc:
+                        summary_data["Gross Earnings"] = f"Rs. {gross_earning:,.2f}"
+                        summary_data["Net Profit"] = f"Rs. {net_balance:,.2f}"
+                    else:
+                        summary_data["Total Cubes"] = f"{total_cubes:.2f} m3"
                     
-                    # PDF එක හදන්න කලින් පෙන්විය යුතු columns තෝරා ගැනීම
-                    pdf_cols = ['Date', 'Category', 'Work_Hours', 'Rate_At_Time', 'Amount', 'Note']
+                    pdf_cols = ['Date', 'Category', 'Work_Hours', 'Qty_Cubes', 'Amount', 'Note']
                     available_pdf_cols = [c for c in pdf_cols if c in ve_records.columns]
                     
-                    # create_pdf function එකට දත්ත යැවීම
-                    try:
-                        pdf_path = create_pdf(f"Settlement_{selected_ve}", ve_records[available_pdf_cols], summary_data)
+                    pdf_path = create_pdf(f"Report_{selected_ve}", ve_records[available_pdf_cols], summary_data)
+                    if pdf_path and os.path.exists(pdf_path):
                         with open(pdf_path, "rb") as f:
-                            st.download_button(
-                                label="📩 Click here to Save PDF",
-                                data=f,
-                                file_name=f"{selected_ve}_Settlement_{f_d}.pdf",
-                                mime="application/pdf"
-                            )
-                    except NameError:
-                        st.error("අප්පටසිරි! 'create_pdf' function එක සොයාගත නොහැක. කරුණාකර එය කෝඩ් එකේ ඉහළින් ඇත්දැයි බලන්න.")
-                
-                st.write(f"📊 **Detailed Logs for {selected_ve}**")
-                show_cols = ['Date', 'Category', 'Work_Hours', 'Rate_At_Time', 'Amount', 'Note']
+                            st.download_button("📩 Save PDF", f, file_name=f"{selected_ve}_Report.pdf", mime="application/pdf")
+
+                # --- 6. Table Display ---
+                st.write(f"📊 **Log for {selected_ve}**")
+                show_cols = ['Date', 'Category', 'Work_Hours', 'Qty_Cubes', 'Rate_At_Time', 'Amount', 'Note']
                 available = [c for c in show_cols if c in ve_records.columns]
                 st.dataframe(ve_records[available], use_container_width=True)
             else:
