@@ -133,13 +133,16 @@ def create_pdf(title, data_df, summary_dict):
         
         # --- වැදගත්ම තැන: ආදායම සහ වියදම වෙන් කිරීම ---
         
-        # 1. වාහනයේ කුලී ආදායම (Earnings) - Work Log හෝ Hire පමණි
-        # row.get පාවිච්චි කිරීමෙන් 'Type' කොලම් එක නැති වුණත් Error එකක් එන්නේ නැහැ
-          row_type = row.get('Type', '') 
-          if "Work Log" in category or "Hire" in category or row_type == "Process":
-            total_earn += amt
-            pdf.set_text_color(0, 0, 0)
-            pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 0, 'R')
+       for _, row in data_df.iterrows():
+        # මෙන්න මේ පේළි ඔක්කොම එකම කෙලින් තියෙන්න ඕනේ
+        pdf.cell(w[0], 7, safe_text(str(row.get('Date', '-'))), 1)
+        pdf.cell(w[1], 7, safe_text(str(row.get('Category', 'N/A'))), 1)
+        
+        row_type = row.get('Type', '') 
+        category = str(row.get('Category', ''))
+
+        if "Work Log" in category or "Hire" in category or row_type == "Process":
+            # ... ඉතිරි කෝඩ් එක (මේකත් එක මට්ටමක් ඇතුළට තියෙන්න ඕනේ)
             
         # 2. වාහනයේ සැබෑ වියදම් (Expenses) - Fuel, Repair, Payroll, Advance
         elif any(exp in category for exp in ["Fuel", "Repair", "Advance", "Payroll", "Salary"]):
