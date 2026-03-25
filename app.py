@@ -111,35 +111,11 @@ def create_pdf(title, data_df, summary_dict):
     total_exp = 0
     
     for _, row in data_df.iterrows():
-        pdf.cell(w[0], 7, safe_text(str(row.get('Date', '-'))), 1)
-        pdf.cell(w[1], 7, safe_text(str(row.get('Category', 'N/A'))), 1)
-        
-        # Note එක Safe විදිහට ගැනීම
-        note_val = str(row.get('Note', ''))
-        pdf.cell(w[2], 7, safe_text(note_val)[:30], 1)
-        
-        # Qty සහ Work Hours ගණනය කිරීම
-        w_hrs = row.get('Work_Hours', 0)
-        q_cubes = row.get('Qty_Cubes', 0)
-        qty = w_hrs if w_hrs > 0 else q_cubes
-        
-        pdf.cell(w[3], 7, f"{qty}" if qty > 0 else "-", 1, 0, 'C')
-        
-        rate = row.get('Rate_At_Time', 0.0)
-        pdf.cell(w[4], 7, f"{rate:,.2f}" if rate > 0 else "-", 1, 0, 'R')
-        
-        amt = float(row.get('Amount', 0.0))
-        category = str(row.get('Category', row.get('Material', 'N/A')))
-        
-        # --- වැදගත්ම තැන: ආදායම සහ වියදම වෙන් කිරීම ---
-        
-    # මේ පේළියට උඩින් තියෙන පේළි වලට සමානව මේක තියෙන්න ඕනේ
-    for _, row in data_df.iterrows():
         # 1. දත්ත Safe විදිහට ගැනීම
         date_val = safe_text(str(row.get('Date', '-')))
-        category = str(row.get('Category', row.get('Material', 'N/A'))) # 'category' කියන නමම ගමු
+        category = str(row.get('Category', row.get('Material', 'N/A')))
         note_val = safe_text(str(row.get('Note', '')))[:30]
-        row_type = row.get('Type', '') # Type එකත් Safe විදිහට ගත්තා
+        row_type = str(row.get('Type', ''))
         
         # 2. මුල් Columns 3 PDF එකට දැමීම
         pdf.cell(w[0], 7, date_val, 1)
@@ -156,31 +132,26 @@ def create_pdf(title, data_df, summary_dict):
         rate = float(row.get('Rate_At_Time', 0.0))
         amt = float(row.get('Amount', 0.0))
 
-        # --- මෙන්න මේ කොටස තමයි ඔයා ඇහුවේ (Align එක බලන්න) ---
-   # 1. මුලින්ම IF
+        # --- ආදායම සහ වියදම වෙන් කිරීම ---
+        
+        # A. ආදායම් මාර්ග (Work Log, Hire, Process)
         if "Work Log" in category or "Hire" in category or row_type == "Process":
+            total_earn += amt
             pdf.cell(w[4], 7, f"{rate:,.2f}", 1, 0, 'R')
             pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 1, 'R')
             
-        # 2. දෙවැනුව ELIF (මේක ELSE එකට උඩින් තියෙන්න ඕනේ)
-        elif any(exp in category for exp in ["Fuel", "Repair", "Advance", "Payroll", "Salary"]):
-            pdf.cell(w[4], 7, "EXPENSE", 1, 0, 'C')
-            pdf.cell(w[5], 7, f"({amt:,.2f})", 1, 1, 'R')
-            
-        # 3. අන්තිමටම ELSE (මේක තමයි අවසාන පියවර)
-        else:
-            pdf.cell(w[4], 7, f"{rate:,.2f}", 1, 0, 'R')
-            pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 1, 'R')     
-            
-        # 2. වාහනයේ සැබෑ වියදම් (Expenses) - Fuel, Repair, Payroll, Advance
+        # B. වියදම් මාර්ග (Fuel, Repair, Advance, Payroll, Salary)
         elif any(exp in category for exp in ["Fuel", "Repair", "Advance", "Payroll", "Salary"]):
             total_exp += amt
             pdf.set_text_color(200, 0, 0) # වියදම් රතු පාටින්
-            pdf.cell(w[5], 7, f"({amt:,.2f})", 1, 0, 'R')
-            pdf.set_text_color(0, 0, 0)
+            pdf.cell(w[4], 7, "EXPENSE", 1, 0, 'C')
+            pdf.cell(w[5], 7, f"({amt:,.2f})", 1, 1, 'R')
+            pdf.set_text_color(0, 0, 0) # ආපහු කළු පාටට
             
-        # 3. අනෙකුත් දේවල් (Sales Out වැනි දෑ) - Table එකේ පෙන්වයි, නමුත් එකතුවට නොගනී
+        # C. අනෙකුත් (Sales Out / Stock වැනි දෑ)
         else:
+            pdf.cell(w[4], 7, f"{rate:,.2f}", 1, 0, 'R')
+            pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 1, 'R')
             pdf.set_text_color(100, 100, 100) # ලා අළු පාටින්
             pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 0, 'R')
             pdf.set_text_color(0, 0, 0)
