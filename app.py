@@ -668,9 +668,10 @@ elif menu == "📑 Reports Center":
 
         # 6. Stock එක අඩු නම් Warning එකක් දීම
         for index, row in inventory_df.iterrows():
+            # මෙතන row['Material'] වෙනුවට row['Category'] කියලා දාන්න
             if row["Current Stock (Balance)"] < 10:
-                st.warning(f"⚠️ Low Stock Alert: {row['Material']} balance is low ({row['Current Stock (Balance)']} Cubes)!")
-
+                st.warning(f"⚠️ Low Stock Alert: {row['Category']} balance is low ({row['Current Stock (Balance)']} Cubes)!")
+                
         # 7. PDF Report එකක් ඕනෙ නම් (මේක create_pdf එකට සමාන එකක්)
         if st.button("📥 Download Stock Report PDF"):
             stock_summary = {
