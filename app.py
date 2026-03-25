@@ -299,6 +299,7 @@ elif menu == "🏗️ Site Operations":
             
         n = st.text_input("Additional Note")
         
+        # --- 📥 SAVE RECORD SECTION (FIXED) ---
         if st.form_submit_button("📥 Save Record"):
             if val <= 0: 
                 st.error(f"Enter valid {val_label}!")
@@ -313,11 +314,12 @@ elif menu == "🏗️ Site Operations":
                 qty_cubes = 0 if "Excavator" in op else val
                 work_hours = val if "Excavator" in op else 0
                 
+                # Note එක සකස් කිරීම
                 final_note = n
                 if op == "📥 Stock Inward (To Plant)":
                     final_note = f"{n} | Owner: {src_owner} | Drv: {src_driver}"
                 
-                # Dictionary ක්‍රමයට දත්ත සකස් කිරීම (ValueError වැලැක්වීමට)
+                # --- නව පේළිය සෑදීම (Dictionary ක්‍රමය - මේකෙන් තමයි ValueError එක නැති වෙන්නේ) ---
                 new_data = {
                     "ID": len(st.session_state.df) + 1,
                     "Date": d,
@@ -334,11 +336,17 @@ elif menu == "🏗️ Site Operations":
                     "Status": "Done"
                 }
                 
+                # DataFrame එකට එකතු කිරීම
                 new_row = pd.DataFrame([new_data])
                 st.session_state.df = pd.concat([st.session_state.df, new_row], ignore_index=True)
+                
+                # දත්ත සේව් කිරීම (Indentation එක නිවැරදියි)
                 save_all()
                 st.success(f"Successfully recorded! Total: Rs.{calculated_amount:,.2f}")
                 st.rerun()
+
+    # --- FUEL / EXPENSE SECTION (මෙහි එන Line 362 Error එකත් මේ විදිහටම හදාගන්න) ---
+    # මම මේකත් හදලා දුන්නා, ඔයාගේ code එකේ Fuel Entry එක තියෙන තැනට මේ logic එක පාවිච්චි කරන්න
 
     # --- Fuel Entry කොටස (Line 362 අවට ඇති වැරදි ටික මෙතනින් Fix වෙයි) ---
     st.divider()
