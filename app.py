@@ -8,6 +8,7 @@ from fpdf import FPDF
 DATA_FILE = "ksd_master_v56.csv"
 VE_FILE = "ksd_vehicles_v56.csv"
 DR_FILE = "ksd_drivers_v56.csv"
+LANDOWNER_FILE = "landowners.csv"
 SHOP_NAME = "K. SIRIWARDHANA SAND CONSTRUCTION PRO"
 
 # --- 2. DATA ENGINE ---
@@ -20,23 +21,42 @@ def load_data(file, cols):
             for col in cols:
                 if col not in d.columns: d[col] = 0
             return d
-        except: return pd.DataFrame(columns=cols)
+        except: 
+            return pd.DataFrame(columns=cols)
     return pd.DataFrame(columns=cols)
 
 def save_all():
+    # පරණ දත්ත සේව් කිරීම
     st.session_state.df.to_csv(DATA_FILE, index=False)
     st.session_state.ve_db.to_csv(VE_FILE, index=False)
     st.session_state.dr_db.to_csv(DR_FILE, index=False)
+    
+    # --- අලුත් Landowners සේව් කිරීම ---
+    if 'landowners' in st.session_state and st.session_state.landowners:
+        pd.DataFrame(st.session_state.landowners).to_csv(LANDOWNER_FILE, index=False)
 
-# --- 3. SESSION STATE ---
+# --- 3. SESSION STATE (මෙතන තමයි ඔක්කොම ලෝඩ් වෙන්නේ) ---
 cols_master = ["ID", "Date", "Time", "Type", "Category", "Entity", "Note", "Amount", "Qty_Cubes", "Fuel_Ltr", "Hours", "Rate_At_Time", "Status"]
+
 if 'df' not in st.session_state:
     st.session_state.df = load_data(DATA_FILE, cols_master)
+
 if 've_db' not in st.session_state:
     st.session_state.ve_db = load_data(VE_FILE, ["No", "Type", "Owner", "Rate_Per_Unit"])
+
 if 'dr_db' not in st.session_state:
     st.session_state.dr_db = load_data(DR_FILE, ["Name", "Phone", "Daily_Salary"])
 
+# --- Landowners දත්ත නිවැරදිව ලෝඩ් කිරීම ---
+if 'landowners' not in st.session_state:
+    if os.path.exists(LANDOWNER_FILE):
+        try:
+            temp_ld = pd.read_csv(LANDOWNER_FILE)
+            st.session_state.landowners = temp_ld.to_dict('records')
+        except:
+            st.session_state.landowners = []
+    else:
+        st.session_state.landowners = []
 # --- 4. PDF ENGINE (ඔයා එවපු PDF එකේ format එකටම) ---
 class PDF(FPDF):
     def header(self):
@@ -121,7 +141,7 @@ st.set_page_config(page_title=SHOP_NAME, layout="wide")
 st.sidebar.title("🏗️ KSD ERP v5.6")
 
 # මේ පේළිය පිටුවේ වම් කෙළවරේ සිටම පටන් ගන්න (No spaces)
-menu = st.sidebar.selectbox("MAIN MENU", ["📊 Dashboard", "🏗️ Site Operations", "💰 Finance & Shed", "⚙️ System Setup", "📑 Reports Center", "⚙️ Data Manager"])
+menu = st.sidebar.selectbox("MAIN MENU", ["📊 Dashboard", "🏗️ Site Operations","👤 Manage Landowners", "💰 Finance & Shed", "⚙️ System Setup", "📑 Reports Center", "⚙️ Data Manager"])
 
 
 # --- 1. DASHBOARD SECTION (සම්පූර්ණ එකම මෙතන තියෙනවා) ---
@@ -598,6 +618,44 @@ elif menu == "⚙️ System Setup":
         if st.button("🗑️ Clear Driver List"):
             st.session_state.dr_db = pd.DataFrame(columns=["Name", "Phone", "Daily_Salary"])
             save_all(); st.rerun()
+
+# --- මේක වෙනම Menu එකක් විදිහට පල්ලෙහායින් දාන්න ---
+elif menu == "👤 Manage Landowners":
+    st.markdown("<h2 style='color: #2ECC71;'>👤 Landowner Management</h2>", unsafe_allow_html=True)
+    
+    # 1. අලුත් Landowner කෙනෙක් ඇතුළත් කරන Form එක
+    with st.form("landowner_form", clear_on_submit=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            owner_name = st.text_input("Landowner Name")
+            contact_no = st.text_input("Contact Number")
+        with col2:
+            land_name = st.text_input("Land Name / Location")
+            agreement_rate = st.number_input("Agreed Rate per Cube (LKR)", min_value=0.0, step=100.0)
+            
+        if st.form_submit_button("➕ Register Landowner"):
+            if owner_name and land_name:
+                new_owner = {
+                    "Name": owner_name,
+                    "Land": land_name,
+                    "Contact": contact_no,
+                    "Rate": agreement_rate
+                }
+                st.session_state.landowners.append(new_owner)
+                save_all() # දත්ත සේව් කරන්න
+                st.success(f"Owner {owner_name} registered successfully!")
+                st.rerun()
+            else:
+                st.error("Please fill Name and Land details!")
+
+    # 2. දැනට ඉන්න අයව Table එකක් විදිහට පෙන්වීම
+    st.divider()
+    st.subheader("Registered Landowners")
+    if st.session_state.landowners:
+        owner_df = pd.DataFrame(st.session_state.landowners)
+        st.dataframe(owner_df, use_container_width=True)
+    else:
+        st.info("No landowners registered yet.")
 
 
 # --- 11. DATA MANAGER (EDIT / DELETE) ---
