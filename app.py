@@ -325,17 +325,18 @@ elif menu == "🏗️ Site Operations":
     # 2. ඩ්‍රයිවර්ලාගේ ලිස්ට් එක
     d_list = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else ["No Drivers Registered"]
     
-    # 3. Register කරපු Landownersලාගේ නම් ලිස්ට් එක (අලුතින් එකතු කළා)
+    # 3. Register කරපු Landownersලාගේ නම් ලිස්ට් එක
     l_list = [owner["Name"] for owner in st.session_state.landowners] if st.session_state.landowners else ["No Owners Registered"]
 
     with st.form("site_f", clear_on_submit=True):
         col1, col2 = st.columns(2)
         with col1:
+            # Stock Inward නම් වාහනය "Internal / Third Party" ලෙස පෙන්වයි
             v = st.selectbox("Select Vehicle / Machine", v_list if op != "📥 Stock Inward (To Plant)" else ["Internal / Third Party"])
             d = st.date_input("Date", datetime.now().date())
             material = st.selectbox("Material Type", ["Sand", "Soil", "Other"]) if (op == "💰 Sales Out" or op == "📥 Stock Inward (To Plant)") else ""
             
-            # Stock Inward එකේදී විතරක් Landowner සහ Driver තෝරන්න දෙනවා
+            # Stock Inward එකේදී විතරක් Landowner සහ Driver තෝරන්න
             if op == "📥 Stock Inward (To Plant)":
                 src_owner = st.selectbox("Source (Landowner)", l_list)
                 src_driver = st.selectbox("Driver/Operator", d_list)
@@ -366,16 +367,21 @@ elif menu == "🏗️ Site Operations":
                 calculated_amount = val * r
                 q, h = (0, val) if "Excavator" in op else (val, 0)
                 
-                # Note එකට Owner සහ Driver එකතු කිරීම (Stock Inward නම්)
+                # --- නම සහ Note එක තීරණය කිරීම ---
+                current_entry_name = ""
                 final_note = n
-                if op == "📥 Stock Inward (To Plant)":
-                    final_note = f"{n} | Owner: {src_owner} | Drv: {src_driver}"
                 
-                # --- නව පේළිය Dictionary එකක් ලෙස (ValueError එක මින් වැලකේ) ---
+                if op == "📥 Stock Inward (To Plant)":
+                    current_entry_name = src_owner  # Landowner නම මෙතනට වැටේ
+                    final_note = f"{n} | Drv: {src_driver}"
+                else:
+                    current_entry_name = v  # අනිත් ඒවාට වාහන අංකය වැටේ
+                
+                # --- නව පේළිය Dictionary එකක් ලෙස ---
                 new_data = {
                     "ID": len(st.session_state.df) + 1,
                     "Date": d,
-                    "Name": "",
+                    "Name": current_entry_name,  # දැන් මෙතනට නම නිවැරදිව වැටෙනවා
                     "Record_Type": record_type,
                     "Category": cat,
                     "Entity": v,
@@ -393,13 +399,12 @@ elif menu == "🏗️ Site Operations":
                 st.session_state.df = pd.concat([st.session_state.df, new_row], ignore_index=True)
                 
                 save_all()
-                st.success(f"Successfully recorded! Total: Rs.{calculated_amount:,.2f}")
+                st.success(f"Successfully recorded for {current_entry_name}!")
                 st.rerun()
-    
-    # පල්ලෙහා Today's Logs පෙන්වන කොටස
+
+    # Today's Logs පෙන්වීම
     st.divider()
     st.subheader("Today's Logs")
-    # Date format එක හරියට තියාගන්න
     temp_df = st.session_state.df.copy()
     temp_df['Date'] = pd.to_datetime(temp_df['Date']).dt.date
     today_df = temp_df[temp_df["Date"] == datetime.now().date()]
