@@ -135,29 +135,42 @@ def create_pdf(title, data_df, summary_dict):
         
     # මේ පේළියට උඩින් තියෙන පේළි වලට සමානව මේක තියෙන්න ඕනේ
     for _, row in data_df.iterrows():
-        # Row එකේ තියෙන දත්ත Safe විදිහට ගැනීම
+        # 1. දත්ත Safe විදිහට ගැනීම
         date_val = safe_text(str(row.get('Date', '-')))
-        cat_val = safe_text(str(row.get('Category', row.get('Material', 'N/A'))))
+        category = str(row.get('Category', row.get('Material', 'N/A'))) # 'category' කියන නමම ගමු
         note_val = safe_text(str(row.get('Note', '')))[:30]
+        row_type = row.get('Type', '') # Type එකත් Safe විදිහට ගත්තා
         
-        # දත්ත පේළිය PDF එකට ඇතුළත් කිරීම
+        # 2. මුල් Columns 3 PDF එකට දැමීම
         pdf.cell(w[0], 7, date_val, 1)
-        pdf.cell(w[1], 7, cat_val, 1)
+        pdf.cell(w[1], 7, safe_text(category), 1)
         pdf.cell(w[2], 7, note_val, 1)
         
-        # Quantity ගණනය කිරීම (Work Hours හෝ Qty Cubes)
+        # 3. Quantity (Qty) ගණනය කිරීම
         w_hrs = row.get('Work_Hours', 0)
         q_cubes = row.get('Qty_Cubes', 0)
         qty = w_hrs if w_hrs > 0 else q_cubes
-        
         pdf.cell(w[3], 7, f"{qty}" if qty > 0 else "-", 1, 0, 'C')
         
-        # Rate සහ Amount (Safe methods)
+        # 4. Rate සහ Amount ගැනීම
         rate = float(row.get('Rate_At_Time', 0.0))
         amt = float(row.get('Amount', 0.0))
-        
-        pdf.cell(w[4], 7, f"{rate:,.2f}", 1, 0, 'R')
-        pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 1, 'R')
+
+        # --- මෙන්න මේ කොටස තමයි ඔයා ඇහුවේ (Align එක බලන්න) ---
+        if "Work Log" in category or "Hire" in category or row_type == "Process":
+            # සාමාන්‍ය විකුණුම් හෝ වැඩ වාර්තා
+            pdf.cell(w[4], 7, f"{rate:,.2f}", 1, 0, 'R')
+            pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 1, 'R')
+            
+        elif any(exp in category for exp in ["Fuel", "Repair", "Advance", "Payroll", "Salary"]):
+            # වියදම් වර්ග (Expenses)
+            pdf.cell(w[4], 7, "EXPENSE", 1, 0, 'C')
+            pdf.cell(w[5], 7, f"({amt:,.2f})", 1, 1, 'R')
+            
+        else:
+            # වෙනත් ඕනෑම දෙයක් (Default)
+            pdf.cell(w[4], 7, f"{rate:,.2f}", 1, 0, 'R')
+            pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 1, 'R')
             
         # 2. වාහනයේ සැබෑ වියදම් (Expenses) - Fuel, Repair, Payroll, Advance
         elif any(exp in category for exp in ["Fuel", "Repair", "Advance", "Payroll", "Salary"]):
