@@ -7,7 +7,6 @@ from fpdf import FPDF
 # --- 1. CONFIG & FILENAMES ---
 DATA_FILE = "ksd_master_v56.csv"
 VE_FILE = "ksd_vehicles_v56.csv"
-LO_FILE = "ksd_landowners_v56.csv" 
 DR_FILE = "ksd_drivers_v56.csv"
 SHOP_NAME = "K. SIRIWARDHANA SAND CONSTRUCTION PRO"
 
@@ -24,12 +23,6 @@ def load_data(file, cols):
         except: return pd.DataFrame(columns=cols)
     return pd.DataFrame(columns=cols)
 
-def save_data(file_path, df):
-    try:
-        df.to_csv(file_path, index=False)
-    except Exception as e:
-        st.error(f"Error saving data: {e}")
-
 def save_all():
     st.session_state.df.to_csv(DATA_FILE, index=False)
     st.session_state.ve_db.to_csv(VE_FILE, index=False)
@@ -43,8 +36,6 @@ if 've_db' not in st.session_state:
     st.session_state.ve_db = load_data(VE_FILE, ["No", "Type", "Owner", "Rate_Per_Unit"])
 if 'dr_db' not in st.session_state:
     st.session_state.dr_db = load_data(DR_FILE, ["Name", "Phone", "Daily_Salary"])
-if 'landowners' not in st.session_state:
-    st.session_state.landowners = pd.read_csv(LO_FILE).to_dict('records') if os.path.exists(LO_FILE) else []
 
 # --- 4. PDF ENGINE (ඔයා එවපු PDF එකේ format එකටම) ---
 class PDF(FPDF):
@@ -52,83 +43,19 @@ class PDF(FPDF):
         self.set_font('Arial', 'B', 15); self.set_text_color(230, 126, 34) 
         self.cell(0, 10, SHOP_NAME, 0, 1, 'C'); self.ln(5)
 
-def create_pdf(report_name, df, summary_dict, is_exc=False):
-    from fpdf import FPDF
-    import os
+def create_pdf(title, data_df, summary_dict):
+    pdf = PDF()
+    pdf.add_page()
+    
+    def safe_text(text):
+        if text is None: return ""
+        return str(text).encode("latin-1", "ignore").decode("latin-1")
 
-    def clean_text(text):
-        return str(text).encode('ascii', 'ignore').decode('ascii')
-
-    try:
-        pdf = FPDF()
-        pdf.add_page()
-        
-        # Header - Company Name (ඔයාගේ නම මෙතන දාන්න)
-        pdf.set_font("Arial", 'B', 14)
-        pdf.cell(190, 8, txt="K. SIRIWARDHANA SAND CONSTRUCTION PROJECTS", ln=True, align='C')
-        pdf.set_font("Arial", 'B', 11)
-        pdf.cell(190, 8, txt=f"STATEMENT: {clean_text(report_name).upper()}", ln=True, align='C')
-        pdf.ln(5)
-        
-        # Left Side Summary Box
-        pdf.set_font("Arial", 'B', 10)
-        for key, value in summary_dict.items():
-            pdf.cell(40, 7, txt=f"{clean_text(key)}:", border='TL')
-            pdf.set_font("Arial", size=10)
-            pdf.cell(60, 7, txt=f"{clean_text(value)}", border='TR', ln=True)
-            pdf.set_font("Arial", 'B', 10)
-        pdf.cell(100, 0, border='T', ln=True) # Bottom border
-        
-        # --- EXCAVATOR RATE BREAKDOWN (ඔයා එවපු PDF එකේ වගේ) ---
-        if is_exc and 'Work_Hours' in df.columns and 'Rate_At_Time' in df.columns:
-            pdf.ln(8)
-            pdf.set_font("Arial", 'B', 11)
-            pdf.cell(190, 8, txt="Earnings Breakdown (By Rate):", ln=True)
-            
-            # Headers for Breakdown
-            pdf.set_fill_color(230, 230, 230)
-            pdf.set_font("Arial", 'B', 9)
-            pdf.cell(60, 8, "Rate (LKR)", 1, 0, 'C', True)
-            pdf.cell(60, 8, "Qty/Hrs", 1, 0, 'C', True)
-            pdf.cell(70, 8, "Sub-Total (LKR)", 1, 1, 'C', True)
-            
-            # Logic to group by rate
-            breakdown = df.groupby('Rate_At_Time')['Work_Hours'].sum().reset_index()
-            pdf.set_font("Arial", size=9)
-            for _, row in breakdown.iterrows():
-                if row['Work_Hours'] > 0:
-                    sub_total = row['Rate_At_Time'] * row['Work_Hours']
-                    pdf.cell(60, 8, f"{row['Rate_At_Time']:,.2f}", 1, 0, 'C')
-                    pdf.cell(60, 8, f"{row['Work_Hours']:.2f}", 1, 0, 'C')
-                    pdf.cell(70, 8, f"{sub_total:,.2f}", 1, 1, 'R')
-
-        # --- MAIN TRANSACTION LOG ---
-        pdf.ln(10)
-        pdf.set_font("Arial", 'B', 11)
-        pdf.cell(190, 8, txt="Detailed Transaction Log:", ln=True)
-        
-        pdf.set_fill_color(200, 220, 255)
-        pdf.set_font("Arial", 'B', 8)
-        cols = df.columns.tolist()
-        col_width = 190 / len(cols)
-        
-        for col in cols:
-            pdf.cell(col_width, 10, clean_text(col), 1, 0, 'C', True)
-        pdf.ln()
-        
-        pdf.set_font("Arial", size=8)
-        for _, row in df.iterrows():
-            for col in cols:
-                pdf.cell(col_width, 8, clean_text(row.get(col, "")), 1)
-            pdf.ln()
-            
-        file_path = f"{report_name}.pdf"
-        pdf.output(file_path)
-        return file_path
-        
-    except Exception as e:
-        st.error(f"Internal PDF Error: {e}")
-        return None
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_fill_color(240, 240, 240)
+    pdf.cell(0, 10, safe_text(f"STATEMENT: {title.upper()}"), 1, 1, 'L', fill=True)
+    pdf.ln(2)
+    
     # --- Summary Section (Basic Info) ---
     pdf.set_font("Arial", 'B', 10)
     for k, v in summary_dict.items():
@@ -175,7 +102,7 @@ def create_pdf(report_name, df, summary_dict, is_exc=False):
         rate_val = f"{row['Rate_At_Time']:,.2f}" if row['Rate_At_Time'] > 0 else "-"
         pdf.cell(w[3], 7, safe_text(rate_val), 1, 0, 'R')
         
-        amt = float(row.get('Amount', 0)) if r_type == "Expense" else 0.0
+        amt = float(row['Amount']) if row['Type'] == "Expense" else 0.0
         total_exp += amt
         pdf.cell(w[4], 7, f"{amt:,.2f}", 1, 0, 'R')
         pdf.ln()
@@ -264,28 +191,20 @@ if menu == "📊 Dashboard":
         st.info("පද්ධතියේ දත්ත කිසිවක් නැත.")
 
 # --- 2. SITE OPERATIONS SECTION ---
-# --- 2. SITE OPERATIONS SECTION (FULLY FIXED) ---
+# මේ 'elif' එක පටන් ගන්න ඕනේ උඩ තියෙන 'if menu == "📊 Dashboard":' එකට කෙළින්ම පල්ලෙහායින්
+# --- කලින් තිබුණු Site Operations එක අයින් කරලා මේක දාන්න ---
 elif menu == "🏗️ Site Operations":
     st.markdown(f"<h2 style='color: #E67E22;'>🏗️ Site Operations & Stock Manager</h2>", unsafe_allow_html=True)
     
     op = st.radio("Select Activity Type", ["🚜 Excavator Work Log", "💰 Sales Out", "📥 Stock Inward (To Plant)"], horizontal=True)
     v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
     
-    # පද්ධතියේ දැනට ඉන්න Drivers සහ Landowners ලිස්ට් එක ගන්නවා
-    d_list = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else ["No Drivers Registered"]
-    l_list = [l["Name"] for l in st.session_state.landowners] if st.session_state.landowners else ["No Owners Registered"]
-
-    # --- 🏗️ SITE OPERATIONS FORM SECTION (FULLY FIXED) ---
     with st.form("site_f", clear_on_submit=True):
         col1, col2 = st.columns(2)
         with col1:
             v = st.selectbox("Select Vehicle / Machine", v_list if op != "📥 Stock Inward (To Plant)" else ["Internal / Third Party"])
             d = st.date_input("Date", datetime.now().date())
             material = st.selectbox("Material Type", ["Sand", "Soil", "Other"]) if (op == "💰 Sales Out" or op == "📥 Stock Inward (To Plant)") else ""
-            
-            if op == "📥 Stock Inward (To Plant)":
-                src_owner = st.selectbox("Source (Landowner)", l_list)
-                src_driver = st.selectbox("Driver/Operator", d_list)
         
         with col2:
             if "Excavator" in op:
@@ -300,6 +219,7 @@ elif menu == "🏗️ Site Operations":
             
         n = st.text_input("Additional Note")
         
+        # මෙන්න මේ පේළිය (228) දැන් හරියටම with st.form එකට යටින් තියෙනවා
         if st.form_submit_button("📥 Save Record"):
             if val <= 0: 
                 st.error(f"Enter valid {val_label}!")
@@ -309,90 +229,25 @@ elif menu == "🏗️ Site Operations":
                 record_type = "Inward" if op == "📥 Stock Inward (To Plant)" else "Process"
                 cat = f"{op} ({material})" if material else op
                 
+                # Amount එක මෙතනදී Calculate වෙනවා
                 calculated_amount = val * r
-                qty_cubes = 0 if "Excavator" in op else val
-                work_hours = val if "Excavator" in op else 0
+                q, h = (0, val) if "Excavator" in op else (val, 0)
                 
-                final_note = n
-                if op == "📥 Stock Inward (To Plant)":
-                    final_note = f"{n} | Owner: {src_owner} | Drv: {src_driver}"
+                new_row = pd.DataFrame([[
+                    len(st.session_state.df)+1, d, "", record_type, cat, v, n, calculated_amount, q, 0, h, r, "Done"
+                ]], columns=st.session_state.df.columns)
                 
-                new_data = {
-                    "ID": len(st.session_state.df) + 1,
-                    "Date": d,
-                    "Name": "",
-                    "Record_Type": record_type,
-                    "Category": cat,
-                    "Entity": v,
-                    "Note": final_note,
-                    "Amount": calculated_amount,
-                    "Qty_Cubes": qty_cubes,
-                    "Expense": 0,
-                    "Work_Hours": work_hours,
-                    "Rate_At_Time": r,
-                    "Status": "Done"
-                }
-                
-                new_row = pd.DataFrame([new_data])
                 st.session_state.df = pd.concat([st.session_state.df, new_row], ignore_index=True)
-                
                 save_all()
                 st.success(f"Successfully recorded! Total: Rs.{calculated_amount:,.2f}")
                 st.rerun()
-
-    # --- ⛽ FUEL ENTRY SECTION (Line 362 Error Fix) ---
+    
+    
     st.divider()
-    st.subheader("⛽ Fuel & Expense Log")
+    st.subheader("Today's Logs")
+    today_df = st.session_state.df[st.session_state.df["Date"] == datetime.now().date()]
+    st.dataframe(today_df, use_container_width=True)
     
-    with st.expander("➕ Add Fuel Entry"):
-        with st.form("fuel_form", clear_on_submit=True):
-            f_col1, f_col2 = st.columns(2)
-            with f_col1:
-                v_fuel = st.selectbox("Vehicle/Machine", v_list, key="fuel_v")
-                d_fuel = st.date_input("Date", datetime.now().date(), key="fuel_d")
-            with f_col2:
-                l_fuel = st.number_input("Liters (L)", min_value=0.0, step=1.0)
-                c_fuel = st.number_input("Total Cost (LKR)", min_value=0.0, step=100.0)
-            
-            if st.form_submit_button("⛽ Save Fuel Record"):
-                if l_fuel <= 0 or c_fuel <= 0:
-                    st.error("Enter valid Fuel Details!")
-                else:
-                    fuel_entry = {
-                        "ID": len(st.session_state.df) + 1,
-                        "Date": d_fuel,
-                        "Name": "",
-                        "Record_Type": "Expense",
-                        "Category": "Fuel Entry",
-                        "Entity": v_fuel,
-                        "Note": "Shed Bill",
-                        "Amount": c_fuel,
-                        "Qty_Cubes": 0,
-                        "Expense": l_fuel,
-                        "Work_Hours": 0,
-                        "Rate_At_Time": 0,
-                        "Status": "Pending"
-                    }
-                    new_fuel_row = pd.DataFrame([fuel_entry])
-                    st.session_state.df = pd.concat([st.session_state.df, new_fuel_row], ignore_index=True)
-                    save_all()
-                    st.success(f"Fuel recorded for {v_fuel}!")
-                    st.rerun()
-
-    # --- TODAY'S LOGS DISPLAY ---
-    st.divider()
-    st.subheader("📋 Today's Summary")
-    
-    # Date formatting for filter
-    temp_df = st.session_state.df.copy()
-    temp_df['Date'] = pd.to_datetime(temp_df['Date']).dt.date
-    today_df = temp_df[temp_df["Date"] == datetime.now().date()]
-    
-    if not today_df.empty:
-        st.dataframe(today_df, use_container_width=True)
-    else:
-        st.info("No records found for today.")
-        
 # --- 8. FINANCE & SHED (v56 FULL) ---
 elif menu == "💰 Finance & Shed":
     fin = st.radio("Finance Category", ["⛽ Fuel & Shed", "🔧 Repairs", "💸 Payroll", "🏦 Owner Advances", "🧾 Others"], horizontal=True)
@@ -446,79 +301,31 @@ elif menu == "💰 Finance & Shed":
 elif menu == "📑 Reports Center":
     st.markdown("<h2 style='color: #8E44AD;'>📑 Business Reports Center</h2>", unsafe_allow_html=True)
     
+    # Column Fixes
     df_raw = st.session_state.df.copy()
-    df_raw['Date'] = pd.to_datetime(df_raw['Date']).dt.date
+    df_raw.columns = [str(c).strip() for c in df_raw.columns]
+    df_raw.rename(columns={'Vehicle No': 'Vehicle', 'Vehicle_No': 'Vehicle', 'Entity': 'Vehicle'}, inplace=True)
 
-    # 1. ටැබ් ටික හදනවා
-   # මෙන්න මේ පේළිය විතරක් replace කරන්න:
-    # --- Tabs Definition (මෙන්න මේ කොටස replace කරන්න) ---
-    tabs_list = [
-        "💰 Daily Income", 
-        "📊 Profit & Loss", 
-        "📈 Material Gross", 
+    # Tabs
+
+    r_inc, r_prof, r_gross, r1, r2, r3, r4 = st.tabs([
+        "💰 Daily Income Report", 
+        "📊 Profit/Loss Analysis",
+        "📈 Material Gross Earnings", # Aluth Tab eka
         "🚜 Vehicle Settlement", 
         "👷 Driver Summary", 
-        "🏡 Landowner Report", 
-        "📑 Daily Log",
+        "📑 Daily Log", 
         "⛽ Shed Report"
-    ]
+    ])
     
-    r_inc, r_prof, r_gross, r1, r2, r_land, r3, r4 = st.tabs(tabs_list)
-    
-    # 2. Date Filter එක
     col_d1, col_d2 = st.columns(2)
-    with col_d1: f_d = st.date_input("From Date", datetime.now().date() - timedelta(days=30), key="r_from")
-    with col_d2: t_d = st.date_input("To Date", datetime.now().date(), key="r_to")
+    with col_d1:
+        f_d = st.date_input("From Date", datetime.now().date() - timedelta(days=30), key="r_from")
+    with col_d2:
+        t_d = st.date_input("To Date", datetime.now().date(), key="r_to")
 
+    df_raw['Date'] = pd.to_datetime(df_raw['Date']).dt.date
     df_f = df_raw[(df_raw["Date"] >= f_d) & (df_raw["Date"] <= t_d)].copy()
-
-    with r_land:
-        st.subheader("🏡 Landowner Ledger & Settlement Report")
-        l_names = [l["Name"] for l in st.session_state.landowners] if st.session_state.landowners else []
-        
-        if not l_names:
-            st.warning("No Landowners registered yet.")
-        else:
-            sel_lan = st.selectbox("Select Landowner", l_names, key="lan_sel_box")
-            if sel_lan:
-                # 1. 'Record_Type' column එක නැත්නම් ඒක හදාගන්නවා (KeyError එක වැළැක්වීමට)
-                if "Record_Type" not in df_f.columns:
-                    df_f["Record_Type"] = "Unknown"
-                
-                # 2. Billing (කපපු පස් ප්‍රමාණය) - Note එකේ නම තියෙන ඒවා පෙරමු
-                lan_stock = df_f[(df_f["Note"].fillna("").str.contains(f"Owner: {sel_lan}", case=False))].copy()
-                
-                # 3. Payments (ගෙවපු සල්ලි) - Entity එකේ නම තියෙන ඒවා
-                lan_pays = df_f[(df_f["Entity"].fillna("").str.contains(sel_lan, case=False)) & 
-                                (df_f["Category"].str.contains("Payment|Settlement", na=False, case=False))].copy()
-                
-                # 4. ගණනය කිරීම් (Column එක තියෙනවාද කියලා බලලා)
-                q_col = 'Qty_Cubes' if 'Qty_Cubes' in lan_stock.columns else 'Qty'
-                t_cubes = lan_stock[q_col].sum() if q_col in lan_stock.columns else 0
-                t_bill = lan_stock['Amount'].sum() if 'Amount' in lan_stock.columns else 0
-                t_paid = lan_pays['Amount'].sum() if 'Amount' in lan_pays.columns else 0
-                bal = t_bill - t_paid
-                
-                # Metrics
-                c1, c2, c3, c4 = st.columns(4)
-                c1.metric("Total Cubes", f"{t_cubes:.2f}")
-                c2.metric("Total Bill", f"{t_bill:,.2f}")
-                c3.metric("Paid", f"{t_paid:,.2f}")
-                c4.metric("Balance Due", f"{bal:,.2f}", delta_color="inverse")
-                
-                st.divider()
-                col_l, col_r = st.columns(2)
-                with col_l:
-                    st.write("🚜 Stock Records")
-                    # පෙන්විය යුතු columns තියෙනවාද බලමු
-                    s_cols = ['Date', q_col, 'Rate_At_Time', 'Amount']
-                    disp_s = [c for c in s_cols if c in lan_stock.columns]
-                    st.dataframe(lan_stock[disp_s], use_container_width=True)
-                with col_r:
-                    st.write("💰 Payment Records")
-                    p_cols = ['Date', 'Amount', 'Note']
-                    disp_p = [c for c in p_cols if c in lan_pays.columns]
-                    st.dataframe(lan_pays[disp_p], use_container_width=True)
     
     # --- TAB: DAILY INCOME REPORT (FIXED) ---
     with r_inc:
@@ -640,114 +447,80 @@ elif menu == "📑 Reports Center":
    # 1. වාහන ලැයිස්තුව ලබා ගනිමු
     v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
 
-   # --- TAB: VEHICLE SETTLEMENT (STABLE VERSION) ---
-    
-    # --- TAB: VEHICLE & MACHINE SETTLEMENT (SK & EXCAVATOR FIXED) ---
     with r1:
-        st.subheader("🚜 Vehicle & Machine Settlement")
+        st.subheader("Vehicle / Machine Settlement")
         
-        v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
-        selected_ve = st.selectbox("Select Vehicle/Machine", v_list, key="v_settle_select_v3")
+        selected_ve = st.selectbox("Select Vehicle to Settle", v_list, key="settle_ve")
         
         if selected_ve and selected_ve != "N/A":
-            ve_records = df_f[df_f['Entity'] == selected_ve].copy()
+            # 2. වාහනය පෙන්වන Column එක මොකක්ද කියලා බුද්ධිමත්ව සොයා ගනිමු
+            # 'Entity' නැත්නම් 'Vehicle' හෝ 'Vehicle_No' තියෙනවාද බලනවා
+            col_options = ['Entity', 'Vehicle', 'Vehicle_No', 'Machine', 'No']
+            target_col = next((c for c in col_options if c in df_f.columns), None)
             
-            if not ve_records.empty:
-                # 1. 'Record_Type' සහ 'Work_Hours' column පද්ධතියට හඳුන්වා දීම
-                if "Record_Type" not in ve_records.columns: ve_records["Record_Type"] = "Unknown"
-                if "Work_Hours" not in ve_records.columns: ve_records["Work_Hours"] = 0
-                if "Qty_Cubes" not in ve_records.columns: ve_records["Qty_Cubes"] = 0
+            if target_col:
+                ve_records = df_f[df_f[target_col] == selected_ve].copy()
                 
-                # 2. මැෂින් එක Excavator එකක්ද කියා බුද්ධිමත්ව පරීක්ෂා කිරීම (SK එකත් එකතු කළා)
-                # EX, PC, SK, CAT, EXCAVATOR වැනි වචන තිබේ නම් එය මැෂින් එකකි.
-                machine_keywords = ["EX", "PC", "SK", "CAT", "EXCAVATOR", "BACKHOE", "JCB"]
-                is_exc = any(x in str(selected_ve).upper() for x in machine_keywords)
-                
-                # 3. වියදම් පෙරීම (Fuel, Repair, etc.)
-                exp_mask = (ve_records["Record_Type"] == "Expense") | \
-                           (ve_records["Category"].str.contains("Fuel|Repair|Food|Advance|Service", na=False, case=False))
-                total_exp = pd.to_numeric(ve_records[exp_mask]["Amount"], errors='coerce').sum()
-
-                st.info(f"📋 Reporting for: **{selected_ve}** ({'Excavator/Machine' if is_exc else 'Lorry'})")
-                
-                c1, c2, c3 = st.columns(3)
-
-                if is_exc:
-                    # --- EXCAVATOR CALCULATIONS ---
-                    ve_records['Work_Hours'] = pd.to_numeric(ve_records['Work_Hours'], errors='coerce').fillna(0)
-                    ve_records['Rate_At_Time'] = pd.to_numeric(ve_records.get('Rate_At_Time', 0), errors='coerce').fillna(0)
+                if not ve_records.empty:
+                    # Excavator එකක්ද කියා පරීක්ෂා කිරීම
+                    is_excavator = any(x in selected_ve.upper() for x in ["EX", "PC", "EXCAVATOR"])
                     
-                    total_hrs = ve_records['Work_Hours'].sum()
-                    # පැය ගණනින් රේට් එක වැඩි කර ආදායම හදමු
-                    ve_records['Calculated_Income'] = ve_records['Work_Hours'] * ve_records['Rate_At_Time']
-                    gross_earning = ve_records['Calculated_Income'].sum()
-                    net_profit = gross_earning - total_exp
-
-                    c1.metric("Total Hours Worked", f"{total_hrs:.2f} hrs")
-                    c2.metric("Gross Earning", f"Rs. {gross_earning:,.2f}")
-                    c3.metric("Net Settlement", f"Rs. {net_profit:,.2f}", delta=f"{net_profit:,.2f}")
+                    # Earnings සහ Expenses ගණනය කිරීම
+                    # Amount column එකේ නමත් check කරනවා (Spaces තිබුණොත් අයින් කරලා)
+                    df_f.columns = [c.strip() for c in df_f.columns]
                     
-                    display_cols = ['Date', 'Category', 'Work_Hours', 'Rate_At_Time', 'Calculated_Income', 'Note']
-                else:
-                    # --- LORRY CALCULATIONS ---
-                    total_cubes = pd.to_numeric(ve_records['Qty_Cubes'], errors='coerce').sum()
+                    if is_excavator:
+                        gross_earning = pd.to_numeric(ve_records['Amount'], errors='coerce').sum()
+                    else:
+                        gross_earning = 0.0
                     
-                    c1.metric("Total Cubes Transported", f"{total_cubes:.2f} m3")
+                    total_exp = pd.to_numeric(ve_records[ve_records["Type"] == "Expense"]["Amount"], errors='coerce').sum()
+                    net_balance = gross_earning - total_exp
+                    
+                    # Metrics
+                    c1, c2, c3 = st.columns(3)
+                    if is_excavator:
+                        c1.metric("Gross Earning (Work)", f"Rs. {gross_earning:,.2f}")
+                    else:
+                        c1.metric("Gross Earning", "Rs. 0.00", delta="Rented Lorry", delta_color="off")
+                    
                     c2.metric("Total Expenses", f"Rs. {total_exp:,.2f}")
-                    c3.write("ℹ️ Rented Lorry settlement based on cubes.")
+                    c3.metric("Net Settlement", f"Rs. {net_balance:,.2f}")
                     
-                    display_cols = ['Date', 'Category', 'Qty_Cubes', 'Amount', 'Note']
+                    st.divider()
 
-                st.divider()
-
-                # --- 4. PDF GENERATION (මෙතනයි FIX එක තියෙන්නේ) ---
-                if st.button("📥 Generate Final Report (Breakdown Style)", key="btn_pdf_v4"):
-                    summary = {
-                        "Vehicle No": str(selected_ve),
-                        "Gross Earnings": f"{gross_earning:,.2f}",
-                        "Total Expenses": f"{total_exp:,.2f}",
-                        "Net Settlement": f"{net_profit:,.2f}"
-                    }
-                    
-                    pdf_final_cols = [c for c in display_cols if c in ve_records.columns]
-                    
-                    # මෙතනදී is_exc=True කියලා යවනවා
-                    pdf_path = create_pdf(f"Settlement_{selected_ve}", ve_records[pdf_final_cols], summary, is_exc=is_exc)
-                    
-                    if pdf_path and os.path.exists(pdf_path):
+                    # PDF Download Button
+                    if st.button("📥 Download Settlement PDF"):
+                        summary_data = {
+                            "Vehicle/Machine": selected_ve,
+                            "Type": "Excavator (Own)" if is_excavator else "Lorry (Rented)",
+                            "Gross Earnings": f"Rs. {gross_earning:,.2f}",
+                            "Total Expenses": f"Rs. {total_exp:,.2f}",
+                            "Net Balance": f"Rs. {net_balance:,.2f}",
+                            "Period": f"{f_d} to {t_d}"
+                        }
+                        pdf_path = create_pdf("Settlement_Report", ve_records, summary_data)
                         with open(pdf_path, "rb") as f:
-                            st.download_button("📩 Download Professional PDF", f, file_name=f"{selected_ve}_Settlement.pdf")
+                            st.download_button("📩 Download PDF", f, file_name=f"{selected_ve}_Settlement.pdf")
 
-                # --- 5. DATA TABLE ---
-                st.write(f"📊 **Transaction Logs**")
-                final_view_cols = [c for c in display_cols if c in ve_records.columns]
-                st.dataframe(ve_records[final_view_cols], use_container_width=True)
+                    st.write(f"**Detailed Transaction Log for {selected_ve}:**")
+                    display_cols = ['Date', 'Category', 'Qty_Cubes', 'Work_Hours', 'Amount', 'Type']
+                    safe_cols = [c for c in display_cols if c in ve_records.columns]
+                    st.dataframe(ve_records[safe_cols], use_container_width=True)
+                else:
+                    st.info(f"No records found for {selected_ve} in the selected period.")
             else:
-                st.warning(f"No records found for {selected_ve} in the selected dates.")
-                
-    # --- TAB 2: DRIVER SUMMARY (FIXED) ---
+                st.error("Could not find a 'Vehicle' or 'Entity' column in your data records.")
+
+    # --- TAB 2: DRIVER SUMMARY ---
     with r2:
-        st.subheader("👷 Driver Work & Payment Summary")
         dr_list = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else []
-        sel_dr = st.selectbox("Select Driver", ["All"] + dr_list, key="dr_sel_box")
-        
+        sel_dr = st.selectbox("Select Driver", dr_list)
         if sel_dr:
-            # 1. Driver ව filter කරමු
-            if sel_dr != "All":
-                dr_rep = df_f[df_f["Note"].fillna("").astype(str).str.contains(sel_dr, case=False)].copy()
-            else:
-                dr_rep = df_f[df_f["Category"].str.contains("Salary|Advance", na=False)].copy()
-            
-            # 2. මුළු ගෙවීම් ගණනය කරමු
-            total_paid = pd.to_numeric(dr_rep['Amount'], errors='coerce').sum()
-            st.metric(f"Total for {sel_dr}", f"Rs. {total_paid:,.2f}")
-            
-            # 3. පෙන්විය යුතු Columns ටික (තියෙන ඒවා විතරක් තෝරා ගනී)
-            req_cols = ['Date', 'Category', 'Entity', 'Vehicle', 'Note', 'Amount']
-            available_cols = [c for c in req_cols if c in dr_rep.columns]
-            
-            # 4. Table එක පෙන්වමු (KeyError එකක් එන්නේ නැත)
-            st.dataframe(dr_rep[available_cols], use_container_width=True)
+            dr_rep = df_f[df_f["Note"].fillna("").astype(str).str.contains(sel_dr, case=False)].copy()
+            st.metric(f"Total Paid to {sel_dr}", f"Rs. {pd.to_numeric(dr_rep['Amount'], errors='coerce').sum():,.2f}")
+            st.dataframe(dr_rep[['Date', 'Category', 'Vehicle', 'Note', 'Amount']], use_container_width=True)
+
     # --- TAB 3: DAILY LOG ---
     with r3:
         st.dataframe(df_f, use_container_width=True)
@@ -762,58 +535,88 @@ elif menu == "📑 Reports Center":
 
 # --- 10. SYSTEM SETUP (මේ කොටස අලුතින් ඇතුළත් කරන්න) ---
 elif menu == "⚙️ System Setup":
-        st.title("⚙️ System Setup & Configuration")
-        st.write("Welcome to Setup! Register your resources below.") # මේක පේනවාද බලන්න මචං
-
-        # 1. Initialize Session States (Error නොවෙන්න මුලින්ම මේවා ඕනේ)
-        if "drivers" not in st.session_state:
-            st.session_state.drivers = []
-        if "landowners" not in st.session_state:
-            st.session_state.landowners = []
-
-        # 2. Tabs නිර්මාණය කිරීම
-        t_veh, t_dri, t_lan = st.tabs(["🚜 Vehicles", "👷 Drivers", "🏡 Landowners"])
-
-        # --- TAB: VEHICLES ---
-        with t_veh:
-            st.subheader("Register Vehicle")
-            with st.form("v_form", clear_on_submit=True):
-                v_no = st.text_input("Vehicle Number")
-                v_type = st.selectbox("Type", ["Lorry", "Excavator", "JCB", "Other"])
-                if st.form_submit_button("Add Vehicle"):
-                    if v_no:
-                        new_v = pd.DataFrame([{"No": v_no, "Type": v_type}])
-                        st.session_state.ve_db = pd.concat([st.session_state.ve_db, new_v], ignore_index=True)
-                        save_data(VE_FILE, st.session_state.ve_db)
-                        st.success(f"Added {v_no}")
-                        st.rerun()
-
-        # --- TAB: DRIVERS ---
-        with t_dri:
-            st.subheader("Register Driver")
-            with st.form("d_form", clear_on_submit=True):
-                d_name = st.text_input("Driver Name")
-                d_phone = st.text_input("Phone Number")
-                if st.form_submit_button("Add Driver"):
-                    if d_name:
-                        st.session_state.drivers.append({"Name": d_name, "Phone": d_phone})
-                        st.success(f"Added Driver {d_name}")
-                        st.rerun()
-
-        # --- TAB: LANDOWNERS ---
-        with t_lan:
-            st.subheader("Register Landowner")
-            with st.form("l_form", clear_on_submit=True):
-                l_name = st.text_input("Owner Name")
-                l_loc = st.text_input("Location")
-                if st.form_submit_button("Add Owner"):
-                    if l_name:
-                        st.session_state.landowners.append({"Name": l_name, "Location": l_loc})
-                        st.success(f"Added Owner {l_name}")
-                        st.rerun()
+    st.markdown("<h2 style='color: #2E86C1;'>⚙️ System Configuration</h2>", unsafe_allow_html=True)
+    
+    # Tabs දෙකක් සාදමු
+    setup_tab1, setup_tab2, setup_tab3 = st.tabs(["🚜 Vehicle Management", "👷 Driver Management", "🏡 Register New Landowner"])
+    
+    # --- VEHICLE MANAGEMENT ---
+    with setup_tab1:
+        st.subheader("Add New Vehicle or Machine")
+        with st.form("v_setup_form", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                v_no = st.text_input("Vehicle Number (Ex: LM-1234)")
+                v_owner = st.text_input("Owner Name")
+            with col2:
+                v_type = st.selectbox("Category", ["Lorry", "Excavator", "JCB", "Tractor", "Other"])
+                v_rate = st.number_input("Standard Rate (Optional)", min_value=0.0)
+            
+            if st.form_submit_button("✅ Register Vehicle"):
+                if v_no:
+                    new_v = pd.DataFrame([[v_no, v_type, v_owner, v_rate]], 
+                                         columns=["No", "Type", "Owner", "Rate_Per_Unit"])
+                    st.session_state.ve_db = pd.concat([st.session_state.ve_db, new_v], ignore_index=True)
+                    save_all()
+                    st.success(f"Vehicle {v_no} registered!")
+                    st.rerun()
+                else:
+                    st.error("Please enter a vehicle number!")
 
         st.divider()
-        st.info("Currently registered data can be viewed in the Reports Center.")
+        st.subheader("Registered Vehicles")
+        st.dataframe(st.session_state.ve_db, use_container_width=True)
+        if st.button("🗑️ Clear Vehicle List"):
+            st.session_state.ve_db = pd.DataFrame(columns=["No", "Type", "Owner", "Rate_Per_Unit"])
+            save_all(); st.rerun()
+
+    # --- DRIVER MANAGEMENT ---
+    with setup_tab2:
+        st.subheader("Add New Driver / Operator")
+        with st.form("d_setup_form", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                d_name = st.text_input("Driver Name")
+            with col2:
+                d_salary = st.number_input("Daily Salary (Rs.)", min_value=0.0)
+            d_phone = st.text_input("Contact Number")
+            
+            if st.form_submit_button("✅ Register Driver"):
+                if d_name:
+                    new_d = pd.DataFrame([[d_name, d_phone, d_salary]], 
+                                         columns=["Name", "Phone", "Daily_Salary"])
+                    st.session_state.dr_db = pd.concat([st.session_state.dr_db, new_d], ignore_index=True)
+                    save_all()
+                    st.success(f"Driver {d_name} registered!")
+                    st.rerun()
+                else:
+                    st.error("Please enter a driver name!")
+
+        st.divider()
+        st.subheader("Registered Drivers")
+        st.dataframe(st.session_state.dr_db, use_container_width=True)
+        if st.button("🗑️ Clear Driver List"):
+            st.session_state.dr_db = pd.DataFrame(columns=["Name", "Phone", "Daily_Salary"])
+            save_all(); st.rerun()
+
+# --- Landowner Registration ---
+    with setup_tab3:
+    st.subheader("🏡 Register New Landowner (Source)")
+    with st.form("landowner_form", clear_on_submit=True):
+        l_name = st.text_input("Landowner Name")
+        l_contact = st.text_input("Contact Number")
+        l_location = st.text_input("Land Location")
+        
+        if st.form_submit_button("Add Landowner"):
+            if l_name:
+                # මෙතනදී අපි landowners ලාව session state එකට add කරනවා
+                if "landowners" not in st.session_state:
+                    st.session_state.landowners = []
+                st.session_state.landowners.append({"Name": l_name, "Contact": l_contact, "Location": l_location})
+                st.success(f"Registered {l_name} successfully!")
+            else:
+                st.error("Please enter a name.")
+
 
 # --- 11. DATA MANAGER (EDIT / DELETE) ---
 elif menu == "⚙️ Data Manager":
