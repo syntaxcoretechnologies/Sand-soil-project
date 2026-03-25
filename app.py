@@ -705,38 +705,47 @@ elif menu == "📑 Reports Center":
         st.divider()
         st.subheader("Landowner Settlement")
 
-        # 1. ඔයා රෙජිස්ටර් කරපු Landowners ලා ඉන්න ඩේටාබේස් එක මෙතනට ගන්න
-        # මම හිතනවා ඒක 'st.session_state.lo_db' කියලා. ඒකේ නම තියෙන Column එක 'Name' කියලා හිතමු.
-        if "lo_db" in st.session_state and not st.session_state.lo_db.empty:
-            # මෙතන 'Name' වෙනුවට ඔයා රෙජිස්ටර් කරද්දී දාපු Column නම (උදා: 'Landowner_Name') දාන්න
-            registered_landowners = st.session_state.lo_db['Name'].tolist()
+        # 1. වාහන ලිස්ට් එක මුලින්ම ගමු (අයින් කරන්න ඕන නිසා)
+        if "ve_db" in st.session_state and not st.session_state.ve_db.empty:
+            vehicle_nos = st.session_state.ve_db['No'].astype(str).unique().tolist()
         else:
-            # තවම රෙජිස්ටර් කරලා නැත්නම් විතරක් Main Data එකෙන් හොයනවා
-            registered_landowners = df_f['Entity'].unique().tolist() if 'Entity' in df_f.columns else ["N/A"]
+            vehicle_nos = []
 
-        # 2. Dropdown එකේ රෙජිස්ටර් කරපු හැමෝම පේනවා
-        selected_landowner = st.selectbox("Select Registered Landowner", registered_landowners, key="settle_lo_reg")
+        # 2. Main ඩේටාබේස් එකේ ඉන්න හැම 'Entity' කෙනෙක්වම ගමු
+        if 'Entity' in st.session_state.df.columns:
+            all_entities = st.session_state.df['Entity'].dropna().unique().tolist()
+            # වාහන නොවන අය විතරක් Filter කරමු (Landowners)
+            landowner_list = [name for name in all_entities if str(name) not in vehicle_nos]
+        else:
+            landowner_list = []
+
+        # 3. Dropdown එක පෙන්වීම
+        if not landowner_list:
+            st.warning("No Landowners found in the database. Please check your 'Entity' column.")
+            selected_landowner = "N/A"
+        else:
+            selected_landowner = st.selectbox("Select Landowner", sorted(landowner_list), key="settle_lo_final")
 
         if selected_landowner and selected_landowner != "N/A":
-            # 3. දැන් මේ තෝරාගත් කෙනාට අදාළ දත්ත විතරක් Filter කරනවා
-            # මෙතන 'Entity' කියන්නේ ඔයා Stock In කරද්දී නම සේව් කරන Column එක
+            # තෝරාගත් කෙනාට අදාළ දත්ත filter කිරීම
             lo_records = df_f[df_f['Entity'] == selected_landowner].copy()
             
             if not lo_records.empty:
-                # මුදල් ගණනය කිරීම
+                # Amount එක Numeric කිරීම
                 lo_records['Amount'] = pd.to_numeric(lo_records['Amount'].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
                 
+                # ගණනය කිරීම්
                 total_payable = lo_records[lo_records['Category'].str.contains('Inward', case=False, na=False)]['Amount'].sum()
                 total_paid = lo_records[lo_records['Category'].str.contains('Advance|Payment', case=False, na=False)]['Amount'].sum()
                 lo_balance = total_payable - total_paid
 
-                # Metrics පෙන්වීම
+                # Metrics
                 l1, l2, l3 = st.columns(3)
                 l1.metric("Total Payable (Cubes)", f"Rs. {total_payable:,.2f}")
-                l2.metric("Total Advances Paid", f"Rs. {total_paid:,.2f}")
+                l2.metric("Total Paid (Advances)", f"Rs. {total_paid:,.2f}")
                 l3.metric("Net Balance Due", f"Rs. {lo_balance:,.2f}")
 
-                # PDF Report Button
+                # PDF Button
                 if st.button("📄 Generate Landowner Report"):
                     lo_summary = {
                         "Landowner Name": selected_landowner,
@@ -747,12 +756,9 @@ elif menu == "📑 Reports Center":
                     with open(lo_pdf_path, "rb") as f:
                         st.download_button("⬇️ Download PDF", f, file_name=f"Landowner_{selected_landowner}.pdf")
                 
-                # Table පෙන්වීම
-                st.write(f"**Transaction Log for {selected_landowner}:**")
                 st.dataframe(lo_records[['Date', 'Category', 'Qty_Cubes', 'Amount']], use_container_width=True)
             else:
-                # නම තිබුණට ඒ දිනයන් ඇතුළත දත්ත නැත්නම් මේක පේනවා
-                st.info(f"No transactions found for {selected_landowner} in the selected period.")
+                st.info(f"No transactions found for {selected_landowner} in this period.")
 
     # --- TAB 2: DRIVER SUMMARY ---
     with r2:
