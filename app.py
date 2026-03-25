@@ -328,13 +328,13 @@ elif menu == "🏗️ Site Operations":
                     "ID": len(st.session_state.df) + 1,
                     "Date": d,
                     "Name": "",
-                    "Record_Type": record_type,
-                    "Category": cat,
+                    "Record_Type": "Expense",
+                    "Category": "Fuel Entry",
                     "Entity": v,
-                    "Note": final_note,
-                    "Amount": calculated_amount,
-                    "Qty_Cubes": qty_cubes,
-                    "Expense": 0,
+                    "Note": "Shed bill",
+                    "Amount": c,
+                    "Qty_Cubes": 0,
+                    "Expense": l,
                     "Work_Hours": work_hours,      # මෙන්න මෙතනට දැන් 'val' වැටෙනවා
                     "Rate_At_Time": r,             # මෙතනට 'r' වැටෙනවා
                     "Status": "Done"
