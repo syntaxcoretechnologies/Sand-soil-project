@@ -125,10 +125,10 @@ def create_pdf(title, data_df, summary_dict):
         
         pdf.cell(w[3], 7, f"{qty}" if qty > 0 else "-", 1, 0, 'C')
         
-        rate = row.get('Rate_At_Time', 0.0)
+        rate = row['Rate_At_Time']
         pdf.cell(w[4], 7, f"{rate:,.2f}" if rate > 0 else "-", 1, 0, 'R')
         
-        amt = float(row.get('Amount', 0.0))
+        amt = float(row['Amount'])
         category = str(row['Category'])
         
         # --- වැදගත්ම තැන: ආදායම සහ වියදම වෙන් කිරීම ---
