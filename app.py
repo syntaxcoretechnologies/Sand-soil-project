@@ -162,6 +162,80 @@ def create_pdf(title, data_df, summary_dict):
     fn = f"Settlement_{datetime.now().strftime('%H%M%S')}.pdf"
     pdf.output(fn)
     return fn
+
+# --- Landowner PDF Engine (මේක අලුතින්ම දාන කොටස) ---
+def create_landowner_pdf(title, data_df, summary_dict):
+    pdf = PDF() # මෙතන PDF කියන්නේ ඔයා උඩින්ම හදපු class එක
+    pdf.add_page()
+    
+    def safe_text(text):
+        if text is None or str(text) == "nan": return ""
+        return str(text).encode("latin-1", "ignore").decode("latin-1")
+
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_fill_color(240, 240, 240)
+    pdf.cell(0, 10, safe_text(f"LANDOWNER STATEMENT: {title.upper()}"), 1, 1, 'L', fill=True)
+    pdf.ln(2)
+    
+    # Summary Section
+    pdf.set_font("Arial", 'B', 10)
+    for k, v in summary_dict.items():
+        pdf.cell(50, 8, safe_text(k) + ":", 1)
+        pdf.set_font("Arial", '', 10)
+        pdf.cell(0, 8, " " + safe_text(v), 1, 1)
+        pdf.set_font("Arial", 'B', 10)
+
+    pdf.ln(8)
+    pdf.set_font("Arial", 'B', 9)
+    headers = ["Date", "Category", "Note", "Cubes", "Rate", "Amount"]
+    w = [22, 35, 50, 15, 25, 43]
+    pdf.set_fill_color(220, 220, 220)
+    for i, h in enumerate(headers):
+        pdf.cell(w[i], 8, safe_text(h), 1, 0, 'C', fill=True)
+    pdf.ln()
+    
+    pdf.set_font("Arial", '', 8)
+    total_payable = 0
+    total_paid = 0
+    
+    for _, row in data_df.iterrows():
+        pdf.cell(w[0], 7, safe_text(row['Date']), 1)
+        pdf.cell(w[1], 7, safe_text(row['Category']), 1)
+        pdf.cell(w[2], 7, safe_text(row['Note'])[:30], 1)
+        
+        cubes = row['Qty_Cubes']
+        pdf.cell(w[3], 7, f"{cubes}" if cubes > 0 else "-", 1, 0, 'C')
+        
+        rate = row['Rate_At_Time']
+        pdf.cell(w[4], 7, f"{rate:,.2f}" if rate > 0 else "-", 1, 0, 'R')
+        
+        amt = float(row['Amount'])
+        category = str(row['Category'])
+        
+        if "Inward" in category or "Inward" in str(row.get('Record_Type', '')):
+            total_payable += amt
+            pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 0, 'R')
+        elif any(x in category for x in ["Advance", "Payment"]):
+            total_paid += amt
+            pdf.set_text_color(200, 0, 0)
+            pdf.cell(w[5], 7, f"({amt:,.2f})", 1, 0, 'R')
+            pdf.set_text_color(0, 0, 0)
+        else:
+            pdf.cell(w[5], 7, "-", 1, 0, 'R')
+        pdf.ln()
+    
+    pdf.ln(2); pdf.set_font("Arial", 'B', 9)
+    pdf.cell(sum(w[:5]), 8, "TOTAL PAYABLE FOR CUBES (LKR)", 1, 0, 'R')
+    pdf.cell(w[5], 8, f"{total_payable:,.2f}", 1, 1, 'R')
+    pdf.cell(sum(w[:5]), 8, "TOTAL ADVANCES PAID (LKR)", 1, 0, 'R')
+    pdf.cell(w[5], 8, f"{total_paid:,.2f}", 1, 1, 'R')
+    pdf.set_fill_color(39, 174, 96); pdf.set_text_color(255, 255, 255)
+    pdf.cell(sum(w[:5]), 10, "NET BALANCE TO BE PAID (LKR)", 1, 0, 'R', fill=True)
+    pdf.cell(w[5], 10, f"{(total_payable - total_paid):,.2f}", 1, 1, 'R', fill=True)
+    
+    fn = f"Landowner_Settlement_{datetime.now().strftime('%H%M%S')}.pdf"
+    pdf.output(fn)
+    return fn
     
 # --- 5. UI LAYOUT & DASHBOARD ---
 st.set_page_config(page_title=SHOP_NAME, layout="wide")
