@@ -133,16 +133,31 @@ def create_pdf(title, data_df, summary_dict):
         
         # --- වැදගත්ම තැන: ආදායම සහ වියදම වෙන් කිරීම ---
         
-       for _, row in data_df.iterrows():
-        # මෙන්න මේ පේළි ඔක්කොම එකම කෙලින් තියෙන්න ඕනේ
-        pdf.cell(w[0], 7, safe_text(str(row.get('Date', '-'))), 1)
-        pdf.cell(w[1], 7, safe_text(str(row.get('Category', 'N/A'))), 1)
+    # මේ පේළියට උඩින් තියෙන පේළි වලට සමානව මේක තියෙන්න ඕනේ
+    for _, row in data_df.iterrows():
+        # Row එකේ තියෙන දත්ත Safe විදිහට ගැනීම
+        date_val = safe_text(str(row.get('Date', '-')))
+        cat_val = safe_text(str(row.get('Category', row.get('Material', 'N/A'))))
+        note_val = safe_text(str(row.get('Note', '')))[:30]
         
-        row_type = row.get('Type', '') 
-        category = str(row.get('Category', ''))
-
-        if "Work Log" in category or "Hire" in category or row_type == "Process":
-            # ... ඉතිරි කෝඩ් එක (මේකත් එක මට්ටමක් ඇතුළට තියෙන්න ඕනේ)
+        # දත්ත පේළිය PDF එකට ඇතුළත් කිරීම
+        pdf.cell(w[0], 7, date_val, 1)
+        pdf.cell(w[1], 7, cat_val, 1)
+        pdf.cell(w[2], 7, note_val, 1)
+        
+        # Quantity ගණනය කිරීම (Work Hours හෝ Qty Cubes)
+        w_hrs = row.get('Work_Hours', 0)
+        q_cubes = row.get('Qty_Cubes', 0)
+        qty = w_hrs if w_hrs > 0 else q_cubes
+        
+        pdf.cell(w[3], 7, f"{qty}" if qty > 0 else "-", 1, 0, 'C')
+        
+        # Rate සහ Amount (Safe methods)
+        rate = float(row.get('Rate_At_Time', 0.0))
+        amt = float(row.get('Amount', 0.0))
+        
+        pdf.cell(w[4], 7, f"{rate:,.2f}", 1, 0, 'R')
+        pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 1, 'R')
             
         # 2. වාහනයේ සැබෑ වියදම් (Expenses) - Fuel, Repair, Payroll, Advance
         elif any(exp in category for exp in ["Fuel", "Repair", "Advance", "Payroll", "Salary"]):
