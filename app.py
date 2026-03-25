@@ -217,14 +217,27 @@ elif menu == "🏗️ Site Operations":
     st.markdown(f"<h2 style='color: #E67E22;'>🏗️ Site Operations & Stock Manager</h2>", unsafe_allow_html=True)
     
     op = st.radio("Select Activity Type", ["🚜 Excavator Work Log", "💰 Sales Out", "📥 Stock Inward (To Plant)"], horizontal=True)
+    
+    # 1. වාහන ලිස්ට් එක
     v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
     
+    # 2. ඩ්‍රයිවර්ලාගේ ලිස්ට් එක
+    d_list = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else ["No Drivers Registered"]
+    
+    # 3. Register කරපු Landownersලාගේ නම් ලිස්ට් එක (අලුතින් එකතු කළා)
+    l_list = [owner["Name"] for owner in st.session_state.landowners] if st.session_state.landowners else ["No Owners Registered"]
+
     with st.form("site_f", clear_on_submit=True):
         col1, col2 = st.columns(2)
         with col1:
             v = st.selectbox("Select Vehicle / Machine", v_list if op != "📥 Stock Inward (To Plant)" else ["Internal / Third Party"])
             d = st.date_input("Date", datetime.now().date())
             material = st.selectbox("Material Type", ["Sand", "Soil", "Other"]) if (op == "💰 Sales Out" or op == "📥 Stock Inward (To Plant)") else ""
+            
+            # Stock Inward එකේදී විතරක් Landowner සහ Driver තෝරන්න දෙනවා
+            if op == "📥 Stock Inward (To Plant)":
+                src_owner = st.selectbox("Source (Landowner)", l_list)
+                src_driver = st.selectbox("Driver/Operator", d_list)
         
         with col2:
             if "Excavator" in op:
@@ -239,7 +252,6 @@ elif menu == "🏗️ Site Operations":
             
         n = st.text_input("Additional Note")
         
-        # මෙන්න මේ පේළිය (228) දැන් හරියටම with st.form එකට යටින් තියෙනවා
         if st.form_submit_button("📥 Save Record"):
             if val <= 0: 
                 st.error(f"Enter valid {val_label}!")
@@ -249,23 +261,47 @@ elif menu == "🏗️ Site Operations":
                 record_type = "Inward" if op == "📥 Stock Inward (To Plant)" else "Process"
                 cat = f"{op} ({material})" if material else op
                 
-                # Amount එක මෙතනදී Calculate වෙනවා
+                # ගණනය කිරීම්
                 calculated_amount = val * r
                 q, h = (0, val) if "Excavator" in op else (val, 0)
                 
-                new_row = pd.DataFrame([[
-                    len(st.session_state.df)+1, d, "", record_type, cat, v, n, calculated_amount, q, 0, h, r, "Done"
-                ]], columns=st.session_state.df.columns)
+                # Note එකට Owner සහ Driver එකතු කිරීම (Stock Inward නම්)
+                final_note = n
+                if op == "📥 Stock Inward (To Plant)":
+                    final_note = f"{n} | Owner: {src_owner} | Drv: {src_driver}"
                 
+                # --- නව පේළිය Dictionary එකක් ලෙස (ValueError එක මින් වැලකේ) ---
+                new_data = {
+                    "ID": len(st.session_state.df) + 1,
+                    "Date": d,
+                    "Name": "",
+                    "Record_Type": record_type,
+                    "Category": cat,
+                    "Entity": v,
+                    "Note": final_note,
+                    "Amount": calculated_amount,
+                    "Qty_Cubes": q,
+                    "Expense": 0,
+                    "Work_Hours": h,
+                    "Rate_At_Time": r,
+                    "Status": "Done"
+                }
+                
+                # DataFrame එකට එකතු කර සේව් කිරීම
+                new_row = pd.DataFrame([new_data])
                 st.session_state.df = pd.concat([st.session_state.df, new_row], ignore_index=True)
+                
                 save_all()
                 st.success(f"Successfully recorded! Total: Rs.{calculated_amount:,.2f}")
                 st.rerun()
     
-    
+    # පල්ලෙහා Today's Logs පෙන්වන කොටස
     st.divider()
     st.subheader("Today's Logs")
-    today_df = st.session_state.df[st.session_state.df["Date"] == datetime.now().date()]
+    # Date format එක හරියට තියාගන්න
+    temp_df = st.session_state.df.copy()
+    temp_df['Date'] = pd.to_datetime(temp_df['Date']).dt.date
+    today_df = temp_df[temp_df["Date"] == datetime.now().date()]
     st.dataframe(today_df, use_container_width=True)
     
 # --- 8. FINANCE & SHED (v56 FULL) ---
