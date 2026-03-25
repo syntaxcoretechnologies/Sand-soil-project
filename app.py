@@ -55,13 +55,23 @@ class PDF(FPDF):
 def create_pdf(report_name, df, summary_dict):
     from fpdf import FPDF
     import os
+    import re
+
+    # Emojis සහ විශේෂ අක්ෂර අයින් කරන Function එක
+    def clean_text(text):
+        if not isinstance(text, str):
+            text = str(text)
+        # Latin-1 වලට සහය නොදක්වන අක්ෂර සහ Emojis අයින් කරයි
+        return text.encode('ascii', 'ignore').decode('ascii')
+
     try:
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("Arial", 'B', 16)
         
-        # Title
-        pdf.cell(190, 10, txt=str(report_name).replace("_", " "), ln=True, align='C')
+        # Title (Cleaned)
+        safe_title = clean_text(report_name).replace("_", " ")
+        pdf.cell(190, 10, txt=safe_title, ln=True, align='C')
         pdf.ln(5)
         
         # Summary Section
@@ -70,27 +80,30 @@ def create_pdf(report_name, df, summary_dict):
         pdf.set_font("Arial", size=10)
         
         for key, value in summary_dict.items():
-            pdf.cell(190, 7, txt=f"{key}: {str(value)}", ln=True)
+            # Summary එකේ තියෙන Emojis අයින් කරයි
+            safe_key = clean_text(key)
+            safe_val = clean_text(value)
+            pdf.cell(190, 7, txt=f"{safe_key}: {safe_val}", ln=True)
         
         pdf.ln(8)
         
         # Table Headers
-        pdf.set_fill_color(200, 220, 255) # ලස්සනට පේන්න පාටක්
+        pdf.set_fill_color(200, 220, 255)
         pdf.set_font("Arial", 'B', 8)
         
         cols = df.columns.tolist()
         col_width = 190 / len(cols) if len(cols) > 0 else 30
         
         for col in cols:
-            pdf.cell(col_width, 10, str(col), 1, 0, 'C', True)
+            pdf.cell(col_width, 10, clean_text(col), 1, 0, 'C', True)
         pdf.ln()
         
         # Table Data
         pdf.set_font("Arial", size=8)
         for _, row in df.iterrows():
+            # පේළියේ උස තීරණය කිරීමට (Text wrapping අවශ්‍ය නැති නිසා සරලව ගනිමු)
             for col in cols:
-                # ඕනෑම data එකක් string එකක් කරලා පෙන්වීම
-                val = str(row.get(col, ""))
+                val = clean_text(row.get(col, ""))
                 pdf.cell(col_width, 8, val, 1)
             pdf.ln()
             
@@ -99,7 +112,6 @@ def create_pdf(report_name, df, summary_dict):
         return file_path
         
     except Exception as e:
-        # මෙතනින් තමයි ඇයි Fail වෙන්නේ කියලා බලාගන්නේ
         st.error(f"Internal PDF Error: {e}")
         return None
     
