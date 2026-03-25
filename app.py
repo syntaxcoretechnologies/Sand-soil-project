@@ -300,8 +300,6 @@ elif menu == "🏗️ Site Operations":
             
         n = st.text_input("Additional Note")
         
-        # --- 📥 SAVE RECORD BUTTON ---
-        # --- 📥 SAVE RECORD SECTION (FULLY FIXED) ---
         if st.form_submit_button("📥 Save Record"):
             if val <= 0: 
                 st.error(f"Enter valid {val_label}!")
@@ -311,18 +309,14 @@ elif menu == "🏗️ Site Operations":
                 record_type = "Inward" if op == "📥 Stock Inward (To Plant)" else "Process"
                 cat = f"{op} ({material})" if material else op
                 
-                # ගණනය කිරීම්
                 calculated_amount = val * r
                 qty_cubes = 0 if "Excavator" in op else val
                 work_hours = val if "Excavator" in op else 0
                 
-                # Note එක සකස් කිරීම
                 final_note = n
                 if op == "📥 Stock Inward (To Plant)":
                     final_note = f"{n} | Owner: {src_owner} | Drv: {src_driver}"
                 
-                # --- නව පේළිය Dictionary එකක් ලෙස (ValueError එක මින් වැලකේ) ---
-                # මෙතන තමයි ඔයාගේ අගයන් 13 ප්‍රශ්නය විසඳෙන්නේ
                 new_data = {
                     "ID": len(st.session_state.df) + 1,
                     "Date": d,
@@ -339,26 +333,66 @@ elif menu == "🏗️ Site Operations":
                     "Status": "Done"
                 }
                 
-                # DataFrame එකට එකතු කිරීම (columns= argument එක මෙතනට අවශ්‍ය නැත)
                 new_row = pd.DataFrame([new_data])
                 st.session_state.df = pd.concat([st.session_state.df, new_row], ignore_index=True)
                 
-                # දත්ත සේව් කිරීම සහ රිෆ්‍රෙෂ් කිරීම
                 save_all()
                 st.success(f"Successfully recorded! Total: Rs.{calculated_amount:,.2f}")
                 st.rerun()
-                
-    # --- FUEL / EXPENSE SECTION (මෙහි එන Line 362 Error එකත් මේ විදිහටම හදාගන්න) ---
-    # මම මේකත් හදලා දුන්නා, ඔයාගේ code එකේ Fuel Entry එක තියෙන තැනට මේ logic එක පාවිච්චි කරන්න
 
-    # --- Fuel Entry කොටස (Line 362 අවට ඇති වැරදි ටික මෙතනින් Fix වෙයි) ---
+    # --- ⛽ FUEL ENTRY SECTION (Line 362 Error Fix) ---
     st.divider()
-    st.subheader("Today's Logs")
-    # Date column එක datetime format එකට තියාගන්න
-    st.session_state.df['Date'] = pd.to_datetime(st.session_state.df['Date']).dt.date
-    today_df = st.session_state.df[st.session_state.df["Date"] == datetime.now().date()]
-    st.dataframe(today_df, use_container_width=True)
+    st.subheader("⛽ Fuel & Expense Log")
     
+    with st.expander("➕ Add Fuel Entry"):
+        with st.form("fuel_form", clear_on_submit=True):
+            f_col1, f_col2 = st.columns(2)
+            with f_col1:
+                v_fuel = st.selectbox("Vehicle/Machine", v_list, key="fuel_v")
+                d_fuel = st.date_input("Date", datetime.now().date(), key="fuel_d")
+            with f_col2:
+                l_fuel = st.number_input("Liters (L)", min_value=0.0, step=1.0)
+                c_fuel = st.number_input("Total Cost (LKR)", min_value=0.0, step=100.0)
+            
+            if st.form_submit_button("⛽ Save Fuel Record"):
+                if l_fuel <= 0 or c_fuel <= 0:
+                    st.error("Enter valid Fuel Details!")
+                else:
+                    fuel_entry = {
+                        "ID": len(st.session_state.df) + 1,
+                        "Date": d_fuel,
+                        "Name": "",
+                        "Record_Type": "Expense",
+                        "Category": "Fuel Entry",
+                        "Entity": v_fuel,
+                        "Note": "Shed Bill",
+                        "Amount": c_fuel,
+                        "Qty_Cubes": 0,
+                        "Expense": l_fuel,
+                        "Work_Hours": 0,
+                        "Rate_At_Time": 0,
+                        "Status": "Pending"
+                    }
+                    new_fuel_row = pd.DataFrame([fuel_entry])
+                    st.session_state.df = pd.concat([st.session_state.df, new_fuel_row], ignore_index=True)
+                    save_all()
+                    st.success(f"Fuel recorded for {v_fuel}!")
+                    st.rerun()
+
+    # --- TODAY'S LOGS DISPLAY ---
+    st.divider()
+    st.subheader("📋 Today's Summary")
+    
+    # Date formatting for filter
+    temp_df = st.session_state.df.copy()
+    temp_df['Date'] = pd.to_datetime(temp_df['Date']).dt.date
+    today_df = temp_df[temp_df["Date"] == datetime.now().date()]
+    
+    if not today_df.empty:
+        st.dataframe(today_df, use_container_width=True)
+    else:
+        st.info("No records found for today.")
+        
 # --- 8. FINANCE & SHED (v56 FULL) ---
 elif menu == "💰 Finance & Shed":
     fin = st.radio("Finance Category", ["⛽ Fuel & Shed", "🔧 Repairs", "💸 Payroll", "🏦 Owner Advances", "🧾 Others"], horizontal=True)
