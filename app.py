@@ -347,18 +347,27 @@ elif menu == "📑 Reports Center":
         if not l_names:
             st.warning("No Landowners registered yet.")
         else:
-            sel_lan = st.selectbox("Select Landowner", l_names)
+            sel_lan = st.selectbox("Select Landowner", l_names, key="lan_sel_box")
             if sel_lan:
-                # Billing (කපපු පස් ප්‍රමාණය)
-                lan_stock = df_f[(df_f["Note"].fillna("").str.contains(f"Owner: {sel_lan}", case=False)) & (df_f["Record_Type"] == "Inward")].copy()
-                # Payments (ගෙවපු සල්ලි) - මෙතනදී Entity එකේ නම බලනවා
-                lan_pays = df_f[(df_f["Entity"].fillna("").str.contains(sel_lan, case=False)) & (df_f["Category"].str.contains("Payment|Settlement", case=False))].copy()
+                # 1. 'Record_Type' column එක නැත්නම් ඒක හදාගන්නවා (KeyError එක වැළැක්වීමට)
+                if "Record_Type" not in df_f.columns:
+                    df_f["Record_Type"] = "Unknown"
                 
-                t_cubes = lan_stock['Qty_Cubes'].sum()
-                t_bill = lan_stock['Amount'].sum()
-                t_paid = lan_pays['Amount'].sum()
+                # 2. Billing (කපපු පස් ප්‍රමාණය) - Note එකේ නම තියෙන ඒවා පෙරමු
+                lan_stock = df_f[(df_f["Note"].fillna("").str.contains(f"Owner: {sel_lan}", case=False))].copy()
+                
+                # 3. Payments (ගෙවපු සල්ලි) - Entity එකේ නම තියෙන ඒවා
+                lan_pays = df_f[(df_f["Entity"].fillna("").str.contains(sel_lan, case=False)) & 
+                                (df_f["Category"].str.contains("Payment|Settlement", na=False, case=False))].copy()
+                
+                # 4. ගණනය කිරීම් (Column එක තියෙනවාද කියලා බලලා)
+                q_col = 'Qty_Cubes' if 'Qty_Cubes' in lan_stock.columns else 'Qty'
+                t_cubes = lan_stock[q_col].sum() if q_col in lan_stock.columns else 0
+                t_bill = lan_stock['Amount'].sum() if 'Amount' in lan_stock.columns else 0
+                t_paid = lan_pays['Amount'].sum() if 'Amount' in lan_pays.columns else 0
                 bal = t_bill - t_paid
                 
+                # Metrics
                 c1, c2, c3, c4 = st.columns(4)
                 c1.metric("Total Cubes", f"{t_cubes:.2f}")
                 c2.metric("Total Bill", f"{t_bill:,.2f}")
@@ -369,10 +378,15 @@ elif menu == "📑 Reports Center":
                 col_l, col_r = st.columns(2)
                 with col_l:
                     st.write("🚜 Stock Records")
-                    st.dataframe(lan_stock[['Date', 'Qty_Cubes', 'Rate_At_Time', 'Amount']], use_container_width=True)
+                    # පෙන්විය යුතු columns තියෙනවාද බලමු
+                    s_cols = ['Date', q_col, 'Rate_At_Time', 'Amount']
+                    disp_s = [c for c in s_cols if c in lan_stock.columns]
+                    st.dataframe(lan_stock[disp_s], use_container_width=True)
                 with col_r:
                     st.write("💰 Payment Records")
-                    st.dataframe(lan_pays[['Date', 'Amount', 'Note']], use_container_width=True)
+                    p_cols = ['Date', 'Amount', 'Note']
+                    disp_p = [c for c in p_cols if c in lan_pays.columns]
+                    st.dataframe(lan_pays[disp_p], use_container_width=True)
     
     # --- TAB: DAILY INCOME REPORT (FIXED) ---
     with r_inc:
