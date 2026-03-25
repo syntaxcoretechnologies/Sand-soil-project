@@ -105,54 +105,49 @@ def create_pdf(title, data_df, summary_dict):
     total_exp = 0
     
     for _, row in data_df.iterrows():
-        # 1. දත්ත Safe විදිහට ගැනීම (.get පාවිච්චි කරමු)
+        # 1. දත්ත Safe විදිහට ගැනීම
         date_val = safe_text(str(row.get('Date', '-')))
-        
-        # Category හෝ Material දෙකෙන් තියෙන එක ගන්නවා
         category = row.get('Category', row.get('Material', 'N/A'))
         note_val = safe_text(str(row.get('Note', '')))[:30]
+        cat_str = str(category)
         
         # 2. PDF එකට මුල් දත්ත ටික පිරවීම
         pdf.cell(w[0], 7, date_val, 1)
-        pdf.cell(w[1], 7, safe_text(str(category)), 1)
+        pdf.cell(w[1], 7, safe_text(cat_str), 1)
         pdf.cell(w[2], 7, note_val, 1)
         
-        # 3. Qty ගණනය කිරීම (Safe method)
+        # 3. Qty ගණනය කිරීම
         w_hrs = row.get('Work_Hours', 0)
         q_cubes = row.get('Qty_Cubes', 0)
         qty = w_hrs if w_hrs > 0 else q_cubes
         pdf.cell(w[3], 7, f"{qty}" if qty > 0 else "-", 1, 0, 'C')
         
-        # 4. Rate සහ Amount ගැනීම (Safe method)
-        # මෙතන තමයි කලින් KeyError එක ආවේ
+        # 4. Rate සහ Amount ගැනීම
         rate = float(row.get('Rate_At_Time', 0.0))
         amt = float(row.get('Amount', 0.0))
-        
-        # 5. ආදායම/වියදම වෙන් කර පෙන්වීම
-        # මෙතනදී category එක string එකක් බවට සහතික කරගන්නවා
-        cat_str = str(category)
-        
+
+        # 5. ආදායම/වියදම තීරණය කිරීම සහ එකතු කිරීම
+        # --- වියදම් (Expenses) නම් ---
         if any(exp in cat_str for exp in ["Fuel", "Repair", "Advance", "Payroll", "Salary"]):
+            total_exp += amt
+            pdf.set_text_color(200, 0, 0) # රතු පාටින් පෙන්වීමට
             pdf.cell(w[4], 7, "EXPENSE", 1, 0, 'C')
             pdf.cell(w[5], 7, f"({amt:,.2f})", 1, 1, 'R')
-        else:
-            pdf.cell(w[4], 7, f"{rate:,.2f}" if rate > 0 else "-", 1, 0, 'R')
+            pdf.set_text_color(0, 0, 0) # ආපහු කළු පාටට හැරවීම
+            
+        # --- ආදායම් (Work Log, Hire ආදිය) නම් ---
+        elif any(inc in cat_str for inc in ["Work Log", "Hire", "Process"]):
+            total_earn += amt
+            pdf.cell(w[4], 7, f"{rate:,.2f}", 1, 0, 'R')
             pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 1, 'R')
             
-        # 2. වාහනයේ සැබෑ වියදම් (Expenses) - Fuel, Repair, Payroll, Advance
-        elif any(exp in category for exp in ["Fuel", "Repair", "Advance", "Payroll", "Salary"]):
-            total_exp += amt
-            pdf.set_text_color(200, 0, 0) # වියදම් රතු පාටින්
-            pdf.cell(w[5], 7, f"({amt:,.2f})", 1, 0, 'R')
-            pdf.set_text_color(0, 0, 0)
-            
-        # 3. අනෙකුත් දේවල් (Sales Out වැනි දෑ) - Table එකේ පෙන්වයි, නමුත් එකතුවට නොගනී
+        # --- වෙනත් ඕනෑම දෙයක් ---
         else:
-            pdf.set_text_color(100, 100, 100) # ලා අළු පාටින්
-            pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 0, 'R')
-            pdf.set_text_color(0, 0, 0)
-            
-        pdf.ln()
+            pdf.cell(w[4], 7, f"{rate:,.2f}", 1, 0, 'R')
+            pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 1, 'R')
+
+    # Loop එක අවසානයේ මේකත් තියෙනවාද බලන්න
+    # pdf.ln(5)
     
     # --- අවසාන එකතුව (Final Totals) ---
     pdf.ln(2)
