@@ -107,7 +107,7 @@ def create_pdf(title, data_df, summary_dict):
     for _, row in data_df.iterrows():
         # 1. දත්ත Safe විදිහට ගැනීම
         date_val = safe_text(str(row.get('Date', '-')))
-        category = row.get('Category', row.get('Material', 'N/A'))
+        category = row.get('Category', row.get('Material', row.get('Landowner', 'N/A')))
         note_val = safe_text(str(row.get('Note', '')))[:30]
         cat_str = str(category)
         
