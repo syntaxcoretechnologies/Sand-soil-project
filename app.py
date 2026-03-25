@@ -790,30 +790,26 @@ elif menu == "📑 Reports Center":
                 st.info(f"No transactions found for {selected_landowner}.")
     # --- TAB 2: DRIVER SUMMARY ---
     with r2:
-    # 1. Driver list එක ගන්නවා
-    dr_list = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else []
-    sel_dr = st.selectbox("Select Driver", dr_list)
-    
-    if sel_dr:
-        # 2. Driver ව filter කරනවා (Note එකේ නම තියෙන ඒවා)
-        dr_rep = df_f[df_f["Note"].fillna("").astype(str).str.contains(sel_dr, case=False)].copy()
+        # මෙතන ඉඳන් පල්ලෙහා පේළි ටික අනිවාර්යයෙන්ම Tab එකක් හෝ Space 4ක් දකුණට තියෙන්න ඕනේ
+        dr_list = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else []
+        sel_dr = st.selectbox("Select Driver", dr_list)
         
-        # 3. Amount එක numeric වලට හරවලා Metric එක පෙන්වනවා
-        total_amt = pd.to_numeric(dr_rep['Amount'].astype(str).str.replace(',', ''), errors='coerce').sum()
-        st.metric(f"Total Paid to {sel_dr}", f"Rs. {total_amt:,.2f}")
-        
-        # 4. පෙන්විය යුතු Columns (Error එක එන තැන)
-        # මෙතන 'Vehicle' වෙනුවට ඔයාගේ DataFrame එකේ තියෙන නම (උදා: 'Entity') දාන්න.
-        # දැනට මම මේක safe විදිහට හදලා තියෙනවා:
-        desired_cols = ['Date', 'Category', 'Note', 'Amount']
-        
-        # ඇත්තටම DataFrame එකේ තියෙන Columns විතරක් තෝරාගන්නවා
-        existing_cols = [c for c in desired_cols if c in dr_rep.columns]
-        
-        if not dr_rep.empty:
-            st.dataframe(dr_rep[existing_cols], use_container_width=True)
-        else:
-            st.info(f"No payment records found for {sel_dr} in Note column.")
+        if sel_dr:
+            # Driver filter කරන කොටස
+            dr_rep = df_f[df_f["Note"].fillna("").astype(str).str.contains(sel_dr, case=False)].copy()
+            
+            # Amount එක numeric කරලා sum එක ගන්නවා
+            total_paid = pd.to_numeric(dr_rep['Amount'].astype(str).str.replace(',', ''), errors='coerce').sum()
+            st.metric(f"Total Paid to {sel_dr}", f"Rs. {total_paid:,.2f}")
+            
+            # DataFrame එක පෙන්වන කොටස (KeyError නොවෙන්න safe විදිහට)
+            cols_to_show = ['Date', 'Category', 'Note', 'Amount']
+            existing_cols = [c for c in cols_to_show if c in dr_rep.columns]
+            
+            if not dr_rep.empty:
+                st.dataframe(dr_rep[existing_cols], use_container_width=True)
+            else:
+                st.info(f"No records found for {sel_dr}")
 
     # --- TAB 3: DAILY LOG ---
     with r3:
