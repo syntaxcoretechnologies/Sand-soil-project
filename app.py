@@ -157,20 +157,20 @@ def create_pdf(title, data_df, summary_dict):
         amt = float(row.get('Amount', 0.0))
 
         # --- මෙන්න මේ කොටස තමයි ඔයා ඇහුවේ (Align එක බලන්න) ---
+   # 1. මුලින්ම IF
         if "Work Log" in category or "Hire" in category or row_type == "Process":
-            # සාමාන්‍ය විකුණුම් හෝ වැඩ වාර්තා
             pdf.cell(w[4], 7, f"{rate:,.2f}", 1, 0, 'R')
             pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 1, 'R')
             
+        # 2. දෙවැනුව ELIF (මේක ELSE එකට උඩින් තියෙන්න ඕනේ)
         elif any(exp in category for exp in ["Fuel", "Repair", "Advance", "Payroll", "Salary"]):
-            # වියදම් වර්ග (Expenses)
             pdf.cell(w[4], 7, "EXPENSE", 1, 0, 'C')
             pdf.cell(w[5], 7, f"({amt:,.2f})", 1, 1, 'R')
             
+        # 3. අන්තිමටම ELSE (මේක තමයි අවසාන පියවර)
         else:
-            # වෙනත් ඕනෑම දෙයක් (Default)
             pdf.cell(w[4], 7, f"{rate:,.2f}", 1, 0, 'R')
-            pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 1, 'R')
+            pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 1, 'R')     
             
         # 2. වාහනයේ සැබෑ වියදම් (Expenses) - Fuel, Repair, Payroll, Advance
         elif any(exp in category for exp in ["Fuel", "Repair", "Advance", "Payroll", "Salary"]):
