@@ -173,6 +173,74 @@ def create_pdf(title, data_df, summary_dict):
     fn = f"Statement_{datetime.now().strftime('%H%M%S')}.pdf"
     pdf.output(fn)
     return fn
+
+def create_driver_pdf(title, data_df, summary_dict):
+    pdf = PDF()
+    pdf.add_page()
+    
+    def safe_text(text):
+        if text is None or str(text) == "nan": return ""
+        return str(text).encode("latin-1", "ignore").decode("latin-1")
+
+    # Title
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_fill_color(240, 240, 240)
+    pdf.cell(0, 10, safe_text(f"DRIVER STATEMENT: {title.upper()}"), 1, 1, 'L', fill=True)
+    pdf.ln(2)
+    
+    # Summary Section
+    pdf.set_font("Arial", 'B', 10)
+    for k, v in summary_dict.items():
+        pdf.cell(50, 8, safe_text(k) + ":", 1)
+        pdf.set_font("Arial", '', 10)
+        pdf.cell(0, 8, " " + safe_text(v), 1, 1)
+        pdf.set_font("Arial", 'B', 10)
+
+    # Table Header
+    pdf.ln(8)
+    pdf.set_font("Arial", 'B', 9)
+    headers = ["Date", "Category", "Description", "Amount (LKR)"]
+    w = [30, 45, 75, 40]
+    pdf.set_fill_color(220, 220, 220)
+    for i, h in enumerate(headers):
+        pdf.cell(w[i], 8, safe_text(h), 1, 0, 'C', fill=True)
+    pdf.ln()
+    
+    pdf.set_font("Arial", '', 9)
+    total_paid_to_driver = 0
+    
+    for _, row in data_df.iterrows():
+        cat_str = str(row.get('Category', ''))
+        
+        # --- Machan meken thamai Salary saha Advance witharak filter karanne ---
+        if any(word in cat_str for word in ["Salary", "Advance", "Payroll", "D.Advance"]):
+            date_val = safe_text(str(row.get('Date', '-')))
+            note_val = safe_text(str(row.get('Note', '')))[:45]
+            
+            # Amount eka ganna widiha
+            val = row.get('Amount', 0)
+            if isinstance(val, str): val = val.replace(',', '').replace('Rs.', '').strip()
+            amt = float(val) if val else 0.0
+            
+            total_paid_to_driver += amt
+
+            # Row eka print kirima
+            pdf.cell(w[0], 7, date_val, 1)
+            pdf.cell(w[1], 7, safe_text(cat_str), 1)
+            pdf.cell(w[2], 7, note_val, 1)
+            pdf.cell(w[3], 7, f"{amt:,.2f}", 1, 1, 'R')
+
+    # Final Total
+    pdf.ln(2)
+    pdf.set_font("Arial", 'B', 10)
+    pdf.set_fill_color(230, 126, 34); pdf.set_text_color(255, 255, 255)
+    pdf.cell(sum(w[:3]), 10, "TOTAL PAID TO DRIVER (LKR)", 1, 0, 'R', fill=True)
+    pdf.cell(w[3], 10, f"{total_paid_to_driver:,.2f}", 1, 1, 'R', fill=True)
+    
+    fn = f"Driver_Settlement_{datetime.now().strftime('%H%M%S')}.pdf"
+    pdf.output(fn)
+    return fn
+    
 # --- Landowner PDF Engine (මේක අලුතින්ම දාන කොටස) ---
 def create_landowner_pdf(title, data_df, summary_dict):
     pdf = PDF() # මෙතන PDF කියන්නේ ඔයා උඩින්ම හදපු class එක
