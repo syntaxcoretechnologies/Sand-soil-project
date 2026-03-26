@@ -74,13 +74,13 @@ def create_pdf(title, data_df, summary_dict):
         if text is None or str(text) == "nan": return ""
         return str(text).encode("latin-1", "ignore").decode("latin-1")
 
-    # Statement Title
+    # Title Section
     pdf.set_font("Arial", 'B', 12)
     pdf.set_fill_color(240, 240, 240)
     pdf.cell(0, 10, safe_text(f"STATEMENT: {title.upper()}"), 1, 1, 'L', fill=True)
     pdf.ln(2)
     
-    # --- Summary Section ---
+    # Summary Section
     pdf.set_font("Arial", 'B', 10)
     for k, v in summary_dict.items():
         if k != "Rate_Breakdown":
@@ -89,7 +89,7 @@ def create_pdf(title, data_df, summary_dict):
             pdf.cell(0, 8, " " + safe_text(v), 1, 1)
             pdf.set_font("Arial", 'B', 10)
 
-    # --- Table Header ---
+    # Table Header
     pdf.ln(8)
     pdf.set_font("Arial", 'B', 9)
     headers = ["Date", "Category", "Description", "Qty/Hr", "Rate", "Amount"]
@@ -99,58 +99,58 @@ def create_pdf(title, data_df, summary_dict):
         pdf.cell(w[i], 8, safe_text(h), 1, 0, 'C', fill=True)
     pdf.ln()
     
-    # --- Data Rows ---
     pdf.set_font("Arial", '', 8)
     total_earn = 0
     total_exp = 0
     
     for _, row in data_df.iterrows():
-        # 1. දත්ත ගැනීම
         date_val = safe_text(str(row.get('Date', '-')))
         category = row.get('Category', row.get('Material', row.get('Landowner', 'N/A')))
         note_val = safe_text(str(row.get('Note', '')))[:30]
         cat_str = str(category)
         
-        # 2. Basic Info පිරවීම
+        def clean_val(v):
+            try:
+                if v is None or str(v).lower() == 'nan' or str(v).strip() == '': return 0.0
+                if isinstance(v, str): 
+                    v = v.replace(',', '').replace('Rs.', '').replace('LKR', '').strip()
+                return float(v)
+            except: return 0.0
+
+        # --- මෙන්න මෙතන තමයි වැදගත්ම වෙනස ---
+        # Qty සඳහා: Qty_Cubes, Qty, හෝ Work_Hours යන ඕනෑම එකක් බලනවා
+        q_cubes = clean_val(row.get('Qty_Cubes', 0))
+        q_general = clean_val(row.get('Qty', 0))
+        w_hrs = clean_val(row.get('Work_Hours', 0))
+        qty = q_cubes if q_cubes > 0 else (q_general if q_general > 0 else w_hrs)
+        
+        # Rate සඳහා: Rate_At_Time හෝ Rate බලනවා
+        rate = clean_val(row.get('Rate_At_Time', row.get('Rate', 0)))
+        
+        # Amount සඳහා: Amount හෝ Total_Amount බලනවා
+        amt = clean_val(row.get('Amount', row.get('Total_Amount', 0)))
+
+        # දත්ත පේළිය පිරවීම
         pdf.cell(w[0], 7, date_val, 1)
         pdf.cell(w[1], 7, safe_text(cat_str), 1)
         pdf.cell(w[2], 7, note_val, 1)
         
-        # 3. Value Cleaning Function
-        def clean_val(v):
-            try:
-                if isinstance(v, str): v = v.replace(',', '').replace('Rs.', '').strip()
-                return float(v) if v and str(v) != 'nan' else 0.0
-            except: return 0.0
-
-        # 4. Qty සහ Rate හඳුනා ගැනීම (Sales සහ අනිත් වාර්තා සඳහා)
-        # Sales Out වලදී කියුබ් ගණන (Qty_Cubes) තමයි Qty එක වෙන්නේ
-        q_cubes = clean_val(row.get('Qty_Cubes', 0))
-        w_hrs = clean_val(row.get('Work_Hours', 0))
-        qty = q_cubes if q_cubes > 0 else w_hrs
-        
-        # Rate එක 'Rate_At_Time' හෝ 'Rate' ලෙස තිබිය හැක
-        rate = clean_val(row.get('Rate_At_Time', row.get('Rate', 0)))
-        amt = clean_val(row.get('Amount', 0))
-
+        # Qty එක පෙන්වීම
         pdf.cell(w[3], 7, f"{qty:,.2f}" if qty > 0 else "-", 1, 0, 'C')
         
-        # 5. ආදායම/වියදම තීරණය කිරීම
-        # --- වියදම් (Expenses) ---
+        # වියදම් සහ ආදායම් වෙන් කිරීම
         if any(exp in cat_str for exp in ["Fuel", "Repair", "Advance", "Payroll", "Salary", "Expense"]):
             total_exp += amt
             pdf.set_text_color(200, 0, 0)
             pdf.cell(w[4], 7, "EXPENSE", 1, 0, 'C')
             pdf.cell(w[5], 7, f"({amt:,.2f})", 1, 1, 'R')
             pdf.set_text_color(0, 0, 0)
-            
-        # --- ආදායම් (Sales, Inward, Hire, Work Log ආදිය) ---
         else:
             total_earn += amt
             pdf.cell(w[4], 7, f"{rate:,.2f}" if rate > 0 else "-", 1, 0, 'R')
             pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 1, 'R')
 
-    # --- Totals ---
+    # Final Totals
     pdf.ln(2)
     pdf.set_font("Arial", 'B', 9)
     pdf.cell(sum(w[:5]), 8, "GROSS EARNINGS (LKR)", 1, 0, 'R')
