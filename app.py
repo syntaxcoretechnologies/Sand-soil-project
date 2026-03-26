@@ -105,7 +105,7 @@ def create_pdf(title, data_df, summary_dict):
     total_exp = 0
     
     for _, row in data_df.iterrows():
-        # 1. දත්ත Safe විදිහට ගැනීම
+        # 1. දත්ත ගැනීම
         date_val = safe_text(str(row.get('Date', '-')))
         category = row.get('Category', row.get('Material', row.get('Landowner', 'N/A')))
         note_val = safe_text(str(row.get('Note', '')))[:30]
@@ -116,24 +116,25 @@ def create_pdf(title, data_df, summary_dict):
         pdf.cell(w[1], 7, safe_text(cat_str), 1)
         pdf.cell(w[2], 7, note_val, 1)
         
-        # 3. Qty ගණනය කිරීම (Qty_Cubes හෝ Work_Hours)
-        # මෙතනදී Cubes සහ Hours දෙකම check කරනවා
-        q_cubes = pd.to_numeric(row.get('Qty_Cubes', 0), errors='coerce')
-        w_hrs = pd.to_numeric(row.get('Work_Hours', 0), errors='coerce')
-        qty = q_cubes if not pd.isna(q_cubes) and q_cubes > 0 else (w_hrs if not pd.isna(w_hrs) else 0)
-        
-        pdf.cell(w[3], 7, f"{qty:,.2f}" if qty > 0 else "-", 1, 0, 'C')
-        
-        # 4. Rate සහ Amount පිරිසිදු කර ගැනීම (Commas අයින් කරලා float කරනවා)
+        # 3. Value Cleaning Function
         def clean_val(v):
             try:
                 if isinstance(v, str): v = v.replace(',', '').replace('Rs.', '').strip()
                 return float(v) if v and str(v) != 'nan' else 0.0
             except: return 0.0
 
-        rate = clean_val(row.get('Rate_At_Time', 0))
+        # 4. Qty සහ Rate හඳුනා ගැනීම (Sales සහ අනිත් වාර්තා සඳහා)
+        # Sales Out වලදී කියුබ් ගණන (Qty_Cubes) තමයි Qty එක වෙන්නේ
+        q_cubes = clean_val(row.get('Qty_Cubes', 0))
+        w_hrs = clean_val(row.get('Work_Hours', 0))
+        qty = q_cubes if q_cubes > 0 else w_hrs
+        
+        # Rate එක 'Rate_At_Time' හෝ 'Rate' ලෙස තිබිය හැක
+        rate = clean_val(row.get('Rate_At_Time', row.get('Rate', 0)))
         amt = clean_val(row.get('Amount', 0))
 
+        pdf.cell(w[3], 7, f"{qty:,.2f}" if qty > 0 else "-", 1, 0, 'C')
+        
         # 5. ආදායම/වියදම තීරණය කිරීම
         # --- වියදම් (Expenses) ---
         if any(exp in cat_str for exp in ["Fuel", "Repair", "Advance", "Payroll", "Salary", "Expense"]):
@@ -143,23 +144,15 @@ def create_pdf(title, data_df, summary_dict):
             pdf.cell(w[5], 7, f"({amt:,.2f})", 1, 1, 'R')
             pdf.set_text_color(0, 0, 0)
             
-        # --- ආදායම් (Sales, Stock In, Work Log ආදිය) ---
-        # මෙතනට Sales, Inward, Stock වැනි පද එකතු කළා
-        elif any(inc in cat_str for inc in ["Work Log", "Hire", "Process", "Sales", "Inward", "Stock"]):
-            total_earn += amt
-            pdf.cell(w[4], 7, f"{rate:,.2f}", 1, 0, 'R')
-            pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 1, 'R')
-            
-        # --- වෙනත් ---
+        # --- ආදායම් (Sales, Inward, Hire, Work Log ආදිය) ---
         else:
-            total_earn += amt # default එකත් income එකක් විදිහට ගන්නවා
-            pdf.cell(w[4], 7, f"{rate:,.2f}", 1, 0, 'R')
+            total_earn += amt
+            pdf.cell(w[4], 7, f"{rate:,.2f}" if rate > 0 else "-", 1, 0, 'R')
             pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 1, 'R')
 
-    # --- Final Totals ---
+    # --- Totals ---
     pdf.ln(2)
     pdf.set_font("Arial", 'B', 9)
-    
     pdf.cell(sum(w[:5]), 8, "GROSS EARNINGS (LKR)", 1, 0, 'R')
     pdf.cell(w[5], 8, f"{total_earn:,.2f}", 1, 1, 'R')
     
@@ -170,10 +163,9 @@ def create_pdf(title, data_df, summary_dict):
     pdf.cell(sum(w[:5]), 10, "NET SETTLEMENT BALANCE (LKR)", 1, 0, 'R', fill=True)
     pdf.cell(w[5], 10, f"{(total_earn - total_exp):,.2f}", 1, 1, 'R', fill=True)
     
-    fn = f"Settlement_{datetime.now().strftime('%H%M%S')}.pdf"
+    fn = f"Statement_{datetime.now().strftime('%H%M%S')}.pdf"
     pdf.output(fn)
     return fn
-
 # --- Landowner PDF Engine (මේක අලුතින්ම දාන කොටස) ---
 def create_landowner_pdf(title, data_df, summary_dict):
     pdf = PDF() # මෙතන PDF කියන්නේ ඔයා උඩින්ම හදපු class එක
