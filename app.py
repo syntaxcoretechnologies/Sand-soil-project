@@ -763,7 +763,7 @@ elif menu == "📑 Reports Center":
                     if st.button("📥 Download Settlement PDF"):
                         summary_data = {
                             "Vehicle/Machine": selected_ve,
-                            "Type": "Excavator (Own)" if is_excavator else "Lorry (Rented)",
+                            "Type": "Excavator (Own)" if is_excavator else "None",
                             "Gross Earnings": f"Rs. {gross_earning:,.2f}",
                             "Total Expenses": f"Rs. {total_exp:,.2f}",
                             "Net Balance": f"Rs. {net_balance:,.2f}",
