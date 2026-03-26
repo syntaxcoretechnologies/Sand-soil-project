@@ -877,26 +877,44 @@ elif menu == "📑 Reports Center":
                         
     # --- TAB 2: DRIVER SUMMARY ---
     with r2:
-        # මෙතන ඉඳන් පල්ලෙහා පේළි ටික අනිවාර්යයෙන්ම Tab එකක් හෝ Space 4ක් දකුණට තියෙන්න ඕනේ
-        dr_list = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else []
-        sel_dr = st.selectbox("Select Driver", dr_list)
+    dr_list = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else []
+    sel_dr = st.selectbox("Select Driver", dr_list)
+    
+    if sel_dr:
+        # 1. මුලින්ම නම අනුව filter කරනවා
+        dr_rep = df_f[df_f["Note"].fillna("").astype(str).str.contains(sel_dr, case=False)].copy()
         
-        if sel_dr:
-            # Driver filter කරන කොටස
-            dr_rep = df_f[df_f["Note"].fillna("").astype(str).str.contains(sel_dr, case=False)].copy()
+        # 2. වැදගත්ම කෑල්ල: දැන් ඒ filter කරපු එක ඇතුළෙන් Salary සහ Advance විතරක් ඉතුරු කරගන්නවා
+        # Stock Inward, Sales Out වගේ දේවල් මෙතනින් filter වෙලා අයින් වෙනවා
+        if not dr_rep.empty:
+            dr_rep = dr_rep[dr_rep['Category'].str.contains('Salary|Advance|Payroll|D.Advance', case=False, na=False)]
+        
+        # Amount එක numeric කරලා sum එක ගන්නවා
+        # (මෙතන දැන් එකතු වෙන්නේ Salary සහ Advance වල එකතුව විතරයි)
+        dr_rep['Clean_Amount'] = pd.to_numeric(dr_rep['Amount'].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
+        total_paid = dr_rep['Clean_Amount'].sum()
+        
+        st.metric(f"Total Paid to {sel_dr} (Settlement)", f"Rs. {total_paid:,.2f}")
+        
+        # පෙන්වන Columns ටික
+        cols_to_show = ['Date', 'Category', 'Note', 'Amount']
+        existing_cols = [c for c in cols_to_show if c in dr_rep.columns]
+        
+        if not dr_rep.empty:
+            st.dataframe(dr_rep[existing_cols], use_container_width=True)
             
-            # Amount එක numeric කරලා sum එක ගන්නවා
-            total_paid = pd.to_numeric(dr_rep['Amount'].astype(str).str.replace(',', ''), errors='coerce').sum()
-            st.metric(f"Total Paid to {sel_dr}", f"Rs. {total_paid:,.2f}")
-            
-            # DataFrame එක පෙන්වන කොටස (KeyError නොවෙන්න safe විදිහට)
-            cols_to_show = ['Date', 'Category', 'Note', 'Amount']
-            existing_cols = [c for c in cols_to_show if c in dr_rep.columns]
-            
-            if not dr_rep.empty:
-                st.dataframe(dr_rep[existing_cols], use_container_width=True)
-            else:
-                st.info(f"No records found for {sel_dr}")
+            # PDF එක හදන බටන් එක (අර මම කලින් දීපු create_driver_pdf එක මෙතනදී call කරන්න)
+            if st.button("📄 Download Driver Settlement PDF"):
+                summary_data = {
+                    "Driver Name": sel_dr,
+                    "Total Paid": f"Rs. {total_paid:,.2f}",
+                    "Status": "Salary & Advance Only"
+                }
+                pdf_fn = create_driver_pdf(f"Settlement_{sel_dr}", dr_rep, summary_data)
+                with open(pdf_fn, "rb") as f:
+                    st.download_button("⬇️ Click to Download", f, file_name=pdf_fn)
+        else:
+            st.info(f"No Salary or Advance records found for {sel_dr}")
 
     # --- TAB 3: DAILY LOG ---
     with r3:
