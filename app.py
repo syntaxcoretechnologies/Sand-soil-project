@@ -877,42 +877,43 @@ elif menu == "📑 Reports Center":
                         
     # --- TAB 2: DRIVER SUMMARY ---
     with r2:
-    # මෙතන ඉඳන් පල්ලෙහා පේළි ටික අනිවාර්යයෙන්ම එකම මට්ටමට දකුණට තල්ලු වෙලා තියෙන්න ඕනේ
-    dr_list = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else []
-    sel_dr = st.selectbox("Select Driver", dr_list)
-    
-    if sel_dr:
-        # නම අනුව filter කිරීම
-        dr_rep = df_f[df_f["Note"].fillna("").astype(str).str.contains(sel_dr, case=False)].copy()
-        
-        # Category එක අනුව Salary/Advance විතරක් ඉතිරි කරගැනීම
-        if not dr_rep.empty:
-            dr_rep = dr_rep[dr_rep['Category'].str.contains('Salary|Advance|Payroll|D.Advance', case=False, na=False)]
-        
-        # Amount එක එකතු කිරීම
-        dr_rep['Clean_Amount'] = pd.to_numeric(dr_rep['Amount'].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
-        total_paid = dr_rep['Clean_Amount'].sum()
-        
-        st.metric(f"Total Paid to {sel_dr}", f"Rs. {total_paid:,.2f}")
-        
-        cols_to_show = ['Date', 'Category', 'Note', 'Amount']
-        existing_cols = [c for c in cols_to_show if c in dr_rep.columns]
-        
-        if not dr_rep.empty:
-            st.dataframe(dr_rep[existing_cols], use_container_width=True)
+            # මේ පේළියේ ඉඳන් පල්ලෙහාට හැම පේළියක්ම එකම මට්ටමට ඉන්ඩෙන්ට් වෙන්න ඕනේ
+            dr_list = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else []
+            sel_dr = st.selectbox("Select Driver", dr_list)
             
-            # PDF බටන් එක
-            if st.button("📄 Download Driver Settlement PDF"):
-                summary_data = {
-                    "Driver Name": sel_dr,
-                    "Total Paid": f"Rs. {total_paid:,.2f}",
-                    "Status": "Salary & Advance Only"
-                }
-                pdf_fn = create_driver_pdf(f"Settlement_{sel_dr}", dr_rep, summary_data)
-                with open(pdf_fn, "rb") as f:
-                    st.download_button("⬇️ Click to Download", f, file_name=pdf_fn)
-        else:
-            st.info(f"No Salary or Advance records found for {sel_dr}")
+            if sel_dr:
+                # Driver filter කරන කොටස (නම අනුව)
+                dr_rep = df_f[df_f["Note"].fillna("").astype(str).str.contains(sel_dr, case=False)].copy()
+                
+                # වැදගත්ම දේ: Category එකෙන් Salary සහ Advance විතරක් ඉතිරි කර ගැනීම
+                if not dr_rep.empty:
+                    dr_rep = dr_rep[dr_rep['Category'].str.contains('Salary|Advance|Payroll|D.Advance', case=False, na=False)]
+                
+                # Amount එක numeric කරලා sum එක ගැනීම
+                dr_rep['Clean_Amount'] = pd.to_numeric(dr_rep['Amount'].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
+                total_paid = dr_rep['Clean_Amount'].sum()
+                
+                st.metric(f"Total Paid to {sel_dr}", f"Rs. {total_paid:,.2f}")
+                
+                # DataFrame එක පෙන්වීම
+                cols_to_show = ['Date', 'Category', 'Note', 'Amount']
+                existing_cols = [c for c in cols_to_show if c in dr_rep.columns]
+                
+                if not dr_rep.empty:
+                    st.dataframe(dr_rep[existing_cols], use_container_width=True)
+                    
+                    # PDF Report එක හදන බටන් එක
+                    if st.button("📄 Download Driver Settlement PDF"):
+                        summary_data = {
+                            "Driver Name": sel_dr,
+                            "Total Paid": f"Rs. {total_paid:,.2f}",
+                            "Description": "Salary & Advance Only"
+                        }
+                        pdf_fn = create_driver_pdf(f"Settlement_{sel_dr}", dr_rep, summary_data)
+                        with open(pdf_fn, "rb") as f:
+                            st.download_button("⬇️ Click to Download PDF", f, file_name=pdf_fn)
+                else:
+                    st.info(f"No Salary or Advance records found for {sel_dr}")
 
     # --- TAB 3: DAILY LOG ---
     with r3:
