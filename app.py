@@ -31,6 +31,9 @@ def save_all():
     st.session_state.ve_db.to_csv(VE_FILE, index=False)
     st.session_state.dr_db.to_csv(DR_FILE, index=False)
     
+    if 'staff_db' in st.session_state:
+        st.session_state.staff_db.to_csv("staff.csv", index=False)
+    
     # --- අලුත් Landowners සේව් කිරීම ---
     if 'landowners' in st.session_state and st.session_state.landowners:
         pd.DataFrame(st.session_state.landowners).to_csv(LANDOWNER_FILE, index=False)
@@ -46,6 +49,11 @@ if 've_db' not in st.session_state:
 
 if 'dr_db' not in st.session_state:
     st.session_state.dr_db = load_data(DR_FILE, ["Name", "Phone", "Daily_Salary"])
+
+# --- මෙන්න මේ ටික අලුතින් දාන්න ---
+if 'staff_db' not in st.session_state:
+    # staff.csv කියන ෆයිල් එක නැත්නම් අලුත් එකක් හදාගන්නවා
+    st.session_state.staff_db = load_data("staff.csv", ["Name", "Position", "Daily_Rate"])
 
 # --- Landowners දත්ත නිවැරදිව ලෝඩ් කිරීම ---
 if 'landowners' not in st.session_state:
@@ -328,7 +336,7 @@ st.set_page_config(page_title=SHOP_NAME, layout="wide")
 st.sidebar.title("🏗️ KSD ERP v5.6")
 
 # මේ පේළිය පිටුවේ වම් කෙළවරේ සිටම පටන් ගන්න (No spaces)
-menu = st.sidebar.selectbox("MAIN MENU", ["📊 Dashboard", "🏗️ Site Operations","👤 Manage Landowners", "💰 Finance & Shed", "⚙️ System Setup", "📑 Reports Center", "⚙️ Data Manager"])
+menu = st.sidebar.selectbox("MAIN MENU", ["📊 Dashboard", "🏗️ Site Operations","👤 Manage Landowners","👷 Staff Payroll","💰 Finance & Shed", "⚙️ System Setup", "📑 Reports Center", "⚙️ Data Manager"])
 
 
 # --- 1. DASHBOARD SECTION (සම්පූර්ණ එකම මෙතන තියෙනවා) ---
@@ -1059,6 +1067,49 @@ elif menu == "👤 Manage Landowners":
         st.dataframe(owner_df, use_container_width=True)
     else:
         st.info("No landowners registered yet.")
+        
+# --- 12. staff payroll (මේ කොටස අලුතින් ඇතුළත් කරන්න) ---
+elif fin == "👷 Staff Payroll":
+        st.subheader("Staff Salary & Advance Management")
+        
+        # සේවකයන්ගේ නම් ටික ලිස්ට් එකකට ගන්නවා
+        s_names = st.session_state.staff_db["Name"].tolist() if not st.session_state.staff_db.empty else []
+        
+        if not s_names:
+            st.warning("Please register staff members first in the Staff Database section.")
+        else:
+            with st.form("staff_pay", clear_on_submit=True):
+                col1, col2 = st.columns(2)
+                with col1:
+                    member = st.selectbox("Select Staff Member", s_names)
+                    pay_date = st.date_input("Date", datetime.now().date())
+                    days = st.number_input("Work Days", min_value=0, step=1)
+                with col2:
+                    pay_type = st.selectbox("Payment Type", ["Salary", "Advance", "Food/Other"])
+                    amount = st.number_input("Amount (LKR)", min_value=0.0)
+                
+                note = st.text_input("Additional Note")
+                
+                if st.form_submit_button("Save Staff Payment"):
+                    # Main Database එකට දත්ත එකතු කිරීම
+                    new_staff_data = {
+                        "ID": len(st.session_state.df) + 1, 
+                        "Date": pay_date, 
+                        "Time": datetime.now().strftime("%H:%M:%S"), 
+                        "Type": "Expense",
+                        "Category": f"Staff {pay_type}", 
+                        "Entity": "Plant General", 
+                        "Note": f"{member} | Days: {days} | {note}", 
+                        "Amount": amount,
+                        "Qty_Cubes": 0, "Fuel_Ltr": 0, 
+                        "Hours": days, # වැඩ කරපු දවස් ගණන මෙතනට දාමු
+                        "Rate_At_Time": 0, 
+                        "Status": "Paid"
+                    }
+                    st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_staff_data])], ignore_index=True)
+                    save_all()
+                    st.success(f"Payment saved for {member}")
+                    st.rerun()
 
 
 # --- 11. DATA MANAGER (EDIT / DELETE) ---
