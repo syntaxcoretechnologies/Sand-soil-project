@@ -102,7 +102,7 @@ def create_pdf(title, data_df, summary_dict):
     pdf.set_font("Arial", '', 8)
     total_earn = 0
     total_exp = 0
-    total_qty_hrs = 0  # <--- පැය ගණන එකතු කරන්න variable එකක් ගත්තා
+    total_qty_hrs = 0 
     
     for _, row in data_df.iterrows():
         def clean_val(v):
@@ -113,25 +113,19 @@ def create_pdf(title, data_df, summary_dict):
                 return float(v_str) if v_str else 0.0
             except: return 0.0
 
-        # 1. Qty ganna widiha
         q_cubes = clean_val(row.get('Qty_Cubes', 0))
         q_qty = clean_val(row.get('Qty', 0))
         w_hrs = clean_val(row.get('Work_Hours', 0))
         qty = q_cubes if q_cubes > 0 else (q_qty if q_qty > 0 else w_hrs)
         
-        # පැය ගණන මුළු එකතුවට එකතු කරනවා
         total_qty_hrs += qty
         
-        # 2. Rate ganna widiha
         rate = clean_val(row.get('Rate_At_Time', row.get('Rate', 0)))
-        
-        # 3. Amount ganna widiha
         amt = clean_val(row.get('Amount', row.get('Total_Amount', row.get('Total', 0))))
         
         if amt == 0 and qty > 0 and rate > 0:
             amt = qty * rate
 
-        # PDF Table eka purawima
         date_val = safe_text(str(row.get('Date', '-')))
         category = row.get('Category', row.get('Material', row.get('Landowner', 'N/A')))
         note_val = safe_text(str(row.get('Note', '')))[:30]
@@ -155,29 +149,28 @@ def create_pdf(title, data_df, summary_dict):
 
     # Final Totals Section
     pdf.ln(2)
+    
+    # පේජ් එකේ ඉඩ තියෙනවද බලනවා, නැත්නම් අලුත් පේජ් එකකට යනවා
+    if pdf.get_y() > 250:
+        pdf.add_page()
+
     pdf.set_font("Arial", 'B', 9)
     
-    # --- මෙන්න මේ කොටස තමයි පේන්නේ නැත්තේ ---
-    pdf.set_fill_color(245, 245, 245)
-    pdf.cell(sum(w[:3]), 8, "TOTAL QUANTITY / HOURS", 1, 0, 'R', fill=True)
-    pdf.cell(w[3], 8, f"{total_qty_hrs:,.2f}", 1, 0, 'C', fill=True)
-    pdf.cell(w[4] + w[5], 8, "", 1, 1, 'R', fill=True)
-
-    # 1. මේක තමයි ක්ලයන්ට් ඉල්ලපු පැය ගණනේ එකතුව
+    # 1. TOTAL QUANTITY / HOURS (එක් වරක් පමණක් ඇතුළත් කළා)
     pdf.set_fill_color(245, 245, 245)
     pdf.cell(sum(w[:3]), 8, "TOTAL QUANTITY / HOURS", 1, 0, 'R', fill=True)
     pdf.cell(w[3], 8, f"{total_qty_hrs:,.2f}", 1, 0, 'C', fill=True)
     pdf.cell(w[4] + w[5], 8, "", 1, 1, 'R', fill=True)
     
-    # Gross Earnings
+    # 2. Gross Earnings
     pdf.cell(sum(w[:5]), 8, "GROSS EARNINGS (LKR)", 1, 0, 'R')
     pdf.cell(w[5], 8, f"{total_earn:,.2f}", 1, 1, 'R')
     
-    # Total Expenses
+    # 3. Total Expenses
     pdf.cell(sum(w[:5]), 8, "TOTAL EXPENSES (LKR)", 1, 0, 'R')
     pdf.cell(w[5], 8, f"{total_exp:,.2f}", 1, 1, 'R')
     
-    # Net Balance
+    # 4. Net Balance
     pdf.set_fill_color(230, 126, 34); pdf.set_text_color(255, 255, 255)
     pdf.cell(sum(w[:5]), 10, "NET SETTLEMENT BALANCE (LKR)", 1, 0, 'R', fill=True)
     pdf.cell(w[5], 10, f"{(total_earn - total_exp):,.2f}", 1, 1, 'R', fill=True)
@@ -185,7 +178,7 @@ def create_pdf(title, data_df, summary_dict):
     fn = f"Statement_{datetime.now().strftime('%H%M%S')}.pdf"
     pdf.output(fn)
     return fn
-
+    
 def create_driver_pdf(title, data_df, summary_dict):
     pdf = PDF()
     pdf.add_page()
