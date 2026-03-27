@@ -587,16 +587,27 @@ elif menu == "💰 Finance & Shed":
                     save_all(); st.rerun()
         with f2:
             with st.form("shed_pay", clear_on_submit=True):
+                # මෙතනට අලුතින් Date එක ඇඩ් කළා
+                pay_date = st.date_input("Payment Date", datetime.now().date())
                 am, ref = st.number_input("Amount Paid"), st.text_input("Reference")
+                
                 if st.form_submit_button("Record Payment"):
                     new_data = {
-                        "ID": len(st.session_state.df) + 1, "Date": datetime.now().date(), "Time": "", "Type": "Expense",
-                        "Category": "Shed Payment", "Entity": "Shed", "Note": ref, "Amount": am,
+                        "ID": len(st.session_state.df) + 1, 
+                        "Date": pay_date, # අර උඩින් තෝරගත්ත pay_date එක මෙතනට වැටෙනවා
+                        "Time": datetime.now().strftime("%H:%M:%S"), 
+                        "Type": "Expense",
+                        "Category": "Shed Payment", 
+                        "Entity": "Shed", 
+                        "Note": ref, 
+                        "Amount": am,
                         "Qty_Cubes": 0, "Fuel_Ltr": 0, "Hours": 0, "Rate_At_Time": 0, "Status": "Paid"
                     }
                     st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_data])], ignore_index=True)
-                    save_all(); st.rerun()
-
+                    save_all()
+                    st.success(f"Payment of {am} recorded on {pay_date}")
+                    st.rerun()
+                    
     elif fin == "🔧 Repairs":
         with st.form("rep", clear_on_submit=True):
             d, v, am, nt = st.date_input("Date"), st.selectbox("Vehicle", v_list), st.number_input("Cost"), st.text_input("Detail")
