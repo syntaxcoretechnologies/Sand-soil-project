@@ -102,18 +102,13 @@ def create_pdf(title, data_df, summary_dict):
     pdf.set_font("Arial", '', 8)
     total_earn = 0
     total_exp = 0
+    total_qty_hrs = 0  # <--- පැය ගණන එකතු කරන්න variable එකක් ගත්තා
     
     for _, row in data_df.iterrows():
-        date_val = safe_text(str(row.get('Date', '-')))
-        category = row.get('Category', row.get('Material', row.get('Landowner', 'N/A')))
-        note_val = safe_text(str(row.get('Note', '')))[:30]
-        cat_str = str(category)
-        
         def clean_val(v):
             try:
                 if v is None or str(v).lower() == 'nan' or str(v).strip() == '': return 0.0
                 if isinstance(v, (int, float)): return float(v)
-                # Commas, Rs, LKR okkoma ain karanawa
                 v_str = str(v).replace(',', '').replace('Rs.', '').replace('LKR', '').replace(' ', '').strip()
                 return float(v_str) if v_str else 0.0
             except: return 0.0
@@ -124,24 +119,29 @@ def create_pdf(title, data_df, summary_dict):
         w_hrs = clean_val(row.get('Work_Hours', 0))
         qty = q_cubes if q_cubes > 0 else (q_qty if q_qty > 0 else w_hrs)
         
+        # පැය ගණන මුළු එකතුවට එකතු කරනවා
+        total_qty_hrs += qty
+        
         # 2. Rate ganna widiha
         rate = clean_val(row.get('Rate_At_Time', row.get('Rate', 0)))
         
-        # 3. Amount ganna widiha (Meeka thamai prashne)
-        # Me column names thunema balanawa koheda value eka thiyenne kiyala
+        # 3. Amount ganna widiha
         amt = clean_val(row.get('Amount', row.get('Total_Amount', row.get('Total', 0))))
         
-        # Samaharawita Qty * Rate karala amount eka ganna one nam (Hදිස්සියෙවත් amount eka 0 unoth)
         if amt == 0 and qty > 0 and rate > 0:
             amt = qty * rate
 
         # PDF Table eka purawima
+        date_val = safe_text(str(row.get('Date', '-')))
+        category = row.get('Category', row.get('Material', row.get('Landowner', 'N/A')))
+        note_val = safe_text(str(row.get('Note', '')))[:30]
+        cat_str = str(category)
+
         pdf.cell(w[0], 7, date_val, 1)
         pdf.cell(w[1], 7, safe_text(cat_str), 1)
         pdf.cell(w[2], 7, note_val, 1)
         pdf.cell(w[3], 7, f"{qty:,.2f}" if qty > 0 else "-", 1, 0, 'C')
         
-        # Expense da Income da kiyala balanawa
         if any(exp in cat_str for exp in ["Fuel", "Repair", "Advance", "Payroll", "Salary", "Expense"]):
             total_exp += amt
             pdf.set_text_color(200, 0, 0)
@@ -156,6 +156,12 @@ def create_pdf(title, data_df, summary_dict):
     # Final Totals Section
     pdf.ln(2)
     pdf.set_font("Arial", 'B', 9)
+    
+    # --- අලුතින් එක් කළ කොටස: TOTAL QUANTITY / HOURS ---
+    pdf.set_fill_color(245, 245, 245)
+    pdf.cell(sum(w[:3]), 8, "TOTAL QUANTITY / HOURS", 1, 0, 'R', fill=True)
+    pdf.cell(w[3], 8, f"{total_qty_hrs:,.2f}", 1, 0, 'C', fill=True)
+    pdf.cell(w[4] + w[5], 8, "", 1, 1, 'R', fill=True)
     
     # Gross Earnings
     pdf.cell(sum(w[:5]), 8, "GROSS EARNINGS (LKR)", 1, 0, 'R')
