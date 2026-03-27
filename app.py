@@ -1069,7 +1069,7 @@ elif menu == "👤 Manage Landowners":
         st.info("No landowners registered yet.")
         
 # --- 12. staff payroll (මේ කොටස අලුතින් ඇතුළත් කරන්න) ---
-elif fin == "👷 Staff Payroll":
+elif menu == "👷 Staff Payroll":
         st.subheader("Staff Salary & Advance Management")
         
         # සේවකයන්ගේ නම් ටික ලිස්ට් එකකට ගන්නවා
