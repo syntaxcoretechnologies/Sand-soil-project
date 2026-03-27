@@ -186,6 +186,73 @@ def create_pdf(title, data_df, summary_dict):
     fn = f"Statement_{datetime.now().strftime('%H%M%S')}.pdf"
     pdf.output(fn)
     return fn
+
+def create_staff_pdf(staff_name, data_df):
+    pdf = PDF()
+    pdf.add_page()
+    
+    def safe_text(text):
+        if text is None or str(text) == "nan": return ""
+        return str(text).encode("latin-1", "ignore").decode("latin-1")
+
+    # Header
+    pdf.set_font("Arial", 'B', 14)
+    pdf.cell(0, 10, f"STAFF SETTLEMENT: {staff_name.upper()}", 1, 1, 'C', fill=True)
+    pdf.ln(5)
+
+    # Table Header
+    pdf.set_font("Arial", 'B', 10)
+    headers = ["Date", "Type", "Note", "Days", "Amount (LKR)"]
+    w = [30, 40, 60, 20, 40]
+    
+    pdf.set_fill_color(200, 200, 200)
+    for i, h in enumerate(headers):
+        pdf.cell(w[i], 8, h, 1, 0, 'C', fill=True)
+    pdf.ln()
+
+    pdf.set_font("Arial", '', 9)
+    total_days = 0
+    total_pay = 0
+    total_adv = 0
+
+    for _, row in data_df.iterrows():
+        date = safe_text(str(row['Date']))
+        cat = safe_text(str(row['Category']))
+        note = safe_text(str(row['Note']))
+        amt = float(row['Amount'])
+        days = float(row['Hours']) # අපි Staff වලදී Hours වලට දැම්මේ දවස් ගණන
+
+        pdf.cell(w[0], 7, date, 1)
+        pdf.cell(w[1], 7, cat, 1)
+        pdf.cell(w[2], 7, note[:35], 1)
+        pdf.cell(w[3], 7, f"{days:,.1f}" if days > 0 else "-", 1, 0, 'C')
+        
+        if "Advance" in cat:
+            total_adv += amt
+            pdf.set_text_color(200, 0, 0)
+            pdf.cell(w[4], 7, f"({amt:,.2f})", 1, 1, 'R')
+            pdf.set_text_color(0, 0, 0)
+        else:
+            total_pay += amt
+            total_days += days
+            pdf.cell(w[4], 7, f"{amt:,.2f}", 1, 1, 'R')
+
+    # Totals Section
+    pdf.ln(5)
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(sum(w[:4]), 8, "GROSS EARNINGS", 1, 0, 'R')
+    pdf.cell(w[4], 8, f"{total_pay:,.2f}", 1, 1, 'R')
+    
+    pdf.cell(sum(w[:4]), 8, "TOTAL ADVANCES", 1, 0, 'R')
+    pdf.cell(w[4], 8, f"{total_adv:,.2f}", 1, 1, 'R')
+    
+    pdf.set_fill_color(46, 134, 193); pdf.set_text_color(255, 255, 255)
+    pdf.cell(sum(w[:4]), 10, "NET PAYABLE BALANCE", 1, 0, 'R', fill=True)
+    pdf.cell(w[4], 10, f"{(total_pay - total_adv):,.2f}", 1, 1, 'R', fill=True)
+
+    fn = f"Staff_Report_{staff_name}_{datetime.now().strftime('%H%M%S')}.pdf"
+    pdf.output(fn)
+    return fn
     
 def create_driver_pdf(title, data_df, summary_dict):
     pdf = PDF()
@@ -609,12 +676,14 @@ elif menu == "📑 Reports Center":
 
     # Tabs
 
-    r_inc, r_prof, r_gross, r1, r2, r3, r4 = st.tabs([
+    # Tabs ලිස්ට් එකට අලුත් එක ඇඩ් කරමු
+    r_inc, r_prof, r_gross, r_staff, r1, r2, r3, r4 = st.tabs([
         "💰 Daily Income Report", 
         "📊 Profit/Loss Analysis",
-        "📈 Material Gross Earnings", # Aluth Tab eka
+        "📈 Material Gross Earnings",
+        "👷 Staff Settlement", # <--- මෙන්න මේක අලුතින් ඇඩ් කළා
         "🚜 Vehicle Settlement", 
-        "👷 Driver Summary", 
+        "👤 Driver Summary", 
         "📑 Daily Log", 
         "⛽ Shed Report"
     ])
@@ -743,6 +812,31 @@ elif menu == "📑 Reports Center":
             st.dataframe(gross_df[available_cols], use_container_width=True)
         else:
             st.info("No sales records found for the selected period.")
+
+    with r_staff:
+        st.subheader("👷 Staff Payment & Settlement Report")
+        
+        # Staff ලිස්ට් එක ගන්නවා
+        if not st.session_state.staff_db.empty:
+            s_list = st.session_state.staff_db["Name"].tolist()
+            sel_staff = st.selectbox("Select Staff Member", s_list, key="staff_rep_sel")
+            
+            if st.button("Generate Staff Report 📄", key="gen_staff_btn"):
+                # Staff කෙනාගේ නම Note එකේ තියෙන පේළි විතරක් Filter කරනවා
+                staff_mask = df_f['Note'].str.contains(sel_staff, na=False)
+                staff_rep_data = df_f[staff_mask].copy()
+                
+                if not staff_rep_data.empty:
+                    # කලින් මම දීපු create_staff_pdf function එක මෙතනදී call කරනවා
+                    fn = create_staff_pdf(sel_staff, staff_rep_data)
+                    with open(fn, "rb") as f:
+                        st.download_button("Download Staff Report 📥", f, file_name=fn)
+                    st.success(f"Report generated for {sel_staff}")
+                    st.dataframe(staff_rep_data[["Date", "Category", "Note", "Hours", "Amount"]], use_container_width=True)
+                else:
+                    st.warning(f"No transactions found for {sel_staff} in the selected period.")
+        else:
+            st.info("Please register staff members in System Setup first.")
 
     # --- TAB 1: VEHICLE SETTLEMENT ---
    # 1. වාහන ලැයිස්තුව ලබා ගනිමු
