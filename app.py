@@ -720,11 +720,10 @@ elif menu == "📑 Reports Center":
     with r1:
         st.subheader("Vehicle / Machine Settlement")
         
-        selected_ve = st.selectbox("Select Vehicle to Settle", v_list, key="settle_ve")
+        dr_list = v_list # වාහන ලැයිස්තුව
+        selected_ve = st.selectbox("Select Vehicle to Settle", dr_list, key="settle_ve")
         
         if selected_ve and selected_ve != "N/A":
-            # 2. වාහනය පෙන්වන Column එක මොකක්ද කියලා බුද්ධිමත්ව සොයා ගනිමු
-            # 'Entity' නැත්නම් 'Vehicle' හෝ 'Vehicle_No' තියෙනවාද බලනවා
             col_options = ['Entity', 'Vehicle', 'Vehicle_No', 'Machine', 'No']
             target_col = next((c for c in col_options if c in df_f.columns), None)
             
@@ -735,10 +734,15 @@ elif menu == "📑 Reports Center":
                     # Excavator එකක්ද කියා පරීක්ෂා කිරීම
                     is_excavator = any(x in selected_ve.upper() for x in ["EX", "PC", "EXCAVATOR"])
                     
-                    # Earnings සහ Expenses ගණනය කිරීම
-                    # Amount column එකේ නමත් check කරනවා (Spaces තිබුණොත් අයින් කරලා)
-                    df_f.columns = [c.strip() for c in df_f.columns]
+                    # Column names වල spaces අයින් කිරීම
+                    ve_records.columns = [c.strip() for c in ve_records.columns]
                     
+                    # --- පැය ගණන ගණනය කිරීම (අලුත් කොටස) ---
+                    # 'Work_Hours' හෝ 'Qty_Cubes' column එකෙන් පැය ගණන ගන්නවා
+                    h_col = 'Work_Hours' if 'Work_Hours' in ve_records.columns else 'Qty_Cubes'
+                    total_hours = pd.to_numeric(ve_records[h_col], errors='coerce').sum()
+                    
+                    # Earnings සහ Expenses ගණනය කිරීම
                     if is_excavator:
                         gross_earning = pd.to_numeric(ve_records['Amount'], errors='coerce').sum()
                     else:
@@ -747,15 +751,17 @@ elif menu == "📑 Reports Center":
                     total_exp = pd.to_numeric(ve_records[ve_records["Type"] == "Expense"]["Amount"], errors='coerce').sum()
                     net_balance = gross_earning - total_exp
                     
-                    # Metrics
-                    c1, c2, c3 = st.columns(3)
+                    # Metrics (මුළු පැය ගණනත් මෙතනට දැම්මා)
+                    c1, c2, c3, c4 = st.columns(4) # Column 4ක් කළා
                     if is_excavator:
-                        c1.metric("Gross Earning (Work)", f"Rs. {gross_earning:,.2f}")
+                        c1.metric("Total Hours", f"{total_hours:,.2f} hrs")
+                        c2.metric("Gross Earning", f"Rs. {gross_earning:,.2f}")
                     else:
-                        c1.metric("Gross Earning", "Rs. 0.00", delta="Rented Lorry", delta_color="off")
+                        c1.metric("Gross Earning", "Rs. 0.00")
+                        c2.metric("Type", "Rented Lorry")
                     
-                    c2.metric("Total Expenses", f"Rs. {total_exp:,.2f}")
-                    c3.metric("Net Settlement", f"Rs. {net_balance:,.2f}")
+                    c3.metric("Total Expenses", f"Rs. {total_exp:,.2f}")
+                    c4.metric("Net Settlement", f"Rs. {net_balance:,.2f}")
                     
                     st.divider()
 
@@ -764,14 +770,16 @@ elif menu == "📑 Reports Center":
                         summary_data = {
                             "Vehicle/Machine": selected_ve,
                             "Type": "Excavator (Own)" if is_excavator else "None",
+                            "Total Quantity / Hours": f"{total_hours:,.2f}", # <--- මේක PDF එකට යනවා
                             "Gross Earnings": f"Rs. {gross_earning:,.2f}",
                             "Total Expenses": f"Rs. {total_exp:,.2f}",
                             "Net Balance": f"Rs. {net_balance:,.2f}",
                             "Period": f"{f_d} to {t_d}"
                         }
+                        # කලින් අපි හදාගත්ත create_pdf එක මෙතනදී call වෙනවා
                         pdf_path = create_pdf("Settlement_Report", ve_records, summary_data)
                         with open(pdf_path, "rb") as f:
-                            st.download_button("📩 Download PDF", f, file_name=f"{selected_ve}_Settlement.pdf")
+                            st.download_button("📩 Download PDF Now", f, file_name=f"{selected_ve}_Settlement.pdf")
 
                     st.write(f"**Detailed Transaction Log for {selected_ve}:**")
                     display_cols = ['Date', 'Category', 'Qty_Cubes', 'Work_Hours', 'Amount', 'Type']
@@ -780,7 +788,7 @@ elif menu == "📑 Reports Center":
                 else:
                     st.info(f"No records found for {selected_ve} in the selected period.")
             else:
-                st.error("Could not find a 'Vehicle' or 'Entity' column in your data records.")
+                st.error("Could not find a 'Vehicle' or 'Entity' column.")
                 # --- මෙන්න මෙතනින් පටන් ගන්න (Landowner Settlement Section) ---
       # --- Landowner Settlement Section ---
         st.divider()
