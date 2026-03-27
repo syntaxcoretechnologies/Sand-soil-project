@@ -165,6 +165,12 @@ def create_pdf(title, data_df, summary_dict):
     pdf.cell(w[3], 8, f"{total_qty_hrs:,.2f}", 1, 0, 'C', fill=True)
     # Rate සහ Amount වලට යටින් හිස්ව තියන්න
     pdf.cell(w[4] + w[5], 8, "", 1, 1, 'R', fill=True)
+
+    # 1. මේක තමයි ක්ලයන්ට් ඉල්ලපු පැය ගණනේ එකතුව
+    pdf.set_fill_color(245, 245, 245)
+    pdf.cell(107, 8, "TOTAL QUANTITY / HOURS", 1, 0, 'R', fill=True)
+    pdf.cell(15, 8, f"{total_qty_hrs:,.2f}", 1, 0, 'C', fill=True)
+    pdf.cell(68, 8, "", 1, 1, 'R', fill=True)
     
     # Gross Earnings
     pdf.cell(sum(w[:5]), 8, "GROSS EARNINGS (LKR)", 1, 0, 'R')
