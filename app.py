@@ -968,66 +968,90 @@ elif menu == "📑 Reports Center":
 
 # --- 10. SYSTEM SETUP (මේ කොටස අලුතින් ඇතුළත් කරන්න) ---
 elif menu == "⚙️ System Setup":
-    st.markdown("<h2 style='color: #2E86C1;'>⚙️ System Configuration</h2>", unsafe_allow_html=True)
-    
-    # Tabs දෙකක් සාදමු
-    # වාහන සහ ඩ්‍රයිවර්ස්ලා setup කරන tabs දෙක (නිවැරදි Indentation සහිතව)
-    setup_tab1, setup_tab2 = st.tabs(["🚜 Vehicles", "👷 Drivers"])
+        st.markdown("<h2 style='color: #2E86C1;'>⚙️ System Configuration</h2>", unsafe_allow_html=True)
+        
+        # ටැබ් තුනක් සාදමු - වාහන, ඩ්‍රයිවර්ස්ලා සහ අනෙකුත් සේවකයෝ
+        setup_tab1, setup_tab2, setup_tab3 = st.tabs(["🚜 Vehicles", "👷 Drivers", "👥 Staff Management"])
 
-    with setup_tab1:
-        st.subheader("🚜 Add New Vehicle / Machine")
-        with st.form("v_setup_form", clear_on_submit=True):
-            col1, col2 = st.columns(2)
-            with col1:
-                v_no = st.text_input("Vehicle Number")
-                v_type = st.selectbox("Vehicle Type", ["Tipper", "Excavator", "JCB", "Tractor", "Other"])
-            with col2:
-                v_owner = st.text_input("Owner Name")
-                v_rate = st.number_input("Rate per Unit", min_value=0.0)
-            
-            if st.form_submit_button("✅ Register Vehicle"):
-                if v_no:
-                    new_v = pd.DataFrame([[v_no, v_type, v_owner, v_rate]], columns=["No", "Type", "Owner", "Rate_Per_Unit"])
-                    st.session_state.ve_db = pd.concat([st.session_state.ve_db, new_v], ignore_index=True)
-                    save_all()
-                    st.success(f"Vehicle {v_no} registered!")
-                    st.rerun()
+        # --- TAB 1: VEHICLES ---
+        with setup_tab1:
+            st.subheader("🚜 Add New Vehicle / Machine")
+            with st.form("v_setup_form", clear_on_submit=True):
+                col1, col2 = st.columns(2)
+                with col1:
+                    v_no = st.text_input("Vehicle Number")
+                    v_type = st.selectbox("Vehicle Type", ["Tipper", "Excavator", "JCB", "Tractor", "Other"])
+                with col2:
+                    v_owner = st.text_input("Owner Name")
+                    v_rate = st.number_input("Rate per Unit", min_value=0.0)
+                
+                if st.form_submit_button("✅ Register Vehicle"):
+                    if v_no:
+                        new_v = pd.DataFrame([[v_no, v_type, v_owner, v_rate]], columns=["No", "Type", "Owner", "Rate_Per_Unit"])
+                        st.session_state.ve_db = pd.concat([st.session_state.ve_db, new_v], ignore_index=True)
+                        save_all(); st.success(f"Vehicle {v_no} registered!"); st.rerun()
 
-        # Vehicle Edit/Delete Section (මෙතන හිස්තැන් පේළියට තියෙන්න ඕනේ)
-        if not st.session_state.ve_db.empty:
-            st.divider()
-            ve_to_manage = st.selectbox("Select Vehicle to Manage", st.session_state.ve_db["No"].tolist())
-            curr_ve = st.session_state.ve_db[st.session_state.ve_db["No"] == ve_to_manage].iloc[0]
-            with st.expander(f"Edit {ve_to_manage}"):
-                # ... (edit code) ...
-                if st.button("Delete Vehicle ❌"):
+            if not st.session_state.ve_db.empty:
+                st.divider()
+                ve_to_manage = st.selectbox("Select Vehicle to Manage", st.session_state.ve_db["No"].tolist())
+                if st.button("Delete Vehicle ❌", key="del_ve"):
                     st.session_state.ve_db = st.session_state.ve_db[st.session_state.ve_db["No"] != ve_to_manage]
                     save_all(); st.rerun()
 
-    with setup_tab2:
-        st.subheader("Add New Driver / Operator")
-        with st.form("d_setup_form", clear_on_submit=True):
-            col1, col2 = st.columns(2)
-            with col1:
-                d_name = st.text_input("Driver Name")
-            with col2:
-                d_salary = st.number_input("Daily Salary", min_value=0.0)
-            d_phone = st.text_input("Contact Number")
-            
-            if st.form_submit_button("✅ Register Driver"):
-                if d_name:
-                    new_d = pd.DataFrame([[d_name, d_phone, d_salary]], columns=["Name", "Phone", "Daily_Salary"])
-                    st.session_state.dr_db = pd.concat([st.session_state.dr_db, new_d], ignore_index=True)
-                    save_all(); st.success("Driver registered!"); st.rerun()
+        # --- TAB 2: DRIVERS ---
+        with setup_tab2:
+            st.subheader("Add New Driver / Operator")
+            with st.form("d_setup_form", clear_on_submit=True):
+                col1, col2 = st.columns(2)
+                with col1:
+                    d_name = st.text_input("Driver Name")
+                with col2:
+                    d_salary = st.number_input("Daily Salary", min_value=0.0)
+                d_phone = st.text_input("Contact Number")
+                
+                if st.form_submit_button("✅ Register Driver"):
+                    if d_name:
+                        new_d = pd.DataFrame([[d_name, d_phone, d_salary]], columns=["Name", "Phone", "Daily_Salary"])
+                        st.session_state.dr_db = pd.concat([st.session_state.dr_db, new_d], ignore_index=True)
+                        save_all(); st.success("Driver registered!"); st.rerun()
 
-        # Driver Edit/Delete Section
-        if not st.session_state.dr_db.empty:
-            st.divider()
-            dr_to_manage = st.selectbox("Select Driver to Manage", st.session_state.dr_db["Name"].tolist())
-            with st.expander(f"Edit {dr_to_manage}"):
-                # ... (edit code) ...
-                if st.button("Delete Driver ❌"):
+            if not st.session_state.dr_db.empty:
+                st.divider()
+                dr_to_manage = st.selectbox("Select Driver to Manage", st.session_state.dr_db["Name"].tolist())
+                if st.button("Delete Driver ❌", key="del_dr"):
                     st.session_state.dr_db = st.session_state.dr_db[st.session_state.dr_db["Name"] != dr_to_manage]
+                    save_all(); st.rerun()
+
+        # --- TAB 3: STAFF MANAGEMENT (අලුතින්ම ඇඩ් කළ කොටස) ---
+        with setup_tab3:
+            st.subheader("👷 Register Plant Staff Members")
+            with st.form("staff_setup_form", clear_on_submit=True):
+                col1, col2 = st.columns(2)
+                with col1:
+                    s_name = st.text_input("Staff Member Name")
+                    s_pos = st.selectbox("Position", ["Helper", "Operator", "Supervisor", "Security", "Other"])
+                with col2:
+                    s_rate = st.number_input("Daily Rate (LKR)", min_value=0.0)
+                
+                if st.form_submit_button("✅ Register Staff Member"):
+                    if s_name:
+                        new_s = pd.DataFrame([{"Name": s_name, "Position": s_pos, "Daily_Rate": s_rate}])
+                        st.session_state.staff_db = pd.concat([st.session_state.staff_db, new_s], ignore_index=True)
+                        save_all()
+                        st.success(f"Staff member {s_name} registered!")
+                        st.rerun()
+                    else:
+                        st.error("Please enter a name.")
+
+            # දැනට ඉන්න Staff ලිස්ට් එක කළමනාකරණය
+            if not st.session_state.staff_db.empty:
+                st.divider()
+                st.write("### Current Staff List")
+                st.dataframe(st.session_state.staff_db, use_container_width=True)
+                
+                s_to_del = st.selectbox("Select Staff to Remove", st.session_state.staff_db["Name"].tolist())
+                if st.button("Remove Staff Member ❌", key="del_staff"):
+                    st.session_state.staff_db = st.session_state.staff_db[st.session_state.staff_db["Name"] != s_to_del]
                     save_all(); st.rerun()
                     
 # --- මේක වෙනම Menu එකක් විදිහට පල්ලෙහායින් දාන්න ---
