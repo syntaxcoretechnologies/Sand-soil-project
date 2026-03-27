@@ -534,36 +534,38 @@ elif menu == "💰 Finance & Shed":
                 st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_data])], ignore_index=True)
                 save_all(); st.rerun()
 
-   elif fin == "💸 Payroll":
-    dr_names = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else ["N/A"]
-    with st.form("pay", clear_on_submit=True):
-        dr = st.selectbox("Driver", dr_names)
-        
-        # --- මෙන්න මේ පේළිය අලුතින් ඇඩ් කරන්න ---
-        pay_date = st.date_input("Date", datetime.now().date()) 
-        
-        am = st.number_input("Amount")
-        ty = st.selectbox("Type", ["Driver Advance", "Salary"])
-        v_rel = st.selectbox("Vehicle", v_list)
-        
-        if st.form_submit_button("Save Payroll"):
-            new_data = {
-                "ID": len(st.session_state.df) + 1, 
-                "Date": pay_date, # <--- මෙතනට අර තෝරපු pay_date එක දාන්න
-                "Time": "", 
-                "Type": "Expense",
-                "Category": ty, 
-                "Entity": v_rel, 
-                "Note": f"Driver: {dr}", 
-                "Amount": am,
-                "Qty_Cubes": 0, 
-                "Fuel_Ltr": 0, 
-                "Hours": 0, 
-                "Rate_At_Time": 0, 
-                "Status": "Paid"
-            }
-            st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_data])], ignore_index=True)
-            save_all(); st.rerun()
+    # කලින් තිබුණ if/elif පේළියට කෙලින්ම යටින් මෙය තිබිය යුතුය
+    elif fin == "💸 Payroll":
+        dr_names = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else ["N/A"]
+        with st.form("pay", clear_on_submit=True):
+            dr = st.selectbox("Driver", dr_names)
+            
+            # දවස තෝරන්න අලුත් පේළිය
+            pay_date = st.date_input("Date", datetime.now().date()) 
+            
+            am = st.number_input("Amount")
+            ty = st.selectbox("Type", ["Driver Advance", "Salary"])
+            v_rel = st.selectbox("Vehicle", v_list)
+            
+            if st.form_submit_button("Save Payroll"):
+                new_data = {
+                    "ID": len(st.session_state.df) + 1, 
+                    "Date": pay_date, 
+                    "Time": "", 
+                    "Type": "Expense",
+                    "Category": ty, 
+                    "Entity": v_rel, 
+                    "Note": f"Driver: {dr}", 
+                    "Amount": am,
+                    "Qty_Cubes": 0, 
+                    "Fuel_Ltr": 0, 
+                    "Hours": 0, 
+                    "Rate_At_Time": 0, 
+                    "Status": "Paid"
+                }
+                st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_data])], ignore_index=True)
+                save_all()
+                st.rerun()
     elif fin == "🏦 Owner Advances":
         with st.form("own_adv", clear_on_submit=True):
             d, v, am, nt = st.date_input("Date"), st.selectbox("Vehicle", v_list), st.number_input("Amount"), st.text_input("Note")
