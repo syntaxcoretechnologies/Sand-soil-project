@@ -56,7 +56,8 @@ if 'staff_db' not in st.session_state:
 
 # Landowners දත්ත DataFrame එකක් විදිහට ලෝඩ් කිරීම (Error එක එන්නේ නැති වෙන්න)
 if 'lo_db' not in st.session_state:
-    st.session_state.lo_db = load_data(LANDOWNER_FILE, ["Name", "Address", "Contact", "Total_Due"])
+    # Column names ටික මෙන්න මේ විදිහට තියෙන්න ඕනේ
+    st.session_state.lo_db = load_data(LANDOWNER_FILE, ["Name", "Address", "Contact", "Rate_Per_Cube"])
 
 # පරණ landowners ලිස්ට් එක (Dictionary එකක් ලෙස)
 if 'landowners' not in st.session_state:
@@ -1175,20 +1176,26 @@ elif menu == "👤 Manage Landowners":
                 l_addr = st.text_input("Land Location / Address")
             with col2:
                 l_cont = st.text_input("Contact Number")
-                # ආරම්භක ශේෂය (මොකක් හරි කලින් ගෙවන්න තියෙනවා නම්)
-                l_bal = st.number_input("Opening Balance (Optional)", min_value=0.0)
+                # මෙන්න මචං කියුබ් එකක ගාණ ඇඩ් කරන තැන (Opening Balance එක වෙනුවට)
+                l_rate = st.number_input("Rate Per Cube (LKR)", min_value=0.0, step=100.0)
             
             if st.form_submit_button("✅ Register Landowner"):
                 if l_name:
-                    # අලුත් row එකක් හදනවා
-                    new_lo = pd.DataFrame([{"Name": l_name, "Address": l_addr, "Contact": l_cont, "Total_Due": l_bal}])
+                    # අලුත් row එකක් හදනවා - Rate_Per_Cube column එකත් එක්ක
+                    new_lo = pd.DataFrame([{
+                        "Name": l_name, 
+                        "Address": l_addr, 
+                        "Contact": l_cont, 
+                        "Rate_Per_Cube": l_rate
+                    }])
+                    
                     # Session state එකට එකතු කරනවා
                     st.session_state.lo_db = pd.concat([st.session_state.lo_db, new_lo], ignore_index=True)
                     
-                    # File එකට සේව් කරනවා (මෙතන LANDOWNER_FILE කියන එක Define කරලා තියෙන්න ඕනේ)
+                    # File එකට සේව් කරනවා (LANDOWNER_FILE එකට)
                     st.session_state.lo_db.to_csv(LANDOWNER_FILE, index=False)
                     
-                    st.success(f"Registered {l_name} successfully!")
+                    st.success(f"Registered {l_name} with Rate: LKR {l_rate:,.2f} per Cube!")
                     st.rerun()
                 else:
                     st.error("Landowner Name is required!")
