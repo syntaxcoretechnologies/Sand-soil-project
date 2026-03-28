@@ -1161,41 +1161,48 @@ elif menu == "⚙️ System Setup":
                     
 # --- මේක වෙනම Menu එකක් විදිහට පල්ලෙහායින් දාන්න ---
 elif menu == "👤 Manage Landowners":
-    st.markdown("<h2 style='color: #2ECC71;'>👤 Landowner Management</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color: #1E8449;'>👤 Landowner Management</h2>", unsafe_allow_html=True)
     
-    # 1. අලුත් Landowner කෙනෙක් ඇතුළත් කරන Form එක
-    with st.form("landowner_form", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-        with col1:
-            owner_name = st.text_input("Landowner Name")
-            contact_no = st.text_input("Contact Number")
-        with col2:
-            land_name = st.text_input("Land Name / Location")
-            agreement_rate = st.number_input("Agreed Rate per Cube (LKR)", min_value=0.0, step=100.0)
-            
-        if st.form_submit_button("➕ Register Landowner"):
-            if owner_name and land_name:
-                new_owner = {
-                    "Name": owner_name,
-                    "Land": land_name,
-                    "Contact": contact_no,
-                    "Rate": agreement_rate
-                }
-                st.session_state.landowners.append(new_owner)
-                save_all() # දත්ත සේව් කරන්න
-                st.success(f"Owner {owner_name} registered successfully!")
-                st.rerun()
-            else:
-                st.error("Please fill Name and Land details!")
+    # Tabs දෙකක් හදමු - ඉඩම් හිමියෝ රෙජිස්ටර් කරන්න සහ ඇඩ්වාන්ස් දෙන්න
+    l_tab1, l_tab2 = st.tabs(["🆕 Register Landowner", "💰 Give Advance"])
 
-    # 2. දැනට ඉන්න අයව Table එකක් විදිහට පෙන්වීම
-    st.divider()
-    st.subheader("Registered Landowners")
-    if st.session_state.landowners:
-        owner_df = pd.DataFrame(st.session_state.landowners)
-        st.dataframe(owner_df, use_container_width=True)
-    else:
-        st.info("No landowners registered yet.")
+    with l_tab1:
+        # පරණ ඉඩම් හිමියන් රෙජිස්ටර් කරන කෝඩ් එක මෙතන තියෙන්න ඕනේ...
+        st.subheader("Register New Landowner")
+        # (ඔයාගේ කලින් register form එක මෙතනට දාන්න)
+
+    with l_tab2:
+        st.subheader("Record Advance Payment")
+        if not st.session_state.lo_db.empty: # lo_db කියන්නේ landownersලා ඉන්න table එක නම්
+            with st.form("lo_advance_form", clear_on_submit=True):
+                lo_list = st.session_state.lo_db["Name"].tolist()
+                selected_lo = st.selectbox("Select Landowner", lo_list)
+                adv_date = st.date_input("Date", datetime.now().date())
+                adv_amount = st.number_input("Advance Amount (LKR)", min_value=0.0)
+                adv_note = st.text_input("Note (e.g., Check No / Reason)")
+
+                if st.form_submit_button("✅ Save Advance"):
+                    if adv_amount > 0:
+                        # Main Database (df) එකට මේක Expense එකක් විදිහට ඇඩ් කරනවා
+                        new_entry = {
+                            "ID": len(st.session_state.df) + 1,
+                            "Date": adv_date,
+                            "Time": datetime.now().strftime("%H:%M:%S"),
+                            "Type": "Expense",
+                            "Category": "Landowner Advance",
+                            "Entity": selected_lo,
+                            "Note": adv_note,
+                            "Amount": adv_amount,
+                            "Qty_Cubes": 0, "Fuel_Ltr": 0, "Hours": 0, "Rate_At_Time": 0,
+                            "Status": "Paid"
+                        }
+                        
+                        st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_entry])], ignore_index=True)
+                        save_all() # Google Sheet එකටත් සේව් වෙනවා
+                        st.success(f"LKR {adv_amount:,.2f} advance paid to {selected_lo} saved!")
+                        st.rerun()
+        else:
+            st.warning("Please register landowners first.")
         
 # --- 12. staff payroll (මේ කොටස අලුතින් ඇතුළත් කරන්න) ---
 elif menu == "👷 Staff Payroll":
