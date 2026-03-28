@@ -1162,27 +1162,50 @@ elif menu == "⚙️ System Setup":
 elif menu == "👤 Manage Landowners":
     st.markdown("<h2 style='color: #1E8449;'>👤 Landowner Management</h2>", unsafe_allow_html=True)
     
-    # Tabs දෙකක් හදමු - ඉඩම් හිමියෝ රෙජිස්ටර් කරන්න සහ ඇඩ්වාන්ස් දෙන්න
-    l_tab1, l_tab2 = st.tabs(["🆕 Register Landowner", "💰 Give Advance"])
+    # Tabs තුනක් හදමු - Register, Advance සහ View
+    l_tab1, l_tab2, l_tab3 = st.tabs(["🆕 Register Landowner", "💰 Give Advance", "📋 View All"])
 
+    # --- TAB 1: Register New Landowner ---
     with l_tab1:
-        # පරණ ඉඩම් හිමියන් රෙජිස්ටර් කරන කෝඩ් එක මෙතන තියෙන්න ඕනේ...
-        st.subheader("Register New Landowner")
-        # (ඔයාගේ කලින් register form එක මෙතනට දාන්න)
+        st.subheader("Add a New Landowner to System")
+        with st.form("landowner_reg_form", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                l_name = st.text_input("Full Name")
+                l_addr = st.text_input("Land Location / Address")
+            with col2:
+                l_cont = st.text_input("Contact Number")
+                # ආරම්භක ශේෂය (මොකක් හරි කලින් ගෙවන්න තියෙනවා නම්)
+                l_bal = st.number_input("Opening Balance (Optional)", min_value=0.0)
+            
+            if st.form_submit_button("✅ Register Landowner"):
+                if l_name:
+                    # අලුත් row එකක් හදනවා
+                    new_lo = pd.DataFrame([{"Name": l_name, "Address": l_addr, "Contact": l_cont, "Total_Due": l_bal}])
+                    # Session state එකට එකතු කරනවා
+                    st.session_state.lo_db = pd.concat([st.session_state.lo_db, new_lo], ignore_index=True)
+                    
+                    # File එකට සේව් කරනවා (මෙතන LANDOWNER_FILE කියන එක Define කරලා තියෙන්න ඕනේ)
+                    st.session_state.lo_db.to_csv(LANDOWNER_FILE, index=False)
+                    
+                    st.success(f"Registered {l_name} successfully!")
+                    st.rerun()
+                else:
+                    st.error("Landowner Name is required!")
 
+    # --- TAB 2: Give Advance ---
     with l_tab2:
         st.subheader("Record Advance Payment")
-        if not st.session_state.lo_db.empty: # lo_db කියන්නේ landownersලා ඉන්න table එක නම්
+        if not st.session_state.lo_db.empty:
             with st.form("lo_advance_form", clear_on_submit=True):
-                lo_list = st.session_state.lo_db["Name"].tolist()
-                selected_lo = st.selectbox("Select Landowner", lo_list)
+                lo_names = st.session_state.lo_db["Name"].tolist()
+                selected_lo = st.selectbox("Select Landowner", lo_names)
                 adv_date = st.date_input("Date", datetime.now().date())
                 adv_amount = st.number_input("Advance Amount (LKR)", min_value=0.0)
-                adv_note = st.text_input("Note (e.g., Check No / Reason)")
+                adv_note = st.text_input("Reference Note")
 
-                if st.form_submit_button("✅ Save Advance"):
+                if st.form_submit_button("✅ Save Advance Payment"):
                     if adv_amount > 0:
-                        # Main Database (df) එකට මේක Expense එකක් විදිහට ඇඩ් කරනවා
                         new_entry = {
                             "ID": len(st.session_state.df) + 1,
                             "Date": adv_date,
@@ -1195,14 +1218,26 @@ elif menu == "👤 Manage Landowners":
                             "Qty_Cubes": 0, "Fuel_Ltr": 0, "Hours": 0, "Rate_At_Time": 0,
                             "Status": "Paid"
                         }
-                        
                         st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_entry])], ignore_index=True)
-                        save_all() # Google Sheet එකටත් සේව් වෙනවා
-                        st.success(f"LKR {adv_amount:,.2f} advance paid to {selected_lo} saved!")
+                        save_all()
+                        st.success(f"LKR {adv_amount:,.2f} advance paid to {selected_lo} recorded!")
                         st.rerun()
         else:
-            st.warning("Please register landowners first.")
-        
+            st.info("No landowners registered yet. Use the first tab to add someone.")
+
+    # --- TAB 3: View & Manage ---
+    with l_tab3:
+        st.subheader("Registered Landowners List")
+        if not st.session_state.lo_db.empty:
+            st.dataframe(st.session_state.lo_db, use_container_width=True)
+            
+            # මකන්න ඕනේ නම් ඒකටත් option එකක්
+            st.divider()
+            lo_to_del = st.selectbox("Select Landowner to Remove", st.session_state.lo_db["Name"].tolist())
+            if st.button("Delete Landowner ❌"):
+                st.session_state.lo_db = st.session_state.lo_db[st.session_state.lo_db["Name"] != lo_to_del]
+                st.session_state.lo_db.to_csv(LANDOWNER_FILE, index=False)
+                st.rerun()
 # --- 12. staff payroll (මේ කොටස අලුතින් ඇතුළත් කරන්න) ---
 elif menu == "👷 Staff Payroll":
         st.subheader("Staff Salary & Advance Management")
