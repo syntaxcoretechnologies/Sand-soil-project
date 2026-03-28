@@ -4,6 +4,10 @@ import os
 from datetime import datetime, timedelta
 from fpdf import FPDF
 
+# Login Credentials
+USER_CONF = "admin"
+PASS_CONF = "1234"
+
 # --- 1. CONFIG & FILENAMES ---
 DATA_FILE = "ksd_master_v56.csv"
 VE_FILE = "ksd_vehicles_v56.csv"
@@ -397,6 +401,37 @@ def create_landowner_pdf(title, data_df, summary_dict):
     fn = f"Landowner_Settlement_{datetime.now().strftime('%H%M%S')}.pdf"
     pdf.output(fn)
     return fn
+
+# 1. මුලින්ම Login Status එක පරීක්ෂා කරනවා
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
+
+# 2. Login වෙලා නැත්නම් Login Form එක පෙන්වනවා
+if not st.session_state["logged_in"]:
+    st.markdown("<h2 style='text-align: center; color: #8E44AD;'>🔐 Syntaxcore Sand & Soil System</h2>", unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1,2,1])
+    with col2:
+        with st.form("login_panel"):
+            u = st.text_input("Username")
+            p = st.text_input("Password", type="password")
+            if st.form_submit_button("Login to System"):
+                if u == USER_CONF and p == PASS_CONF:
+                    st.session_state["logged_in"] = True
+                    st.rerun()
+                else:
+                    st.error("Invalid Username or Password")
+    st.stop() # Login වෙනකම් පල්ලෙහා කෝඩ් එක වැඩ කරන්නේ නැහැ
+
+# 3. Login වුණාට පස්සේ විතරයි මෙතනින් පල්ලෙහාට යන්නේ
+# --- මෙතැන් සිට ඔයාගේ පරණ කෝඩ් එක පටන් ගන්නවා ---
+
+st.sidebar.title("Syntaxcore Panel")
+if st.sidebar.button("Logout 🔓"):
+    st.session_state["logged_in"] = False
+    st.rerun()
+
+# ... ඔයාගේ පරණ Menu එක සහ අනෙකුත් කොටස් ...
     
 # --- 5. UI LAYOUT & DASHBOARD ---
 st.set_page_config(page_title=SHOP_NAME, layout="wide")
