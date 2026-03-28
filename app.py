@@ -41,6 +41,7 @@ def save_all():
 # --- 3. SESSION STATE (මෙතන තමයි ඔක්කොම ලෝඩ් වෙන්නේ) ---
 cols_master = ["ID", "Date", "Time", "Type", "Category", "Entity", "Note", "Amount", "Qty_Cubes", "Fuel_Ltr", "Hours", "Rate_At_Time", "Status"]
 
+# --- දත්ත ලෝඩ් කිරීම සහ Session State Initialize කිරීම ---
 if 'df' not in st.session_state:
     st.session_state.df = load_data(DATA_FILE, cols_master)
 
@@ -50,19 +51,17 @@ if 've_db' not in st.session_state:
 if 'dr_db' not in st.session_state:
     st.session_state.dr_db = load_data(DR_FILE, ["Name", "Phone", "Daily_Salary"])
 
-# --- මෙන්න මේ ටික අලුතින් දාන්න ---
 if 'staff_db' not in st.session_state:
-    # staff.csv කියන ෆයිල් එක නැත්නම් අලුත් එකක් හදාගන්නවා
     st.session_state.staff_db = load_data("staff.csv", ["Name", "Position", "Daily_Rate"])
 
-# --- Landowners දත්ත නිවැරදිව ලෝඩ් කිරීම ---
+# Landowners දත්ත DataFrame එකක් විදිහට ලෝඩ් කිරීම (Error එක එන්නේ නැති වෙන්න)
+if 'lo_db' not in st.session_state:
+    st.session_state.lo_db = load_data(LANDOWNER_FILE, ["Name", "Address", "Contact", "Total_Due"])
+
+# පරණ landowners ලිස්ට් එක (Dictionary එකක් ලෙස)
 if 'landowners' not in st.session_state:
-    if os.path.exists(LANDOWNER_FILE):
-        try:
-            temp_ld = pd.read_csv(LANDOWNER_FILE)
-            st.session_state.landowners = temp_ld.to_dict('records')
-        except:
-            st.session_state.landowners = []
+    if not st.session_state.lo_db.empty:
+        st.session_state.landowners = st.session_state.lo_db.to_dict('records')
     else:
         st.session_state.landowners = []
 # --- 4. PDF ENGINE (පැහැදිලිව Earnings සහ Expenses වෙන් කරන සම්පූර්ණ කෝඩ් එක) ---
