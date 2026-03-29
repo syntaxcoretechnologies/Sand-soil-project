@@ -410,7 +410,7 @@ if "logged_in" not in st.session_state:
 
 # --- 2. Login වෙලා නැත්නම් Login Form එක පෙන්වනවා ---
 if not st.session_state["logged_in"]:
-    st.markdown("<h2 style='text-align: center; color: #8E44AD;'>🔐 Syntaxcore Sand & Soil System</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='text-align: center; color: #8E44AD;'>🔐 KSD Sand & Soil System</h2>", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1,2,1])
     with col2:
