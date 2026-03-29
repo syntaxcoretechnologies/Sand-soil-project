@@ -4,9 +4,11 @@ import os
 from datetime import datetime, timedelta
 from fpdf import FPDF
 
-# Login Credentials
-USER_CONF = "admin"
-PASS_CONF = "1234"
+# --- 1. LOGIN CREDENTIALS (මෙන්න මෙතනට දාන්න) ---
+USERS = {
+    "admin": {"password": "123", "role": "admin"},
+    "staff1": {"password": "456", "role": "user"}  # මෙයාට පේන්නේ Site Operations විතරයි
+}
 
 # --- 1. CONFIG & FILENAMES ---
 DATA_FILE = "ksd_master_v56.csv"
@@ -433,13 +435,58 @@ if st.sidebar.button("Logout 🔓"):
 
 # ... ඔයාගේ පරණ Menu එක සහ අනෙකුත් කොටස් ...
     
-# --- 5. UI LAYOUT & DASHBOARD ---
+# --- 5. UI LAYOUT & LOGIN CHECK ---
 st.set_page_config(page_title=SHOP_NAME, layout="wide")
-st.sidebar.title("🏗️ KSD ERP v5.6")
 
-# මේ පේළිය පිටුවේ වම් කෙළවරේ සිටම පටන් ගන්න (No spaces)
-menu = st.sidebar.selectbox("MAIN MENU", ["📊 Dashboard", "🏗️ Site Operations","👤 Manage Landowners","👷 Staff Payroll","💰 Finance & Shed", "⚙️ System Setup", "📑 Reports Center", "⚙️ Data Manager"])
+# 🔐 LOGIN පරීක්ෂාව (Login වෙලා නැත්නම් මෙතනින් පල්ලෙහාට යන්නේ නැහැ)
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
+    st.session_state["role"] = None
 
+if not st.session_state["logged_in"]:
+    # 🔐 LOGIN පරීක්ෂාව
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"] = False
+    st.session_state["role"] = None
+
+if not st.session_state["logged_in"]:
+    st.markdown("<h2 style='text-align: center; color: #2E86C1;'>🔐 KSD ERP - Security Portal</h2>", unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 1.5, 1])
+    with col2:
+        with st.form("login_panel"):
+            u = st.text_input("Username")
+            p = st.text_input("Password", type="password")
+            
+            if st.form_submit_button("Access System"):
+                # මෙතන USERS කියන එක උඩ Define කරලා තියෙන්න ඕනේ
+                if u in USERS and USERS[u]["password"] == p:
+                    st.session_state["logged_in"] = True
+                    st.session_state["role"] = USERS[u]["role"]
+                    st.success("Login Successful!")
+                    st.rerun()
+                else:
+                    st.error("Invalid Username or Password!")
+    st.stop() # මේක තියෙන්නම ඕනේ, නැත්නම් Login නොවී පල්ලෙහා ටික පේනවා.
+
+# 🔓 LOGIN වුණාට පස්සේ පේන SIDEBAR එක
+st.sidebar.title(f"🏗️ KSD ERP v5.6 ({st.session_state['role'].capitalize()})")
+
+# 👮 ROLE එක අනුව MENU එක වෙනස් කිරීම
+if st.session_state["role"] == "admin":
+    # ඇඩ්මින්ට පේන සියලුම මෙනු
+    menu_options = ["📊 Dashboard", "🏗️ Site Operations", "👤 Manage Landowners", "👷 Staff Payroll", "💰 Finance & Shed", "⚙️ System Setup", "📑 Reports Center", "⚙️ Data Manager"]
+else:
+    # සාමාන්‍ය USER (Staff) ට පේන්නේ මේක විතරයි
+    menu_options = ["🏗️ Site Operations"]
+
+# දැන් Selectbox එකට අදාළ ලිස්ට් එක දානවා
+menu = st.sidebar.selectbox("MAIN MENU", menu_options)
+
+# Logout බටන් එක
+if st.sidebar.button("Logout 🔓"):
+    st.session_state["logged_in"] = False
+    st.rerun()
 
 # --- 1. DASHBOARD SECTION (සම්පූර්ණ එකම මෙතන තියෙනවා) ---
 if menu == "📊 Dashboard":
