@@ -6,8 +6,8 @@ from fpdf import FPDF
 
 # --- 1. LOGIN CREDENTIALS (මෙන්න මෙතනට දාන්න) ---
 USERS = {
-    "admin": {"password": "123", "role": "admin"},
-    "staff1": {"password": "456", "role": "user"}
+    "ksdadmin": {"password": "ksd7979", "role": "admin"},
+    "ksd": {"password": "ksd123", "role": "user"}
 }
 
 # --- 1. CONFIG & FILENAMES ---
