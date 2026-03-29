@@ -1677,7 +1677,7 @@ elif menu == "⚙️ System Setup":
         with setup_tab2:
             st.subheader("👷 Register New Driver / Operator")
             
-            with st.form("d_setup_form", clear_on_submit=True):
+            with st.form("d_setup_form_new", clear_on_submit=True): # මෙතන නම පොඩ්ඩක් වෙනස් කළා
                 col1, col2 = st.columns(2)
                 with col1:
                     d_name = st.text_input("Driver Name").strip()
