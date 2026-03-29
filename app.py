@@ -1296,8 +1296,18 @@ elif menu == "📑 Reports Center":
    # 1. වාහන ලැයිස්තුව ලබා ගනිමු
     v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
 
-    with r1:
-        st.subheader("🚜 Vehicle & Machine Performance Settlement")
+    # --- 1298 පේළිය වගේ ඇති කලින් කොටස ---
+
+# මුලින්ම r1 සහ r2 කියන variables දෙකට st.columns(2) මගින් අගයන් ලබා දෙන්න ඕනේ
+r1, r2 = st.columns(2) 
+
+with r1:
+    st.subheader("🚜 Vehicle & Machine Performance Settlement")
+    # මෙතනින් පල්ලෙහාට ඔයාගේ ඉතිරි කෝඩ් එක දාන්න...
+    
+with r2:
+    # මෙතන දෙවැනි කොලම් එකේ පෙන්නන්න ඕන දේවල් (උදා: Summary එකක් වගේ)
+    st.subheader("📊 Summary View")
         
         selected_ve = st.selectbox("Select Vehicle to Review", v_list, key="settle_ve")
         
