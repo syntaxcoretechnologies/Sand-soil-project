@@ -557,7 +557,7 @@ if st.sidebar.button("🔄 Refresh Data", use_container_width=True):
     st.cache_data.clear() # Cache එක මකලා අලුත්ම ඩේටා Sheets වලින් ගනී
     st.rerun()
 
-if st.sidebar.button("Logout 🔓", use_container_width=True):
+if st.sidebar.button("Logout 🔓", use_container_width=True, key="sidebar_logout_unique"):
     # Logout වෙද්දී සියලුම Session දත්ත මකා දමයි
     for key in list(st.session_state.keys()):
         del st.session_state[key]
