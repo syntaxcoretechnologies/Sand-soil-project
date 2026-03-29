@@ -454,7 +454,7 @@ if not st.session_state["logged_in"]:
             p = st.text_input("Password", type="password")
             
             if st.form_submit_button("Access System"):
-                # USERS dictionary එක උඩ Define කරලා තියෙන්න ඕනේ
+                # USERS dictionary එක ඔයා කෝඩ් එකේ උඩම Define කරලා තියෙන්න ඕනේ
                 if u in USERS and USERS[u]["password"] == p:
                     st.session_state["logged_in"] = True
                     st.session_state["role"] = USERS[u]["role"]
@@ -464,25 +464,43 @@ if not st.session_state["logged_in"]:
                     st.error("Invalid Username or Password!")
     st.stop() # මේක හරිම වැදගත්! ලොග් වෙනකම් පල්ලෙහා ටික නවත්වනවා.
 
-# 🔓 3. ලොග් වුණාට පස්සේ පේන කොටස (මෙතන ඉඳන් සාමාන්‍ය විදිහට පටන් ගන්න)
-role_display = st.session_state['role'].capitalize() if st.session_state['role'] else ""
-st.sidebar.title(f"🏗️ KSD ERP v5.6 ({role_display})")
-# 👮 ROLE එක අනුව MENU එක වෙනස් කිරීම
+# --- 🔓 3. ලොග් වුණාට පස්සේ පේන කොටස ---
 
+# Role එක පෙන්වීමට සකස් කිරීම
+role_val = st.session_state.get("role", "User")
+role_display = role_val.capitalize() if role_val else "User"
+
+st.sidebar.title(f"🏗️ KSD ERP v5.6")
+st.sidebar.info(f"Logged in as: **{role_display}**")
+
+# 👮 ROLE එක අනුව MENU එක තෝරා ගැනීම
 if st.session_state["role"] == "admin":
     # ඇඩ්මින්ට පේන සියලුම මෙනු
-    menu_options = ["📊 Dashboard", "🏗️ Site Operations", "👤 Manage Landowners", "👷 Staff Payroll", "💰 Finance & Shed", "⚙️ System Setup", "📑 Reports Center", "⚙️ Data Manager"]
+    menu_options = [
+        "📊 Dashboard", 
+        "🏗️ Site Operations", 
+        "👤 Manage Landowners", 
+        "👷 Staff Payroll", 
+        "💰 Finance & Shed", 
+        "⚙️ System Setup", 
+        "📑 Reports Center", 
+        "⚙️ Data Manager"
+    ]
 else:
     # සාමාන්‍ය USER (Staff) ට පේන්නේ මේක විතරයි
     menu_options = ["🏗️ Site Operations"]
 
-# දැන් Selectbox එකට අදාළ ලිස්ට් එක දානවා
+# දැන් Sidebar එකේ Selectbox එක පෙන්වනවා
 menu = st.sidebar.selectbox("MAIN MENU", menu_options)
 
-# Logout බටන් එක
-if st.sidebar.button("Logout 🔓"):
+# Logout බටන් එක Sidebar එකේ පල්ලෙහාටම දාමු
+st.sidebar.markdown("---")
+if st.sidebar.button("Logout 🔓", use_container_width=True):
     st.session_state["logged_in"] = False
+    st.session_state["role"] = None
     st.rerun()
+
+# --- මෙතනින් පස්සේ ඔයාගේ පරණ කෝඩ් එකේ 'if menu == ...' කොටස් ආරම්භ කරන්න ---
 
 # --- 1. DASHBOARD SECTION (සම්පූර්ණ එකම මෙතන තියෙනවා) ---
 if menu == "📊 Dashboard":
