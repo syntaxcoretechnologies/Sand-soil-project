@@ -438,17 +438,12 @@ if st.sidebar.button("Logout 🔓"):
 # --- 5. UI LAYOUT & LOGIN CHECK ---
 st.set_page_config(page_title=SHOP_NAME, layout="wide")
 
-# 🔐 LOGIN පරීක්ෂාව (Login වෙලා නැත්නම් මෙතනින් පල්ලෙහාට යන්නේ නැහැ)
+# 1. මුලින්ම Session State එක ලෑස්ති කරගන්නවා
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
     st.session_state["role"] = None
 
-if not st.session_state["logged_in"]:
-    # 🔐 LOGIN පරීක්ෂාව
-if "logged_in" not in st.session_state:
-    st.session_state["logged_in"] = False
-    st.session_state["role"] = None
-
+# 2. ලොග් වෙලා නැත්නම් විතරක් මේ ටික පෙන්වන්න
 if not st.session_state["logged_in"]:
     st.markdown("<h2 style='text-align: center; color: #2E86C1;'>🔐 KSD ERP - Security Portal</h2>", unsafe_allow_html=True)
     
@@ -459,7 +454,7 @@ if not st.session_state["logged_in"]:
             p = st.text_input("Password", type="password")
             
             if st.form_submit_button("Access System"):
-                # මෙතන USERS කියන එක උඩ Define කරලා තියෙන්න ඕනේ
+                # USERS dictionary එක උඩ Define කරලා තියෙන්න ඕනේ
                 if u in USERS and USERS[u]["password"] == p:
                     st.session_state["logged_in"] = True
                     st.session_state["role"] = USERS[u]["role"]
@@ -467,12 +462,13 @@ if not st.session_state["logged_in"]:
                     st.rerun()
                 else:
                     st.error("Invalid Username or Password!")
-    st.stop() # මේක තියෙන්නම ඕනේ, නැත්නම් Login නොවී පල්ලෙහා ටික පේනවා.
+    st.stop() # මේක හරිම වැදගත්! ලොග් වෙනකම් පල්ලෙහා ටික නවත්වනවා.
 
-# 🔓 LOGIN වුණාට පස්සේ පේන SIDEBAR එක
-st.sidebar.title(f"🏗️ KSD ERP v5.6 ({st.session_state['role'].capitalize()})")
-
+# 🔓 3. ලොග් වුණාට පස්සේ පේන කොටස (මෙතන ඉඳන් සාමාන්‍ය විදිහට පටන් ගන්න)
+role_display = st.session_state['role'].capitalize() if st.session_state['role'] else ""
+st.sidebar.title(f"🏗️ KSD ERP v5.6 ({role_display})")
 # 👮 ROLE එක අනුව MENU එක වෙනස් කිරීම
+
 if st.session_state["role"] == "admin":
     # ඇඩ්මින්ට පේන සියලුම මෙනු
     menu_options = ["📊 Dashboard", "🏗️ Site Operations", "👤 Manage Landowners", "👷 Staff Payroll", "💰 Finance & Shed", "⚙️ System Setup", "📑 Reports Center", "⚙️ Data Manager"]
