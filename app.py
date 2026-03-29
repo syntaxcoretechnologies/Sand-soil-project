@@ -7,7 +7,7 @@ from fpdf import FPDF
 # --- 1. LOGIN CREDENTIALS (මෙන්න මෙතනට දාන්න) ---
 USERS = {
     "admin": {"password": "123", "role": "admin"},
-    "staff1": {"password": "456", "role": "user"}  # මෙයාට පේන්නේ Site Operations විතරයි
+    "staff1": {"password": "456", "role": "user"}
 }
 
 # --- 1. CONFIG & FILENAMES ---
@@ -408,7 +408,7 @@ def create_landowner_pdf(title, data_df, summary_dict):
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 
-# 2. Login වෙලා නැත්නම් Login Form එක පෙන්වනවා
+# --- 2. Login වෙලා නැත්නම් Login Form එක පෙන්වනවා ---
 if not st.session_state["logged_in"]:
     st.markdown("<h2 style='text-align: center; color: #8E44AD;'>🔐 Syntaxcore Sand & Soil System</h2>", unsafe_allow_html=True)
     
@@ -418,13 +418,15 @@ if not st.session_state["logged_in"]:
             u = st.text_input("Username")
             p = st.text_input("Password", type="password")
             if st.form_submit_button("Login to System"):
-                if u == USER_CONF and p == PASS_CONF:
+                # ✅ අලුත් විදිහ: USER_CONF වෙනුවට USERS dictionary එක පාවිච්චි කරනවා
+                if u in USERS and USERS[u]["password"] == p:
                     st.session_state["logged_in"] = True
+                    st.session_state["role"] = USERS[u]["role"] # Role එකත් සේව් කරගන්නවා
+                    st.success(f"Welcome {u}!")
                     st.rerun()
                 else:
                     st.error("Invalid Username or Password")
-    st.stop() # Login වෙනකම් පල්ලෙහා කෝඩ් එක වැඩ කරන්නේ නැහැ
-
+    st.stop()
 # 3. Login වුණාට පස්සේ විතරයි මෙතනින් පල්ලෙහාට යන්නේ
 # --- මෙතැන් සිට ඔයාගේ පරණ කෝඩ් එක පටන් ගන්නවා ---
 
