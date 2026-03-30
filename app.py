@@ -1387,42 +1387,41 @@ elif menu == "📑 Reports Center":
                 
     # --- TAB 3: DAILY LOG (FULL AUDIT TRAIL) ---
     with r3:
-        st.subheader("📋 Master Daily Transaction Log")
+        st.subheader("📋 Detailed Transaction Log")
         
         if not df_f.empty:
-            # 1. Column ටික තෝරා ගැනීම
-            log_cols = ['Date', 'Type', 'Category', 'Vehicle', 'Qty_Cubes', 'Hours', 'Amount', 'Note']
+            # 1. පෙන්විය යුතු තීරු (Column Names) නිවැරදිව ලබා දීම
+            # මෙතන 'Hours' කියන එක හරියටම තියෙනවාද බලන්න (Work_Hours නෙවෙයි)
+            log_cols = ['Date', 'Type', 'Category', 'Entity', 'Qty_Cubes', 'Hours', 'Amount', 'Note']
+            
+            # 2. ඔයාගෙ Database එකේ තියෙන තීරු විතරක් තෝරාගන්නවා
             available_log_cols = [c for c in log_cols if c in df_f.columns]
             
-            # 2. දත්ත Sort කිරීම
+            # 3. දත්ත Sort කිරීම (අලුත්ම ඒක උඩට)
             display_log = df_f[available_log_cols].sort_values(by='Date', ascending=False)
             
-            # 3. Table එක පෙන්වීම
+            # 4. Table එක Format කරලා පෙන්වීම
             st.dataframe(
                 display_log.style.format({
                     "Amount": "{:,.2f}", 
                     "Qty_Cubes": "{:,.2f}",
-                    "Hours": "{:,.2f}"
+                    "Hours": "{:,.2f}" # මෙතන 'Hours' තිබීම අනිවාර්යයි
                 }), 
                 use_container_width=True,
                 height=500,
                 hide_index=True
             )
             
-            # 4. Summary එක පෙන්වීම (මෙහි indentation එක දැන් නිවැරදියි)
-            total_entries = len(display_log)
-            st.caption(f"Showing {total_entries} transactions for the selected period.")
-            
-            # 5. CSV Export Button එක
+            # CSV Download Button එක...
             csv = display_log.to_csv(index=False).encode('utf-8')
             st.download_button(
                 label="📥 Export Full Log as CSV",
                 data=csv,
-                file_name=f"Daily_Log_{f_d}_to_{t_d}.csv",
+                file_name=f"Detailed_Log.csv",
                 mime='text/csv',
             )
         else:
-            st.info("තෝරාගත් දින පරාසය සඳහා දත්ත කිසිවක් වාර්තා වී නැත.")
+            st.info("දත්ත කිසිවක් වාර්තා වී නැත.")
 
     # --- TAB 4: SHED REPORT (FUEL & PAYMENTS) ---
     with r4:
