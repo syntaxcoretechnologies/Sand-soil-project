@@ -928,7 +928,7 @@ elif menu == "💰 Finance & Shed":
                         st.error(f"Error syncing with Cloud: {e}")
 
     # කලින් තිබුණ if/elif පේළියට කෙලින්ම යටින් මෙය තිබිය යුතුය
-     elif fin == "💸 Payroll":
+    elif fin == "💸 Payroll":
         st.subheader("💸 Staff Payroll & Advances")
         dr_names = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else ["N/A"]
         
