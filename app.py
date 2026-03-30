@@ -1293,8 +1293,9 @@ elif menu == "📑 Reports Center":
             st.warning("කරුණාකර ප්‍රථමයෙන් 'System Setup' හරහා සේවක මණ්ඩලය (Staff) ඇතුළත් කරන්න.")
             
 # --- 🏗️ VEHICLE SETTLEMENT SECTION ---
-elif menu == "🏗️ Vehicle Settlement":
-    st.title("🏗️ Vehicle Performance & Settlement")
+with r_veh:
+        st.subheader("🚜 Vehicle & Machine Settlement")
+        v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
 
     # 1. වාහන ලැයිස්තුව ලබා ගනිමු
     v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
@@ -1455,8 +1456,9 @@ elif menu == "🏗️ Vehicle Settlement":
                 st.info(f"'{search_name}' නම යටතේ කිසිදු ගනුදෙනුවක් හමු නොවීය.")
                         
    # --- TAB 2: DRIVER SUMMARY (ENHANCED) ---
-    with r2:
+    with r_drv:
         st.subheader("👤 Driver Salary & Advance Statement")
+        dr_list = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else []
         
         # 1. Driver list එක Database එකෙන් ලබා ගැනීම
         dr_list = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else []
@@ -1510,7 +1512,7 @@ elif menu == "🏗️ Vehicle Settlement":
                 st.warning(f"{search_dr} සම්බන්ධ කිසිදු දත්තයක් හමු නොවීය.")
 
     # --- TAB 3: DAILY LOG (ENHANCED) ---
-    with r3:
+    with r_log:
         st.subheader("📑 Master Daily Transaction Log")
         
         if not df_f.empty:
@@ -1552,7 +1554,7 @@ elif menu == "🏗️ Vehicle Settlement":
             st.warning("තෝරාගත් කාල සීමාව තුළ කිසිදු ගනුදෙනුවක් වාර්තා වී නැත.")
             
 # --- TAB 4: SHED REPORT (ENHANCED) ---
-    with r4:
+   with r_shed:
         st.subheader("⛽ Fuel & Shed Settlement Report")
         
         # 1. Fuel සහ Shed වලට අදාළ දත්ත පමණක් වෙන් කරගැනීම
