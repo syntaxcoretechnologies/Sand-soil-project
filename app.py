@@ -1704,7 +1704,7 @@ elif menu == "👤 Manage Landowners":
                     st.rerun()
 
 # --- 12. STAFF PAYROLL SECTION (දැන් මේක හරියටම Align වෙලා තියෙන්නේ) ---
-    elif menu == "👷 Staff Payroll":
+elif menu == "👷 Staff Payroll":
         st.subheader("💳 Staff Salary & Advance Management")
         
         if "staff_db" not in st.session_state or st.session_state.staff_db.empty:
@@ -1740,11 +1740,11 @@ elif menu == "👤 Manage Landowners":
                             st.success(f"Rs. {amount:,.2f} saved for {member}!")
                             st.rerun()
                         except Exception as e:
-                            st.error(f"Cloud Sync Error: {e}")
+                            st.error(f"Cloud Sync Error: {e}")    
     
 
 # --- DATA MANAGER SECTION ---
-    elif menu == "⚙️ Data Manager":
+elif menu == "⚙️ Data Manager":
         st.markdown(f"<h2 style='color: #E67E22;'>⚙️ Data Manager</h2>", unsafe_allow_html=True)
         st.info("මෙහිදී ඔබට වැරදිලාවත් ඇතුළත් කළ දත්ත Edit කිරීමට හෝ Delete කිරීමට හැකියාව ඇත.")
         
@@ -1814,4 +1814,4 @@ elif menu == "👤 Manage Landowners":
                 st.session_state.df.sort_values(by="ID", ascending=False), 
                 use_container_width=True, 
                 hide_index=True
-            )
+            )    
