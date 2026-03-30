@@ -735,46 +735,40 @@ elif menu == "🏗️ Site Operations":
             n = st.text_input("Additional Note")
             
             if st.form_submit_button("📥 Save Record & Sync to Cloud"):
-            if val <= 0 or r <= 0: 
-                st.error("Please enter valid Qty/Hours and Rate!")
-            else:
-                cat = f"{op} ({material})" if material else op
-                calculated_amount = val * r
-                q = val if "Cubes" in val_label else 0
-                h = val if "Hours" in val_label else 0
-                
-                final_note = n
-                if op == "📥 Stock Inward (To Plant)":
-                    final_note = f"{n} | Owner: {src_owner} | Drv: {src_driver}"
-                
-                new_data = {
-                    "Date": str(d),
-                    "Type": "Income" if op == "💰 Sales Out" else "Process",
-                    "Category": cat,
-                    "Entity": v,
-                    "Note": final_note,
-                    "Amount": calculated_amount,
-                    "Qty_Cubes": q,
-                    "Hours": h,
-                    "Fuel_Ltr": 0,
-                    "Rate_At_Time": r,
-                    "Status": "Done"
-                }
-                
-                try:
-                    # 1. Cloud එකට දත්ත යැවීම
-                    conn.table("master_log").insert(new_data).execute()
+                if val <= 0 or r <= 0: 
+                    st.error("Please enter valid Qty/Hours and Rate!")
+                else:
+                    cat = f"{op} ({material})" if material else op
+                    calculated_amount = val * r
+                    q = val if "Cubes" in val_label else 0
+                    h = val if "Hours" in val_label else 0
                     
-                    # 2. සාර්ථක පණිවිඩය පෙන්වීම
-                    st.success(f"Successfully Recorded! Total: Rs.{calculated_amount:,.2f}")
+                    final_note = n
+                    if op == "📥 Stock Inward (To Plant)":
+                        final_note = f"{n} | Owner: {src_owner} | Drv: {src_driver}"
                     
-                    # 3. වැදගත්ම දේ: App එක Rerun කරලා Form එක Clear කිරීම
-                    # මම මේකට st.balloons() එකකුත් දැම්මා ලස්සනට පේන්න
-                    st.balloons()
-                    st.rerun() 
+                    new_data = {
+                        "Date": str(d),
+                        "Type": "Income" if op == "💰 Sales Out" else "Process",
+                        "Category": cat,
+                        "Entity": v,
+                        "Note": final_note,
+                        "Amount": calculated_amount,
+                        "Qty_Cubes": q,
+                        "Hours": h,
+                        "Fuel_Ltr": 0,
+                        "Rate_At_Time": r,
+                        "Status": "Done"
+                    }
                     
-                except Exception as e:
-                    st.error(f"Error syncing with Cloud: {e}")
+                    try:
+                        # Cloud එකට සේව් කිරීම
+                        conn.table("master_log").insert(new_data).execute()
+                        st.success(f"Successfully Recorded! Total: Rs.{calculated_amount:,.2f}")
+                        st.balloons()
+                        st.rerun() 
+                    except Exception as e:
+                        st.error(f"Error syncing with Cloud: {e}")
                     
     # --- 8. FINANCE & SHED ---
 elif menu == "💰 Finance & Shed":
