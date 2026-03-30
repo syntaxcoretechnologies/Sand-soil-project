@@ -636,7 +636,7 @@ if st.sidebar.button("Logout 🔓", use_container_width=True, type="secondary"):
 
 # --- 1. DASHBOARD SECTION (සම්පූර්ණ එකම මෙතන තියෙනවා) ---
 # --- 6. DASHBOARD ---
- elif menu == "📊 Dashboard":
+elif menu == "📊 Dashboard":
         st.markdown("<h2 style='color: #2E86C1;'>📊 Business Overview</h2>", unsafe_allow_html=True)
         
         df = st.session_state.df.copy()
@@ -700,7 +700,7 @@ if st.sidebar.button("Logout 🔓", use_container_width=True, type="secondary"):
         # දත්ත නැතිනම් පෙන්වන්න ඕන message එක මෙතනට දැම්මා.
         elif df.empty:
             st.info("පද්ධතියේ දත්ත කිසිවක් නැත. කරුණාකර දත්ත ඇතුළත් කරන්න.")   
-
+ 
 # --- 2. SITE OPERATIONS SECTION ---
 # මේ 'elif' එක පටන් ගන්න ඕනේ උඩ තියෙන 'if menu == "📊 Dashboard":' එකට කෙළින්ම පල්ලෙහායින්
 # --- කලින් තිබුණු Site Operations එක අයින් කරලා මේක දාන්න ---
