@@ -214,9 +214,9 @@ def create_pdf(title, data_df, summary_dict):
         pdf.cell(w[3], 7, f"{row_qty:,.2f}" if row_qty > 0 else "-", 1, 0, 'C')
         
         # Expense logic
-        if any(exp in cat_str for exp in ["Fuel", "Repair", "Advance", "Payroll", "Salary", "Expense"]):
+        if any(exp in cat_str for exp in ["Fuel", "Repair", "Advance", "Payroll", "Salary", "Expense", "Staff"]):
             total_exp += amt
-            pdf.set_text_color(200, 0, 0)
+            pdf.set_text_color(200, 0, 0) # වියදම් රතු පාටින්
             pdf.cell(w[4], 7, "EXPENSE", 1, 0, 'C')
             pdf.cell(w[5], 7, f"({amt:,.2f})", 1, 1, 'R')
             pdf.set_text_color(0, 0, 0)
