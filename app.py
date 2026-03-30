@@ -1382,12 +1382,14 @@ elif menu == "📑 Reports Center":
         st.subheader("📋 Master Daily Transaction Log")
         
         if not df_f.empty:
-            # 1. Column ටික ඔයාගේ database එකේ හැටියට හදමු
+            # 1. Column ටික තෝරා ගැනීම
             log_cols = ['Date', 'Type', 'Category', 'Vehicle', 'Qty_Cubes', 'Hours', 'Amount', 'Note']
             available_log_cols = [c for c in log_cols if c in df_f.columns]
             
+            # 2. දත්ත Sort කිරීම
             display_log = df_f[available_log_cols].sort_values(by='Date', ascending=False)
             
+            # 3. Table එක පෙන්වීම
             st.dataframe(
                 display_log.style.format({
                     "Amount": "{:,.2f}", 
@@ -1396,24 +1398,23 @@ elif menu == "📑 Reports Center":
                 }), 
                 use_container_width=True,
                 height=500,
-                hide_index=True # Index එක අයින් කළාම ලස්සනයි
+                hide_index=True
             )
             
-            # summary & download buttons... (ඔයාගේ ඉතිරි කෝඩ් එක එහෙම්මම තියන්න)
-                # 4. පොඩි Summary එකක් පහළින් පෙන්වමු
-                total_entries = len(display_log)
-                st.caption(f"Showing {total_entries} transactions for the selected period.")
-                
-                # 5. CSV විදිහට Export කරන්න ඕන නම් (Excel වලට ගන්න)
-                csv = display_log.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="📥 Export Full Log as CSV",
-                    data=csv,
-                    file_name=f"Daily_Log_{f_d}_to_{t_d}.csv",
-                    mime='text/csv',
-                )
-            else:
-                st.info("තෝරාගත් දින පරාසය සඳහා දත්ත කිසිවක් වාර්තා වී නැත.")
+            # 4. Summary එක පෙන්වීම (මෙහි indentation එක දැන් නිවැරදියි)
+            total_entries = len(display_log)
+            st.caption(f"Showing {total_entries} transactions for the selected period.")
+            
+            # 5. CSV Export Button එක
+            csv = display_log.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Export Full Log as CSV",
+                data=csv,
+                file_name=f"Daily_Log_{f_d}_to_{t_d}.csv",
+                mime='text/csv',
+            )
+        else:
+            st.info("තෝරාගත් දින පරාසය සඳහා දත්ත කිසිවක් වාර්තා වී නැත.")
 
     # --- TAB 4: SHED REPORT (FUEL & PAYMENTS) ---
     with r4:
