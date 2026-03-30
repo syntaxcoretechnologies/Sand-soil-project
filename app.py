@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 from fpdf import FPDF
 from streamlit_gsheets import GSheetsConnection # අලුතින් එක් කළා
 
+MASTER_SHEET = "Master_Log"
+
 # --- 1. LOGIN CREDENTIALS ---
 USERS = {
     "ksdadmin": {"password": "ksd7979", "role": "admin"},
