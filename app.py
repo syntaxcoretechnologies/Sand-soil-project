@@ -1379,41 +1379,41 @@ elif menu == "📑 Reports Center":
                 
     # --- TAB 3: DAILY LOG (FULL AUDIT TRAIL) ---
     with r3:
-    st.subheader("📋 Master Daily Transaction Log")
-    
-    if not df_f.empty:
-        # 1. Column ටික ඔයාගේ database එකේ හැටියට හදමු
-        log_cols = ['Date', 'Type', 'Category', 'Vehicle', 'Qty_Cubes', 'Hours', 'Amount', 'Note']
-        available_log_cols = [c for c in log_cols if c in df_f.columns]
+        st.subheader("📋 Master Daily Transaction Log")
         
-        display_log = df_f[available_log_cols].sort_values(by='Date', ascending=False)
-        
-        st.dataframe(
-            display_log.style.format({
-                "Amount": "{:,.2f}", 
-                "Qty_Cubes": "{:,.2f}",
-                "Hours": "{:,.2f}"
-            }), 
-            use_container_width=True,
-            height=500,
-            hide_index=True # Index එක අයින් කළාම ලස්සනයි
-        )
-        
-        # summary & download buttons... (ඔයාගේ ඉතිරි කෝඩ් එක එහෙම්මම තියන්න)
-            # 4. පොඩි Summary එකක් පහළින් පෙන්වමු
-            total_entries = len(display_log)
-            st.caption(f"Showing {total_entries} transactions for the selected period.")
+        if not df_f.empty:
+            # 1. Column ටික ඔයාගේ database එකේ හැටියට හදමු
+            log_cols = ['Date', 'Type', 'Category', 'Vehicle', 'Qty_Cubes', 'Hours', 'Amount', 'Note']
+            available_log_cols = [c for c in log_cols if c in df_f.columns]
             
-            # 5. CSV විදිහට Export කරන්න ඕන නම් (Excel වලට ගන්න)
-            csv = display_log.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="📥 Export Full Log as CSV",
-                data=csv,
-                file_name=f"Daily_Log_{f_d}_to_{t_d}.csv",
-                mime='text/csv',
+            display_log = df_f[available_log_cols].sort_values(by='Date', ascending=False)
+            
+            st.dataframe(
+                display_log.style.format({
+                    "Amount": "{:,.2f}", 
+                    "Qty_Cubes": "{:,.2f}",
+                    "Hours": "{:,.2f}"
+                }), 
+                use_container_width=True,
+                height=500,
+                hide_index=True # Index එක අයින් කළාම ලස්සනයි
             )
-        else:
-            st.info("තෝරාගත් දින පරාසය සඳහා දත්ත කිසිවක් වාර්තා වී නැත.")
+            
+            # summary & download buttons... (ඔයාගේ ඉතිරි කෝඩ් එක එහෙම්මම තියන්න)
+                # 4. පොඩි Summary එකක් පහළින් පෙන්වමු
+                total_entries = len(display_log)
+                st.caption(f"Showing {total_entries} transactions for the selected period.")
+                
+                # 5. CSV විදිහට Export කරන්න ඕන නම් (Excel වලට ගන්න)
+                csv = display_log.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📥 Export Full Log as CSV",
+                    data=csv,
+                    file_name=f"Daily_Log_{f_d}_to_{t_d}.csv",
+                    mime='text/csv',
+                )
+            else:
+                st.info("තෝරාගත් දින පරාසය සඳහා දත්ත කිසිවක් වාර්තා වී නැත.")
 
     # --- TAB 4: SHED REPORT (FUEL & PAYMENTS) ---
     with r4:
