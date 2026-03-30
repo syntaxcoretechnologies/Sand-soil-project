@@ -1471,7 +1471,7 @@ elif menu == "⚙️ System Setup":
         with setup_tab1:
             st.subheader("🚜 Add New Vehicle / Machine")
             
-            # 1. වාහන ලියාපදිංචි කිරීමේ Form එක (Variable names ඔයාගේ ඒවාමයි)
+            # 1. වාහන ලියාපදිංචි කිරීමේ Form එක
             with st.form("v_setup_form", clear_on_submit=True):
                 col1, col2 = st.columns(2)
                 with col1:
@@ -1483,15 +1483,10 @@ elif menu == "⚙️ System Setup":
                 
                 if st.form_submit_button("✅ Register Vehicle"):
                     if v_no:
-                        # ඩියුප්ලිකේට් චෙක් එකක් දාමු - එකම වාහනය දෙපාරක් වැටෙන්න බැහැ
                         if v_no not in st.session_state.ve_db["No"].values:
                             new_v = pd.DataFrame([[v_no, v_type, v_owner, v_rate]], 
                                                  columns=["No", "Type", "Owner", "Rate_Per_Unit"])
-                            
-                            # session_state එකට ඇඩ් කරනවා
                             st.session_state.ve_db = pd.concat([st.session_state.ve_db, new_v], ignore_index=True)
-                            
-                            # Database එකට සේව් කරලා රීලෝඩ් කරනවා
                             save_all()
                             st.success(f"Vehicle {v_no} registered successfully!")
                             st.rerun()
@@ -1499,98 +1494,81 @@ elif menu == "⚙️ System Setup":
                             st.error(f"Vehicle {v_no} is already registered in the system!")
                     else:
                         st.warning("Please enter a Vehicle Number to continue.")
-
+        
             # 2. ලියාපදිංචි වාහන ලැයිස්තුව සහ කළමනාකරණය
             if not st.session_state.ve_db.empty:
                 st.divider()
                 st.subheader("📋 Registered Vehicles List")
-                
-                # පවතින වාහන බලාගන්න ටේබල් එකක්
                 st.dataframe(st.session_state.ve_db, use_container_width=True, hide_index=True)
                 
-                # වාහනයක් ඉවත් කිරීම (Delete Section)
                 col_m1, col_m2 = st.columns([2, 1])
                 with col_m1:
                     ve_to_manage = st.selectbox("Select Vehicle to Manage/Delete", 
-                                              st.session_state.ve_db["No"].tolist(), key="manage_ve_sel")
+                                                st.session_state.ve_db["No"].tolist(), key="manage_ve_sel")
                 with col_m2:
-                    st.write(" ") # Space for alignment
+                    st.write(" ") 
                     if st.button("Delete Vehicle ❌", key="del_ve", use_container_width=True):
                         st.session_state.ve_db = st.session_state.ve_db[st.session_state.ve_db["No"] != ve_to_manage]
                         save_all()
                         st.warning(f"Vehicle {ve_to_manage} removed.")
                         st.rerun()
-                        
 
-       # --- TAB 2: DRIVERS / OPERATORS ---
-with setup_tab2:
-    st.subheader("👷 Add New Driver / Operator")
-    
-    # 1. ඩ්‍රයිවර් ලියාපදිංචි කිරීමේ Form එක
-    with st.form("d_setup_form", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-        with col1:
-            d_name = st.text_input("Full Name")
-            d_phone = st.text_input("Contact Number", placeholder="07x-xxxxxxx")
-        with col2:
-            d_salary = st.number_input("Daily Salary (Rs.)", min_value=0.0, step=100.0)
+        # --- TAB 2: DRIVERS / OPERATORS ---
+        with setup_tab2:
+            st.subheader("👷 Add New Driver / Operator")
+            
+            # 1. ඩ්‍රයිවර් ලියාපදිංචි කිරීමේ Form එක
+            with st.form("d_setup_form", clear_on_submit=True):
+                col1, col2 = st.columns(2)
+                with col1:
+                    d_name = st.text_input("Full Name")
+                    d_phone = st.text_input("Contact Number", placeholder="07x-xxxxxxx")
+                with col2:
+                    d_salary = st.number_input("Daily Salary (Rs.)", min_value=0.0, step=100.0)
+                
+                if st.form_submit_button("✅ Register Driver"):
+                    if d_name:
+                        if d_name not in st.session_state.dr_db["Name"].values:
+                            try:
+                                new_driver_data = {
+                                    "Name": d_name,
+                                    "Phone": d_phone,
+                                    "Daily_Salary": d_salary
+                                }
+                                conn.table("drivers").insert(new_driver_data).execute()
+                                
+                                new_d = pd.DataFrame([[d_name, d_phone, d_salary]], 
+                                                     columns=["Name", "Phone", "Daily_Salary"])
+                                st.session_state.dr_db = pd.concat([st.session_state.dr_db, new_d], ignore_index=True)
+                                st.success(f"Driver {d_name} registered successfully in Supabase!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Supabase Error: {e}")
+                        else:
+                            st.error(f"Driver {d_name} is already in the system!")
+                    else:
+                        st.warning("Please enter the Driver's Name.")
         
-        if st.form_submit_button("✅ Register Driver"):
-            if d_name:
-                # Session State එකේ දැනටමත් නම තියෙනවාද බලනවා
-                if d_name not in st.session_state.dr_db["Name"].values:
-                    try:
-                        # --- SUPABASE එකට DATA INSERT කිරීම ---
-                        new_driver_data = {
-                            "Name": d_name,
-                            "Phone": d_phone,
-                            "Daily_Salary": d_salary
-                        }
-                        # 'drivers' කියන Table එකට දත්ත ඇතුළත් කරනවා
-                        conn.table("drivers").insert(new_driver_data).execute()
-                        
-                        # Local Session එකත් Update කරනවා (Table එකේ එසැණින් පෙන්වන්න)
-                        new_d = pd.DataFrame([[d_name, d_phone, d_salary]], 
-                                             columns=["Name", "Phone", "Daily_Salary"])
-                        st.session_state.dr_db = pd.concat([st.session_state.dr_db, new_d], ignore_index=True)
-                        
-                        st.success(f"Driver {d_name} registered successfully in Supabase!")
-                        st.rerun()
-                        
-                    except Exception as e:
-                        st.error(f"Supabase Error: {e}")
-                else:
-                    st.error(f"Driver {d_name} is already in the system!")
-            else:
-                st.warning("Please enter the Driver's Name.")
-
-    # 2. ලියාපදිංචි ඩ්‍රයිවර්ලා කළමනාකරණය (List & Delete)
-    if not st.session_state.dr_db.empty:
-        st.divider()
-        st.subheader("📋 Registered Driver List")
-        
-        # Table එක පෙන්වීම
-        st.dataframe(st.session_state.dr_db, use_container_width=True, hide_index=True)
-        
-        # ඉවත් කිරීම (Delete Section)
-        col_dr1, col_dr2 = st.columns([2, 1])
-        with col_dr1:
-            dr_to_manage = st.selectbox("Select Driver to Manage", 
-                                       st.session_state.dr_db["Name"].tolist(), key="sel_dr_manage")
-        with col_dr2:
-            st.write(" ") # Padding for alignment
-            if st.button("Delete Driver ❌", key="del_dr", use_container_width=True):
-                try:
-                    # --- SUPABASE එකෙන් DELETE කිරීම ---
-                    conn.table("drivers").delete().eq("Name", dr_to_manage).execute()
-                    
-                    # Local Session එකෙන් ඉවත් කිරීම
-                    st.session_state.dr_db = st.session_state.dr_db[st.session_state.dr_db["Name"] != dr_to_manage]
-                    
-                    st.warning(f"Driver {dr_to_manage} removed from Database.")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Delete Error: {e}")
+            # 2. ලියාපදිංචි ඩ්‍රයිවර්ලා කළමනාකරණය (List & Delete)
+            if not st.session_state.dr_db.empty:
+                st.divider()
+                st.subheader("📋 Registered Driver List")
+                st.dataframe(st.session_state.dr_db, use_container_width=True, hide_index=True)
+                
+                col_dr1, col_dr2 = st.columns([2, 1])
+                with col_dr1:
+                    dr_to_manage = st.selectbox("Select Driver to Manage", 
+                                               st.session_state.dr_db["Name"].tolist(), key="sel_dr_manage")
+                with col_dr2:
+                    st.write(" ") 
+                    if st.button("Delete Driver ❌", key="del_dr", use_container_width=True):
+                        try:
+                            conn.table("drivers").delete().eq("Name", dr_to_manage).execute()
+                            st.session_state.dr_db = st.session_state.dr_db[st.session_state.dr_db["Name"] != dr_to_manage]
+                            st.warning(f"Driver {dr_to_manage} removed from Database.")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Delete Error: {e}")
                     
        # --- TAB 3: STAFF MANAGEMENT (Syntaxcore ERP Standard) ---
         with setup_tab3:
