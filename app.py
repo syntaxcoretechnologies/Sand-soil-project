@@ -1770,7 +1770,7 @@ elif menu == "⚙️ Data Manager":
             search_id = st.number_input("Enter Record ID to Edit/Delete", min_value=1, step=1)
             
             # DataFrame එකේ index එක හරියටම අල්ලගන්නවා (ඔයාගේ logic එක)
-            record_idx = st.session_state.df.index[st.session_state.df["ID"] == search_id].tolist()
+            record_idx = st.session_state.df.index[st.session_state.df["id"] == search_id].tolist()
             
             if record_idx:
                 idx = record_idx[0]
