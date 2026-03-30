@@ -1535,22 +1535,34 @@ elif menu == "⚙️ System Setup":
                     d_salary = st.number_input("Daily Salary (Rs.)", min_value=0.0, step=100.0)
                 
                 if st.form_submit_button("✅ Register Driver"):
-                    if d_name:
-                        # පවතින ලැයිස්තුවේ නම තියෙනවාද බලනවා
-                        if d_name not in st.session_state.dr_db["Name"].values:
-                            new_d = pd.DataFrame([[d_name, d_phone, d_salary]], 
-                                                 columns=["Name", "Phone", "Daily_Salary"])
-                            
-                            st.session_state.dr_db = pd.concat([st.session_state.dr_db, new_d], ignore_index=True)
-                            
-                            # Database එකට save කරලා refresh කරනවා
-                            save_all()
-                            st.success(f"Driver {d_name} registered successfully!")
-                            st.rerun()
-                        else:
-                            st.error(f"Driver {d_name} is already in the system!")
-                    else:
-                        st.warning("Please enter the Driver's Name.")
+            if d_name:
+                # 1. පවතින ලැයිස්තුවේ නම තියෙනවාද බලනවා (Local Session එකේ)
+                if d_name not in st.session_state.dr_db["Name"].values:
+                    
+                    # --- SUPABASE එකට DATA දැමීම (මෙන්න මේ කෑල්ලයි අලුතින් එන්නේ) ---
+                    try:
+                        new_driver_data = {
+                            "Name": d_name,
+                            "Phone": d_phone,
+                            "Daily_Salary": d_salary
+                        }
+                        # 'drivers' table එකට දත්ත ඇතුළත් කරනවා
+                        conn.table("drivers").insert(new_driver_data).execute()
+                        
+                        # 2. Local Session State එකත් update කරනවා (Table එකේ පෙන්වන්න)
+                        new_d = pd.DataFrame([[d_name, d_phone, d_salary]], 
+                                             columns=["Name", "Phone", "Daily_Salary"])
+                        st.session_state.dr_db = pd.concat([st.session_state.dr_db, new_d], ignore_index=True)
+                        
+                        st.success(f"Driver {d_name} registered successfully in Supabase!")
+                        st.rerun()
+                        
+                    except Exception as e:
+                        st.error(f"Supabase Error: {e}")
+                else:
+                    st.error(f"Driver {d_name} is already in the system!")
+            else:
+                st.warning("Please enter the Driver's Name.")
 
             # 2. ලියාපදිංචි ඩ්‍රයිවර්ලා කළමනාකරණය
             if not st.session_state.dr_db.empty:
