@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import time
 import os
 from datetime import datetime, timedelta
 from fpdf import FPDF
