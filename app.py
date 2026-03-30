@@ -1826,7 +1826,7 @@ elif menu == "⚙️ Data Manager":
             st.divider()
             st.write("#### 📋 Full Transaction Log (Use ID to Edit/Delete)")
             st.dataframe(
-                st.session_state.df.sort_values(by="ID", ascending=False), 
+                st.session_state.df.sort_values(by="id", ascending=False), 
                 use_container_width=True, 
                 hide_index=True
             )    
