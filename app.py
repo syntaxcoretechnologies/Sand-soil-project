@@ -396,7 +396,6 @@ def create_driver_pdf(title, data_df, summary_dict):
     pdf.output(fn)
     return fn
     
-# --- Landowner PDF Engine (මේක අලුතින්ම දාන කොටස) ---
 # --- 8. LANDOWNER PDF ENGINE (Cloud-Ready) ---
 def create_landowner_pdf(title, data_df, summary_dict):
     pdf = PDF() 
@@ -1571,52 +1570,47 @@ elif menu == "⚙️ System Setup":
                             st.error(f"Delete Error: {e}")
                     
        # --- TAB 3: STAFF MANAGEMENT (Syntaxcore ERP Standard) ---
+        # --- TAB: STAFF REGISTRATION (SETUP) ---
         with setup_tab3:
-            st.subheader("👷 Register Plant Staff Members")
+            st.subheader("👷 Add New Staff Member")
             
-            # 1. Staff Form එක
-            with st.form("staff_setup_form", clear_on_submit=True):
+            with st.form("staff_reg_form", clear_on_submit=True):
                 col1, col2 = st.columns(2)
                 with col1:
-                    s_name = st.text_input("Full Name")
-                    s_pos = st.selectbox("Position", ["Supervisor", "Operator", "Helper", "Security", "Manager", "Other"])
+                    s_name = st.text_input("Staff Name")
+                    s_pos = st.text_input("Position (Ex: Helper, Supervisor)")
                 with col2:
-                    s_rate = st.number_input("Daily Rate (LKR)", min_value=0.0, step=50.0)
-                
-                if st.form_submit_button("✅ Register Staff Member"):
+                    s_rate = st.number_input("Daily Rate (Rs.)", min_value=0.0, step=100.0)
+                    
+                if st.form_submit_button("✅ Register Staff"):
                     if s_name:
-                        # ඩියුප්ලිකේට් චෙක් එකක්
                         if s_name not in st.session_state.staff_db["Name"].values:
-                            new_s = pd.DataFrame([{"Name": s_name, "Position": s_pos, "Daily_Rate": s_rate}])
-                            st.session_state.staff_db = pd.concat([st.session_state.staff_db, new_s], ignore_index=True)
-                            save_all()
-                            st.success(f"Staff member {s_name} registered successfully!")
-                            st.rerun()
+                            try:
+                                # --- SUPABASE එකට DIRECT INSERT කිරීම ---
+                                new_staff = {
+                                    "Name": s_name,
+                                    "Position": s_pos,
+                                    "Daily_Rate": s_rate
+                                }
+                                conn.table("staff").insert(new_staff).execute()
+                                
+                                # Local Session එක Update කිරීම
+                                new_s_df = pd.DataFrame([new_staff])
+                                st.session_state.staff_db = pd.concat([st.session_state.staff_db, new_s_df], ignore_index=True)
+                                
+                                st.success(f"Staff member {s_name} registered successfully!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Cloud Error: {e}")
                         else:
-                            st.error(f"{s_name} is already registered!")
+                            st.error("This member is already registered!")
                     else:
-                        st.error("Please enter a name to register.")
-
-            # 2. Staff කළමනාකරණය
+                        st.warning("Please enter the Staff Name.")
+        
+            # ලියාපදිංචි අයගේ ලැයිස්තුව පෙන්නන්න
             if not st.session_state.staff_db.empty:
                 st.divider()
-                st.write("### 📋 Current Staff Directory")
-                
-                # Index එක නැතුව Table එක පෙන්වීම (පිරිසිදුයි)
                 st.dataframe(st.session_state.staff_db, use_container_width=True, hide_index=True)
-                
-                # ඉවත් කිරීම (Delete Section)
-                col_sd1, col_sd2 = st.columns([2, 1])
-                with col_sd1:
-                    s_to_del = st.selectbox("Select Staff to Remove", 
-                                          st.session_state.staff_db["Name"].tolist(), key="staff_del_sel")
-                with col_sd2:
-                    st.write(" ") # Space adjustment
-                    if st.button("Remove Staff Member ❌", key="del_staff", use_container_width=True):
-                        st.session_state.staff_db = st.session_state.staff_db[st.session_state.staff_db["Name"] != s_to_del]
-                        save_all()
-                        st.warning(f"Member {s_to_del} removed from system.")
-                        st.rerun()
                     
 # --- මේක වෙනම Menu එකක් විදිහට පල්ලෙහායින් දාන්න ---
 elif menu == "👤 Manage Landowners":
