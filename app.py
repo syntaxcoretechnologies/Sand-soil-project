@@ -139,7 +139,6 @@ def create_pdf(title, data_df, summary_dict):
     
     def safe_text(text):
         if text is None or str(text) == "nan": return ""
-        # Latin-1 වල නැති අකුරු (සිංහල වගේ) ආවොත් Error නොවී ඉන්න ignore කරනවා
         return str(text).encode("latin-1", "ignore").decode("latin-1")
 
     # Title Section
@@ -148,13 +147,19 @@ def create_pdf(title, data_df, summary_dict):
     pdf.cell(0, 10, safe_text(f"STATEMENT: {title.upper()}"), 1, 1, 'L', fill=True)
     pdf.ln(2)
     
-    # Summary Table
+    # --- මෙතන තමයි Summary එකේ Total එක හදන්නේ ---
+    # ලෝකල්ව එකතු කරලා බලමු සාරාංශය හරිද කියලා
+    total_qty_hrs = 0
+    
+    # Summary Table එක පෙන්වන කොටස
     pdf.set_font("Arial", 'B', 10)
     for k, v in summary_dict.items():
         if k != "Rate_Breakdown":
+            # PDF එකේ උඩ පෙන්වන 'Total Units/Hours' එක 0 නම් ඒක වෙනුවට ඇත්ත එකතුව පෙන්වන්න පුළුවන්
+            display_val = safe_text(v)
             pdf.cell(50, 8, safe_text(k) + ":", 1)
             pdf.set_font("Arial", '', 10)
-            pdf.cell(0, 8, " " + safe_text(v), 1, 1)
+            pdf.cell(0, 8, " " + display_val, 1, 1)
             pdf.set_font("Arial", 'B', 10)
 
     pdf.ln(8)
@@ -169,7 +174,7 @@ def create_pdf(title, data_df, summary_dict):
     pdf.set_font("Arial", '', 8)
     total_earn = 0
     total_exp = 0
-    total_qty_hrs = 0 
+    current_total_qty = 0 # මේකෙන් තමයි මුළු එකතුව ගණන් කරන්නේ
     
     for _, row in data_df.iterrows():
         def clean_val(v):
@@ -180,36 +185,38 @@ def create_pdf(title, data_df, summary_dict):
                 return float(v_str) if v_str else 0.0
             except: return 0.0
 
-        # Supabase වල Column names පොඩි අකුරින් තිබුණොත් ඒවත් check කරනවා
+        # --- Supabase වල තියෙන Column Names වලට ගැලපෙන්න මෙතන හැදුවා ---
         q_cubes = clean_val(row.get('Qty_Cubes', row.get('qty_cubes', 0)))
+        w_hrs = clean_val(row.get('Hours', row.get('hours', 0))) # මෙතන 'Hours' කියලයි තියෙන්න ඕනේ
         q_qty = clean_val(row.get('Qty', row.get('qty', 0)))
-        w_hrs = clean_val(row.get('Work_Hours', row.get('work_hours', 0)))
         
-        # ඔයාගේ logic එක: Cubes නැත්නම් Qty, ඒකත් නැත්නම් Hours ගන්නවා
-        qty = q_cubes if q_cubes > 0 else (q_qty if q_qty > 0 else w_hrs)
-        total_qty_hrs += qty
+        # Cubes හෝ Hours දෙකෙන් එකක් තියෙනවා නම් ඒක ගන්නවා
+        row_qty = q_cubes if q_cubes > 0 else (w_hrs if w_hrs > 0 else q_qty)
+        current_total_qty += row_qty
         
         rate = clean_val(row.get('Rate_At_Time', row.get('rate_at_time', 0)))
         amt = clean_val(row.get('Amount', row.get('amount', 0)))
         
-        if amt == 0 and qty > 0 and rate > 0:
-            amt = qty * rate
+        # දත්ත වල Amount එක නැතිවෙලා Qty සහ Rate තිබුණොත් ඒක හදනවා
+        if amt == 0 and row_qty > 0 and rate > 0:
+            amt = row_qty * rate
 
         date_val = safe_text(str(row.get('Date', row.get('date', '-'))))
-        # Category එක විදිහට Material හෝ Entity එක ගන්නවා
-        category = row.get('Category', row.get('category', row.get('Entity', 'N/A')))
+        category = row.get('Category', row.get('category', 'N/A'))
         note_val = safe_text(str(row.get('Note', row.get('note', ''))))[:30]
         cat_str = str(category)
 
         pdf.cell(w[0], 7, date_val, 1)
         pdf.cell(w[1], 7, safe_text(cat_str), 1)
         pdf.cell(w[2], 7, note_val, 1)
-        pdf.cell(w[3], 7, f"{qty:,.2f}" if qty > 0 else "-", 1, 0, 'C')
         
-        # Expense එකක්ද කියලා බලන Logic එක
+        # Qty එක පෙන්වන කොටස
+        pdf.cell(w[3], 7, f"{row_qty:,.2f}" if row_qty > 0 else "-", 1, 0, 'C')
+        
+        # Expense logic
         if any(exp in cat_str for exp in ["Fuel", "Repair", "Advance", "Payroll", "Salary", "Expense"]):
             total_exp += amt
-            pdf.set_text_color(200, 0, 0) # රතු පාටින් වියදම් පෙන්වයි
+            pdf.set_text_color(200, 0, 0)
             pdf.cell(w[4], 7, "EXPENSE", 1, 0, 'C')
             pdf.cell(w[5], 7, f"({amt:,.2f})", 1, 1, 'R')
             pdf.set_text_color(0, 0, 0)
@@ -218,13 +225,13 @@ def create_pdf(title, data_df, summary_dict):
             pdf.cell(w[4], 7, f"{rate:,.2f}" if rate > 0 else "-", 1, 0, 'R')
             pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 1, 'R')
 
-    # Totals Section
+    # Totals Section (PDF එකේ යටින් පෙන්වන ටික)
     if pdf.get_y() > 250: pdf.add_page()
     pdf.set_font("Arial", 'B', 9)
     
     pdf.set_fill_color(245, 245, 245)
     pdf.cell(sum(w[:3]), 8, "TOTAL QUANTITY / HOURS", 1, 0, 'R', fill=True)
-    pdf.cell(w[3], 8, f"{total_qty_hrs:,.2f}", 1, 0, 'C', fill=True)
+    pdf.cell(w[3], 8, f"{current_total_qty:,.2f}", 1, 0, 'C', fill=True) # මෙතන දැන් හරි එකතුව පෙන්වනවා
     pdf.cell(w[4] + w[5], 8, "", 1, 1, 'R', fill=True)
     
     pdf.cell(sum(w[:5]), 8, "GROSS EARNINGS (LKR)", 1, 0, 'R')
