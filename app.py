@@ -1519,6 +1519,7 @@ elif menu == "📑 Reports Center":
                 st.warning(f"{search_dr} සම්බන්ධ කිසිදු දත්තයක් හමු නොවීය.")
 
     # --- TAB 3: DAILY LOG (ENHANCED) ---
+    # --- 📑 DAILY LOG TAB SECTION ---
     with r_log:
         st.subheader("📑 Master Daily Transaction Log")
         
@@ -1542,26 +1543,27 @@ elif menu == "📑 Reports Center":
             
             # --- SEARCH & EXPORT ---
             st.divider()
-            c1, c2 = st.columns([2, 1])
+            cl1, cl2 = st.columns([2, 1])
             
-            with c1:
+            with cl1:
                 st.info(f"Showing {len(log_display)} records from {f_d} to {t_d}")
             
-            with c2:
+            with cl2:
                 # සම්පූර්ණ Filter කරපු දත්ත ටික Excel එකකට ගන්න පුළුවන් විදිහට (CSV)
-                csv = log_display.to_csv(index=False).encode('utf-8')
+                csv_data = log_display.to_csv(index=False).encode('utf-8')
                 st.download_button(
                     label="📥 Export Log to CSV",
-                    data=csv,
+                    data=csv_data,
                     file_name=f"Daily_Log_{f_d}_to_{t_d}.csv",
                     mime='text/csv',
-                    use_container_width=True
+                    use_container_width=True,
+                    key="log_download_btn"
                 )
         else:
             st.warning("තෝරාගත් කාල සීමාව තුළ කිසිදු ගනුදෙනුවක් වාර්තා වී නැත.")
-            
-# --- TAB 4: SHED REPORT (ENHANCED) ---
-   with r_shed:
+           
+   # --- ⛽ SHED REPORT TAB SECTION ---
+    with r_shed:
         st.subheader("⛽ Fuel & Shed Settlement Report")
         
         # 1. Fuel සහ Shed වලට අදාළ දත්ත පමණක් වෙන් කරගැනීම
@@ -1583,10 +1585,10 @@ elif menu == "📑 Reports Center":
             total_liters = shed_f[shed_f["Category"].str.contains("Fuel", case=False)]["Qty_Cubes"].sum()
             
             # 3. UI Metrics පෙන්වීම
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Total Fuel Bill", f"Rs. {f_bill:,.2f}")
-            c2.metric("Total Paid to Shed", f"Rs. {p_paid:,.2f}", delta=f"-{p_paid:,.0f}")
-            c3.metric("Outstanding Debt", f"Rs. {f_bill - p_paid:,.2f}", delta_color="inverse")
+            sh1, sh2, sh3 = st.columns(3)
+            sh1.metric("Total Fuel Bill", f"Rs. {f_bill:,.2f}")
+            sh2.metric("Total Paid to Shed", f"Rs. {p_paid:,.2f}", delta=f"-{p_paid:,.0f}")
+            sh3.metric("Outstanding Debt", f"Rs. {f_bill - p_paid:,.2f}", delta_color="inverse")
             
             st.info(f"⛽ Total Fuel Consumption: **{total_liters:,.1f} Liters**")
             st.divider()
@@ -1599,22 +1601,28 @@ elif menu == "📑 Reports Center":
 
             # 5. Detailed Transaction Log
             st.markdown("#### 📄 Detailed Fuel Log")
-            disp_cols = ['Date', 'Category', 'Entity', 'Qty_Cubes', 'Amount', 'Note']
-            existing_cols = [c for c in disp_cols if c in shed_f.columns]
-            st.dataframe(shed_f[existing_cols].sort_values("Date", ascending=False), use_container_width=True)
+            disp_cols_shed = ['Date', 'Category', 'Entity', 'Qty_Cubes', 'Amount', 'Note']
+            existing_cols_shed = [c for c in disp_cols_shed if c in shed_f.columns]
+            st.dataframe(shed_f[existing_cols_shed].sort_values("Date", ascending=False), use_container_width=True)
             
             # 6. PDF Button
-            if st.button("📥 Download Shed Report PDF"):
-                summary_data = {
-                    "Report Type": "Fuel & Shed Settlement",
-                    "Total Fuel Bill": f"Rs. {f_bill:,.2f}",
-                    "Total Paid": f"Rs. {p_paid:,.2f}",
-                    "Balance Due": f"Rs. {f_bill - p_paid:,.2f}",
-                    "Total Liters": f"{total_liters:,.1f} L"
-                }
-                pdf_fn = create_pdf("Shed_Report", shed_f, summary_data)
-                with open(pdf_fn, "rb") as f:
-                    st.download_button("📩 Download PDF", f, file_name=f"Shed_Report_{f_d}.pdf")
+            st.divider()
+            if st.button("📥 Download Shed Report PDF", key="btn_shed_pdf_report", use_container_width=True):
+                with st.spinner("Generating Fuel Report..."):
+                    summary_data_shed = {
+                        "Report Type": "Fuel & Shed Settlement",
+                        "Total Fuel Bill": f"Rs. {f_bill:,.2f}",
+                        "Total Paid": f"Rs. {p_paid:,.2f}",
+                        "Balance Due": f"Rs. {f_bill - p_paid:,.2f}",
+                        "Total Liters": f"{total_liters:,.1f} L",
+                        "Period": f"{f_d} to {t_d}"
+                    }
+                    try:
+                        pdf_fn = create_pdf("Shed_Report", shed_f, summary_data_shed)
+                        with open(pdf_fn, "rb") as f_file:
+                            st.download_button("📩 Download PDF Now", f_file, file_name=f"Shed_Report_{f_d}.pdf", key="dl_shed_pdf")
+                    except Exception as e:
+                        st.error(f"Error generating PDF: {e}")
         else:
             st.info("තෝරාගත් කාල සීමාව තුළ තෙල් වලට අදාළ ගනුදෙනු කිසිවක් නැත.")
 
