@@ -1521,8 +1521,9 @@ elif menu == "⚙️ System Setup":
                         st.warning(f"Vehicle {ve_to_manage} removed.")
                         st.rerun()
                         
-        # --- TAB 2: DRIVERS / OPERATORS ---
-        with setup_tab2:
+
+       # --- TAB 2: DRIVERS / OPERATORS ---
+with setup_tab2:
     st.subheader("👷 Add New Driver / Operator")
     
     # 1. ඩ්‍රයිවර් ලියාපදිංචි කිරීමේ Form එක
@@ -1590,6 +1591,7 @@ elif menu == "⚙️ System Setup":
                     st.rerun()
                 except Exception as e:
                     st.error(f"Delete Error: {e}")
+                    
        # --- TAB 3: STAFF MANAGEMENT (Syntaxcore ERP Standard) ---
         with setup_tab3:
             st.subheader("👷 Register Plant Staff Members")
