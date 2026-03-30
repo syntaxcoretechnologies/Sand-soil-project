@@ -4,77 +4,130 @@ import os
 from datetime import datetime, timedelta
 from fpdf import FPDF
 
-# --- 1. LOGIN CREDENTIALS (මෙන්න මෙතනට දාන්න) ---
+# --- 1. LOGIN CREDENTIALS ---
 USERS = {
     "ksdadmin": {"password": "ksd7979", "role": "admin"},
     "ksd": {"password": "ksd123", "role": "user"}
 }
-
-# --- 1. CONFIG & FILENAMES ---
-DATA_FILE = "ksd_master_v56.csv"
-VE_FILE = "ksd_vehicles_v56.csv"
-DR_FILE = "ksd_drivers_v56.csv"
-LANDOWNER_FILE = "landowners.csv"
+# --- 2. SUPABASE CONNECTION ---
+# Streamlit Secrets (Settings > Secrets) වල ඔයාගේ URL සහ KEY එක තියෙන්න ඕනේ.
+try:
+    from st_supabase_connection import SupabaseConnection
+    conn = st.connection("supabase", type=SupabaseConnection)
+except Exception as e:
+    st.error("Supabase Connection Error! Please check your Streamlit Secrets.")
+    
+# --- 2. CONFIG & TABLE NAMES (CSV වෙනුවට දැන් තියෙන්නේ Cloud Tables) ---
 SHOP_NAME = "K. SIRIWARDHANA SAND CONSTRUCTION PRO"
 
-# --- 2. DATA ENGINE ---
-def load_data(file, cols):
-    if os.path.exists(file): 
-        try:
-            d = pd.read_csv(file)
-            if 'Date' in d.columns:
-                d['Date'] = pd.to_datetime(d['Date']).dt.date
-            for col in cols:
-                if col not in d.columns: d[col] = 0
-            return d
-        except: 
+# මේවා තමයි අපි Supabase එකේ හදපු Table Names
+TABLE_MASTER = "master_log"
+TABLE_VEHICLES = "vehicles"
+TABLE_DRIVERS = "drivers"
+TABLE_LANDOWNERS = "landowners"
+
+# --- 2. DATA ENGINE (Cloud Updated) ---
+def load_data(table_name, cols):
+    """CSV වෙනුවට Cloud Table එකෙන් දත්ත load කරයි"""
+    try:
+        # Supabase එකෙන් table එකේ තියෙන ඔක්කොම දත්ත ගන්නවා
+        response = conn.table(table_name).select("*").execute()
+        d = pd.DataFrame(response.data)
+        
+        # Table එක හිස් නම් (මුලින්ම දත්ත දාද්දී) හිස් DataFrame එකක් හදනවා
+        if d.empty:
             return pd.DataFrame(columns=cols)
-    return pd.DataFrame(columns=cols)
-
+            
+        # ඔයාගේ පරණ Date logic එකමයි: String එකක් විදිහට එන Date එක Python Date එකක් කරනවා
+        if 'Date' in d.columns:
+            d['Date'] = pd.to_datetime(d['Date']).dt.date
+            
+        # පරණ කෝඩ් එකේ තිබ්බ විදිහටම අඩුවෙන Columns තිබුණොත් ඒවාට 0 දානවා
+        for col in cols:
+            if col not in d.columns: 
+                d[col] = 0
+                
+        return d
+    except Exception as e:
+        # මොකක් හරි Error එකක් ආවොත් පරණ විදිහටම හිස් DataFrame එකක් දෙනවා
+        return pd.DataFrame(columns=cols)
+        
+# --- 3. SAVE ENGINE (Cloud Updated) ---
 def save_all():
-    # පරණ දත්ත සේව් කිරීම
-    st.session_state.df.to_csv(DATA_FILE, index=False)
-    st.session_state.ve_db.to_csv(VE_FILE, index=False)
-    st.session_state.dr_db.to_csv(DR_FILE, index=False)
-    
-    if 'staff_db' in st.session_state:
-        st.session_state.staff_db.to_csv("staff.csv", index=False)
-    
-    # --- අලුත් Landowners සේව් කිරීම ---
-    if 'landowners' in st.session_state and st.session_state.landowners:
-        pd.DataFrame(st.session_state.landowners).to_csv(LANDOWNER_FILE, index=False)
+    """CSV වලට සේව් කරනවා වෙනුවට Cloud Tables වලට දත්ත යවයි"""
+    try:
+        # 1. Master Log එක සේව් කිරීම (අන්තිමට එකතු කරපු Row එක විතරක්)
+        if not st.session_state.df.empty:
+            last_row = st.session_state.df.iloc[-1].to_dict()
+            # Date එක string එකක් කළ යුතුයි JSON සඳහා
+            if 'Date' in last_row: last_row['Date'] = str(last_row['Date'])
+            # ID එක Supabase එකෙන්ම හැදෙන නිසා අයින් කරන්න
+            if 'id' in last_row: del last_row['id']
+            conn.table("master_log").insert(last_row).execute()
 
-# --- 3. SESSION STATE (මෙතන තමයි ඔක්කොම ලෝඩ් වෙන්නේ) ---
-cols_master = ["ID", "Date", "Time", "Type", "Category", "Entity", "Note", "Amount", "Qty_Cubes", "Fuel_Ltr", "Hours", "Rate_At_Time", "Status"]
+        # 2. Vehicles සේව් කිරීම
+        if not st.session_state.ve_db.empty:
+            last_v = st.session_state.ve_db.iloc[-1].to_dict()
+            if 'id' in last_v: del last_v['id']
+            conn.table("vehicles").insert(last_v).execute()
 
-# --- දත්ත ලෝඩ් කිරීම සහ Session State Initialize කිරීම ---
+        # 3. Drivers සේව් කිරීම
+        if not st.session_state.dr_db.empty:
+            last_d = st.session_state.dr_db.iloc[-1].to_dict()
+            if 'id' in last_d: del last_d['id']
+            conn.table("drivers").insert(last_d).execute()
+
+        # 4. Landowners සේව් කිරීම
+        if 'landowners' in st.session_state and st.session_state.landowners:
+            # මේක list එකක් නම් DataFrame එකක් කරලා අන්තිම එක ගන්නවා
+            lo_df = pd.DataFrame(st.session_state.landowners)
+            last_lo = lo_df.iloc[-1].to_dict()
+            if 'id' in last_lo: del last_lo['id']
+            conn.table("landowners").insert(last_lo).execute()
+
+        st.success("✅ Cloud Synced Successfully!")
+        
+    except Exception as e:
+        st.error(f"❌ Cloud Save Error: {e}")
+
+# --- 4. SESSION STATE (Cloud Initialization) ---
+
+# Master Log එකේ තියෙන්න ඕනේ Columns ටික (SQL Table එකේ තියෙන විදිහටම)
+cols_master = ["id", "Date", "Time", "Type", "Category", "Entity", "Note", "Amount", "Qty_Cubes", "Fuel_Ltr", "Hours", "Rate_At_Time", "Status"]
+
+# --- දත්ත Cloud එකෙන් ලෝඩ් කිරීම ---
+
+# 1. Master Log එක ලෝඩ් කිරීම
 if 'df' not in st.session_state:
-    st.session_state.df = load_data(DATA_FILE, cols_master)
+    # TABLE_MASTER කියන්නේ "master_log" කියන එක (අපි කලින් හදපු variable එක)
+    st.session_state.df = load_data("master_log", cols_master)
 
+# 2. Vehicles දත්ත ලෝඩ් කිරීම
 if 've_db' not in st.session_state:
-    st.session_state.ve_db = load_data(VE_FILE, ["No", "Type", "Owner", "Rate_Per_Unit"])
+    st.session_state.ve_db = load_data("vehicles", ["No", "Type", "Owner", "Rate_Per_Unit"])
 
+# 3. Drivers දත්ත ලෝඩ් කිරීම
 if 'dr_db' not in st.session_state:
-    st.session_state.dr_db = load_data(DR_FILE, ["Name", "Phone", "Daily_Salary"])
+    st.session_state.dr_db = load_data("drivers", ["Name", "Phone", "Daily_Salary"])
 
+# 4. Staff දත්ත ලෝඩ් කිරීම
 if 'staff_db' not in st.session_state:
-    st.session_state.staff_db = load_data("staff.csv", ["Name", "Position", "Daily_Rate"])
+    st.session_state.staff_db = load_data("staff", ["Name", "Position", "Daily_Rate"])
 
-# Landowners දත්ත DataFrame එකක් විදිහට ලෝඩ් කිරීම (Error එක එන්නේ නැති වෙන්න)
+# 5. Landowners දත්ත ලෝඩ් කිරීම
 if 'lo_db' not in st.session_state:
-    # Column names ටික මෙන්න මේ විදිහට තියෙන්න ඕනේ
-    st.session_state.lo_db = load_data(LANDOWNER_FILE, ["Name", "Address", "Contact", "Rate_Per_Cube"])
+    st.session_state.lo_db = load_data("landowners", ["Name", "Address", "Contact", "Rate_Per_Cube"])
 
-# පරණ landowners ලිස්ට් එක (Dictionary එකක් ලෙස)
+# 6. පරණ landowners ලිස්ට් එක (Dictionary එකක් ලෙස තියාගැනීම - පරණ Logic එකට අනුව)
 if 'landowners' not in st.session_state:
     if not st.session_state.lo_db.empty:
         st.session_state.landowners = st.session_state.lo_db.to_dict('records')
     else:
         st.session_state.landowners = []
-# --- 4. PDF ENGINE (පැහැදිලිව Earnings සහ Expenses වෙන් කරන සම්පූර්ණ කෝඩ් එක) ---
+        
+# --- 5. PDF ENGINE (Cloud Data වලට ගැලපෙන විදිහට) ---
 class PDF(FPDF):
     def header(self):
-        # ආයතනයේ නම (Title)
         self.set_font('Arial', 'B', 15)
         self.set_text_color(230, 126, 34) 
         self.cell(0, 10, "K. SIRIWARDHANA SAND CONSTRUCTION PROJECT", 0, 1, 'C')
@@ -86,6 +139,7 @@ def create_pdf(title, data_df, summary_dict):
     
     def safe_text(text):
         if text is None or str(text) == "nan": return ""
+        # Latin-1 වල නැති අකුරු (සිංහල වගේ) ආවොත් Error නොවී ඉන්න ignore කරනවා
         return str(text).encode("latin-1", "ignore").decode("latin-1")
 
     # Title Section
@@ -94,7 +148,7 @@ def create_pdf(title, data_df, summary_dict):
     pdf.cell(0, 10, safe_text(f"STATEMENT: {title.upper()}"), 1, 1, 'L', fill=True)
     pdf.ln(2)
     
-    # Summary Section
+    # Summary Table
     pdf.set_font("Arial", 'B', 10)
     for k, v in summary_dict.items():
         if k != "Rate_Breakdown":
@@ -103,7 +157,6 @@ def create_pdf(title, data_df, summary_dict):
             pdf.cell(0, 8, " " + safe_text(v), 1, 1)
             pdf.set_font("Arial", 'B', 10)
 
-    # Table Header
     pdf.ln(8)
     pdf.set_font("Arial", 'B', 9)
     headers = ["Date", "Category", "Description", "Qty/Hr", "Rate", "Amount"]
@@ -127,22 +180,25 @@ def create_pdf(title, data_df, summary_dict):
                 return float(v_str) if v_str else 0.0
             except: return 0.0
 
-        q_cubes = clean_val(row.get('Qty_Cubes', 0))
-        q_qty = clean_val(row.get('Qty', 0))
-        w_hrs = clean_val(row.get('Work_Hours', 0))
-        qty = q_cubes if q_cubes > 0 else (q_qty if q_qty > 0 else w_hrs)
+        # Supabase වල Column names පොඩි අකුරින් තිබුණොත් ඒවත් check කරනවා
+        q_cubes = clean_val(row.get('Qty_Cubes', row.get('qty_cubes', 0)))
+        q_qty = clean_val(row.get('Qty', row.get('qty', 0)))
+        w_hrs = clean_val(row.get('Work_Hours', row.get('work_hours', 0)))
         
+        # ඔයාගේ logic එක: Cubes නැත්නම් Qty, ඒකත් නැත්නම් Hours ගන්නවා
+        qty = q_cubes if q_cubes > 0 else (q_qty if q_qty > 0 else w_hrs)
         total_qty_hrs += qty
         
-        rate = clean_val(row.get('Rate_At_Time', row.get('Rate', 0)))
-        amt = clean_val(row.get('Amount', row.get('Total_Amount', row.get('Total', 0))))
+        rate = clean_val(row.get('Rate_At_Time', row.get('rate_at_time', 0)))
+        amt = clean_val(row.get('Amount', row.get('amount', 0)))
         
         if amt == 0 and qty > 0 and rate > 0:
             amt = qty * rate
 
-        date_val = safe_text(str(row.get('Date', '-')))
-        category = row.get('Category', row.get('Material', row.get('Landowner', 'N/A')))
-        note_val = safe_text(str(row.get('Note', '')))[:30]
+        date_val = safe_text(str(row.get('Date', row.get('date', '-'))))
+        # Category එක විදිහට Material හෝ Entity එක ගන්නවා
+        category = row.get('Category', row.get('category', row.get('Entity', 'N/A')))
+        note_val = safe_text(str(row.get('Note', row.get('note', ''))))[:30]
         cat_str = str(category)
 
         pdf.cell(w[0], 7, date_val, 1)
@@ -150,9 +206,10 @@ def create_pdf(title, data_df, summary_dict):
         pdf.cell(w[2], 7, note_val, 1)
         pdf.cell(w[3], 7, f"{qty:,.2f}" if qty > 0 else "-", 1, 0, 'C')
         
+        # Expense එකක්ද කියලා බලන Logic එක
         if any(exp in cat_str for exp in ["Fuel", "Repair", "Advance", "Payroll", "Salary", "Expense"]):
             total_exp += amt
-            pdf.set_text_color(200, 0, 0)
+            pdf.set_text_color(200, 0, 0) # රතු පාටින් වියදම් පෙන්වයි
             pdf.cell(w[4], 7, "EXPENSE", 1, 0, 'C')
             pdf.cell(w[5], 7, f"({amt:,.2f})", 1, 1, 'R')
             pdf.set_text_color(0, 0, 0)
@@ -161,30 +218,21 @@ def create_pdf(title, data_df, summary_dict):
             pdf.cell(w[4], 7, f"{rate:,.2f}" if rate > 0 else "-", 1, 0, 'R')
             pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 1, 'R')
 
-    # Final Totals Section
-    pdf.ln(2)
-    
-    # පේජ් එකේ ඉඩ තියෙනවද බලනවා, නැත්නම් අලුත් පේජ් එකකට යනවා
-    if pdf.get_y() > 250:
-        pdf.add_page()
-
+    # Totals Section
+    if pdf.get_y() > 250: pdf.add_page()
     pdf.set_font("Arial", 'B', 9)
     
-    # 1. TOTAL QUANTITY / HOURS (එක් වරක් පමණක් ඇතුළත් කළා)
     pdf.set_fill_color(245, 245, 245)
     pdf.cell(sum(w[:3]), 8, "TOTAL QUANTITY / HOURS", 1, 0, 'R', fill=True)
     pdf.cell(w[3], 8, f"{total_qty_hrs:,.2f}", 1, 0, 'C', fill=True)
     pdf.cell(w[4] + w[5], 8, "", 1, 1, 'R', fill=True)
     
-    # 2. Gross Earnings
     pdf.cell(sum(w[:5]), 8, "GROSS EARNINGS (LKR)", 1, 0, 'R')
     pdf.cell(w[5], 8, f"{total_earn:,.2f}", 1, 1, 'R')
     
-    # 3. Total Expenses
     pdf.cell(sum(w[:5]), 8, "TOTAL EXPENSES (LKR)", 1, 0, 'R')
     pdf.cell(w[5], 8, f"{total_exp:,.2f}", 1, 1, 'R')
     
-    # 4. Net Balance
     pdf.set_fill_color(230, 126, 34); pdf.set_text_color(255, 255, 255)
     pdf.cell(sum(w[:5]), 10, "NET SETTLEMENT BALANCE (LKR)", 1, 0, 'R', fill=True)
     pdf.cell(w[5], 10, f"{(total_earn - total_exp):,.2f}", 1, 1, 'R', fill=True)
@@ -192,7 +240,8 @@ def create_pdf(title, data_df, summary_dict):
     fn = f"Statement_{datetime.now().strftime('%H%M%S')}.pdf"
     pdf.output(fn)
     return fn
-
+    
+# --- 6. STAFF PDF ENGINE (Cloud-Ready) ---
 def create_staff_pdf(staff_name, data_df):
     pdf = PDF()
     pdf.add_page()
@@ -203,8 +252,9 @@ def create_staff_pdf(staff_name, data_df):
 
     # Header
     pdf.set_font("Arial", 'B', 14)
-    pdf.cell(0, 10, f"STAFF SETTLEMENT: {staff_name.upper()}", 1, 1, 'C', fill=True)
-    pdf.ln(5)
+    pdf.set_fill_color(46, 134, 193); pdf.set_text_color(255, 255, 255)
+    pdf.cell(0, 12, f"STAFF SETTLEMENT: {staff_name.upper()}", 1, 1, 'C', fill=True)
+    pdf.ln(5); pdf.set_text_color(0, 0, 0)
 
     # Table Header
     pdf.set_font("Arial", 'B', 10)
@@ -222,20 +272,26 @@ def create_staff_pdf(staff_name, data_df):
     total_adv = 0
 
     for _, row in data_df.iterrows():
-        date = safe_text(str(row['Date']))
-        cat = safe_text(str(row['Category']))
-        note = safe_text(str(row['Note']))
-        amt = float(row['Amount'])
-        days = float(row['Hours']) # අපි Staff වලදී Hours වලට දැම්මේ දවස් ගණන
+        # Row එකෙන් දත්ත ගන්නකොට Column name එක Case-insensitive (පොඩි/මහ අකුරු) බලන්න get() පාවිච්චි කරයි
+        date = safe_text(str(row.get('Date', row.get('date', '-'))))
+        cat = safe_text(str(row.get('Category', row.get('category', 'N/A'))))
+        note = safe_text(str(row.get('Note', row.get('note', ''))))
+        
+        try:
+            amt = float(row.get('Amount', row.get('amount', 0)))
+            days = float(row.get('Hours', row.get('hours', 0)))
+        except:
+            amt = 0; days = 0
 
         pdf.cell(w[0], 7, date, 1)
         pdf.cell(w[1], 7, cat, 1)
         pdf.cell(w[2], 7, note[:35], 1)
         pdf.cell(w[3], 7, f"{days:,.1f}" if days > 0 else "-", 1, 0, 'C')
         
+        # Advance එකක්ද කියලා බලන logic එක (ඔයාගේ පරණ විදිහටම)
         if "Advance" in cat:
             total_adv += amt
-            pdf.set_text_color(200, 0, 0)
+            pdf.set_text_color(200, 0, 0) # Advance නම් රතු පාටින්
             pdf.cell(w[4], 7, f"({amt:,.2f})", 1, 1, 'R')
             pdf.set_text_color(0, 0, 0)
         else:
@@ -244,8 +300,10 @@ def create_staff_pdf(staff_name, data_df):
             pdf.cell(w[4], 7, f"{amt:,.2f}", 1, 1, 'R')
 
     # Totals Section
+    if pdf.get_y() > 250: pdf.add_page()
     pdf.ln(5)
     pdf.set_font("Arial", 'B', 10)
+    
     pdf.cell(sum(w[:4]), 8, "GROSS EARNINGS", 1, 0, 'R')
     pdf.cell(w[4], 8, f"{total_pay:,.2f}", 1, 1, 'R')
     
@@ -260,6 +318,7 @@ def create_staff_pdf(staff_name, data_df):
     pdf.output(fn)
     return fn
     
+# --- 7. DRIVER PDF ENGINE (Cloud-Ready) ---
 def create_driver_pdf(title, data_df, summary_dict):
     pdf = PDF()
     pdf.add_page()
@@ -268,13 +327,13 @@ def create_driver_pdf(title, data_df, summary_dict):
         if text is None or str(text) == "nan": return ""
         return str(text).encode("latin-1", "ignore").decode("latin-1")
 
-    # Title
+    # Title Section
     pdf.set_font("Arial", 'B', 12)
     pdf.set_fill_color(240, 240, 240)
     pdf.cell(0, 10, safe_text(f"DRIVER PAYMENT STATEMENT: {title.upper()}"), 1, 1, 'L', fill=True)
     pdf.ln(2)
     
-    # Summary
+    # Summary Section
     pdf.set_font("Arial", 'B', 10)
     for k, v in summary_dict.items():
         pdf.cell(50, 8, safe_text(k) + ":", 1)
@@ -297,29 +356,36 @@ def create_driver_pdf(title, data_df, summary_dict):
     
     # --- Filter Logic ---
     for _, row in data_df.iterrows():
-        cat_str = str(row.get('Category', ''))
+        # Cloud Table එකේ Category හෝ category ලෙස තිබිය හැක
+        cat_str = str(row.get('Category', row.get('category', '')))
         
-        # Me wachana thiyena rows vitharakma ganna (Stock Inward/Sales ain wenawa)
+        # ඔයාගේ Logic එක: Salary/Advance වචන තියෙන ඒවා විතරක් පෙරීම
         is_salary_or_advance = any(word in cat_str for word in ["Salary", "Advance", "Payroll", "D.Advance"])
         
         if is_salary_or_advance:
-            date_val = safe_text(str(row.get('Date', '-')))
-            note_val = safe_text(str(row.get('Note', '')))[:45]
+            date_val = safe_text(str(row.get('Date', row.get('date', '-'))))
+            note_val = safe_text(str(row.get('Note', row.get('note', ''))))[:45]
             
-            # Amount eka clean karaganna
-            val = row.get('Amount', 0)
-            if isinstance(val, str): val = val.replace(',', '').replace('Rs.', '').strip()
-            amt = float(val) if val else 0.0
+            # Amount එක clean කරගැනීම
+            val = row.get('Amount', row.get('amount', 0))
+            if isinstance(val, str): 
+                val = val.replace(',', '').replace('Rs.', '').replace(' ', '').strip()
             
+            try:
+                amt = float(val) if val else 0.0
+            except:
+                amt = 0.0
+                
             total_paid += amt
 
-            # Row eka print kirima
+            # Row එක print කිරීම
             pdf.cell(w[0], 7, date_val, 1)
             pdf.cell(w[1], 7, safe_text(cat_str), 1)
             pdf.cell(w[2], 7, note_val, 1)
             pdf.cell(w[3], 7, f"{amt:,.2f}", 1, 1, 'R')
 
-    # Final Total (Driver gaththa salli vitharai)
+    # Final Total Section
+    if pdf.get_y() > 250: pdf.add_page()
     pdf.ln(2)
     pdf.set_font("Arial", 'B', 10)
     pdf.set_fill_color(230, 126, 34); pdf.set_text_color(255, 255, 255)
@@ -331,20 +397,22 @@ def create_driver_pdf(title, data_df, summary_dict):
     return fn
     
 # --- Landowner PDF Engine (මේක අලුතින්ම දාන කොටස) ---
+# --- 8. LANDOWNER PDF ENGINE (Cloud-Ready) ---
 def create_landowner_pdf(title, data_df, summary_dict):
-    pdf = PDF() # මෙතන PDF කියන්නේ ඔයා උඩින්ම හදපු class එක
+    pdf = PDF() 
     pdf.add_page()
     
     def safe_text(text):
         if text is None or str(text) == "nan": return ""
         return str(text).encode("latin-1", "ignore").decode("latin-1")
 
+    # Header Section
     pdf.set_font("Arial", 'B', 12)
     pdf.set_fill_color(240, 240, 240)
     pdf.cell(0, 10, safe_text(f"LANDOWNER STATEMENT: {title.upper()}"), 1, 1, 'L', fill=True)
     pdf.ln(2)
     
-    # Summary Section
+    # Summary Details
     pdf.set_font("Arial", 'B', 10)
     for k, v in summary_dict.items():
         pdf.cell(50, 8, safe_text(k) + ":", 1)
@@ -352,6 +420,7 @@ def create_landowner_pdf(title, data_df, summary_dict):
         pdf.cell(0, 8, " " + safe_text(v), 1, 1)
         pdf.set_font("Arial", 'B', 10)
 
+    # Table Header
     pdf.ln(8)
     pdf.set_font("Arial", 'B', 9)
     headers = ["Date", "Category", "Note", "Cubes", "Rate", "Amount"]
@@ -366,36 +435,51 @@ def create_landowner_pdf(title, data_df, summary_dict):
     total_paid = 0
     
     for _, row in data_df.iterrows():
-        pdf.cell(w[0], 7, safe_text(row['Date']), 1)
-        pdf.cell(w[1], 7, safe_text(row['Category']), 1)
-        pdf.cell(w[2], 7, safe_text(row['Note'])[:30], 1)
+        # Cloud Table එකේ Column names වලට ගැලපෙන්න දත්ත ලබා ගැනීම
+        date_val = safe_text(str(row.get('Date', row.get('date', '-'))))
+        cat_val = safe_text(str(row.get('Category', row.get('category', 'N/A'))))
+        note_val = safe_text(str(row.get('Note', row.get('note', ''))))[:30]
         
-        cubes = row['Qty_Cubes']
-        pdf.cell(w[3], 7, f"{cubes}" if cubes > 0 else "-", 1, 0, 'C')
+        pdf.cell(w[0], 7, date_val, 1)
+        pdf.cell(w[1], 7, cat_val, 1)
+        pdf.cell(w[2], 7, note_val, 1)
         
-        rate = row['Rate_At_Time']
+        try:
+            cubes = float(row.get('Qty_Cubes', row.get('qty_cubes', 0)))
+            rate = float(row.get('Rate_At_Time', row.get('rate_at_time', 0)))
+            amt = float(row.get('Amount', row.get('amount', 0)))
+        except:
+            cubes = 0; rate = 0; amt = 0
+
+        pdf.cell(w[3], 7, f"{cubes:,.2f}" if cubes > 0 else "-", 1, 0, 'C')
         pdf.cell(w[4], 7, f"{rate:,.2f}" if rate > 0 else "-", 1, 0, 'R')
         
-        amt = float(row['Amount'])
-        category = str(row['Category'])
+        category_str = str(cat_val)
         
-        if "Inward" in category or "Inward" in str(row.get('Record_Type', '')):
+        # ඉඩම් හිමියාට ලැබිය යුතු මුදල් (වැලි ගොඩ දැමීම)
+        if "Inward" in category_str:
             total_payable += amt
-            pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 0, 'R')
-        elif any(x in category for x in ["Advance", "Payment"]):
+            pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 1, 'R')
+        # ඉඩම් හිමියාට ගෙවූ මුදල් (Advance / Payment)
+        elif any(x in category_str for x in ["Advance", "Payment"]):
             total_paid += amt
             pdf.set_text_color(200, 0, 0)
-            pdf.cell(w[5], 7, f"({amt:,.2f})", 1, 0, 'R')
+            pdf.cell(w[5], 7, f"({amt:,.2f})", 1, 1, 'R')
             pdf.set_text_color(0, 0, 0)
         else:
-            pdf.cell(w[5], 7, "-", 1, 0, 'R')
-        pdf.ln()
+            pdf.cell(w[5], 7, "-", 1, 1, 'R')
     
+    # Final Summary Calculation Section
+    if pdf.get_y() > 240: pdf.add_page()
     pdf.ln(2); pdf.set_font("Arial", 'B', 9)
+    
     pdf.cell(sum(w[:5]), 8, "TOTAL PAYABLE FOR CUBES (LKR)", 1, 0, 'R')
     pdf.cell(w[5], 8, f"{total_payable:,.2f}", 1, 1, 'R')
+    
     pdf.cell(sum(w[:5]), 8, "TOTAL ADVANCES PAID (LKR)", 1, 0, 'R')
     pdf.cell(w[5], 8, f"{total_paid:,.2f}", 1, 1, 'R')
+    
+    # Net Balance - කොළ පාටින් පෙන්වමු
     pdf.set_fill_color(39, 174, 96); pdf.set_text_color(255, 255, 255)
     pdf.cell(sum(w[:5]), 10, "NET BALANCE TO BE PAID (LKR)", 1, 0, 'R', fill=True)
     pdf.cell(w[5], 10, f"{(total_payable - total_paid):,.2f}", 1, 1, 'R', fill=True)
@@ -403,11 +487,37 @@ def create_landowner_pdf(title, data_df, summary_dict):
     fn = f"Landowner_Settlement_{datetime.now().strftime('%H%M%S')}.pdf"
     pdf.output(fn)
     return fn
+    
+# --- 9. SECURITY & LOGIN UI ---
 
-# 1. මුලින්ම Login Status එක පරීක්ෂා කරනවා
+# 1. මුලින්ම Login Status එක පරීක්ෂා කරනවා (Session State එකේ නැත්නම් False කරනවා)
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 
+# 2. Login වෙලා නැත්නම් විතරක් මේ පෝරමය (Form) පෙන්වනවා
+if not st.session_state["logged_in"]:
+    # මැදට වෙන්න ලස්සන Header එකක්
+    st.markdown("<h2 style='text-align: center; color: #2E86C1;'>🏗️ KSD CONSTRUCTION - ERP LOGIN</h2>", unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 1.5, 1])
+    with col2:
+        with st.form("login_panel", clear_on_submit=False):
+            u = st.text_input("Username")
+            p = st.text_input("Password", type="password")
+            
+            if st.form_submit_button("Access System 🔐", use_container_width=True):
+                # අපි උඩින්ම හදපු USERS list එකේ මේ Username/Password තියෙනවාද බලනවා
+                if u in USERS and USERS[u]["password"] == p:
+                    st.session_state["logged_in"] = True
+                    st.session_state["role"] = USERS[u]["role"]
+                    st.success(f"Welcome {u}! Redirecting...")
+                    st.rerun() # සාර්ථක නම් App එක Refresh කරලා ඇතුළට ගන්නවා
+                else:
+                    st.error("Invalid Username or Password! Please try again.")
+    
+    # Login පෝරමය පෙන්වන වෙලාවේ App එකේ අනිත් කොටස් පේන්නේ නැති වෙන්න මෙතනින් නවත්වනවා
+    st.stop()
+    
 # --- 2. Login වෙලා නැත්නම් Login Form එක පෙන්වනවා ---
 if not st.session_state["logged_in"]:
     st.markdown("<h2 style='text-align: center; color: #8E44AD;'>🔐 KSD Sand & Soil System</h2>", unsafe_allow_html=True)
@@ -427,6 +537,7 @@ if not st.session_state["logged_in"]:
                 else:
                     st.error("Invalid Username or Password")
     st.stop()
+    
 # 3. Login වුණාට පස්සේ විතරයි මෙතනින් පල්ලෙහාට යන්නේ
 # --- මෙතැන් සිට ඔයාගේ පරණ කෝඩ් එක පටන් ගන්නවා ---
 
@@ -437,13 +548,28 @@ if st.sidebar.button("Logout 🔓"):
 
 # ... ඔයාගේ පරණ Menu එක සහ අනෙකුත් කොටස් ...
     
-# --- 5. UI LAYOUT & LOGIN CHECK ---
-st.set_page_config(page_title=SHOP_NAME, layout="wide")
+# --- 10. UI CONFIG & SECURITY HANDLER ---
 
-# 1. මුලින්ම Session State එක ලෑස්ති කරගන්නවා
+# 1. Page Configuration (Wide Layout එක Tables වලට හොඳයි)
+st.set_page_config(page_title=SHOP_NAME, layout="wide", page_icon="🏗️")
+
+# 2. Supabase Cloud Connection Initialize කිරීම
+# (මේක කරන්නේ secrets.toml එකේ දත්ත පාවිච්චි කරලා)
+try:
+    conn = st.connection("supabase", type=SupabaseConnection)
+except Exception:
+    st.error("Cloud Database එකට සම්බන්ධ වීමට නොහැක. කරුණාකර Connection එක පරීක්ෂා කරන්න.")
+
+# 3. Session State එක ලෑස්ති කරගන්නවා
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
     st.session_state["role"] = None
+
+# 4. Login Status එක පරීක්ෂා කිරීම (Login වෙලා නැත්නම් විතරක් Login පෝරමය පෙන්වයි)
+if not st.session_state["logged_in"]:
+    # (මෙතනට ඔයා කලින් එවපු Login Form එකේ කෝඩ් එක එනවා)
+    pass
+    
 
 # 2. ලොග් වෙලා නැත්නම් විතරක් මේ ටික පෙන්වන්න
 if not st.session_state["logged_in"]:
@@ -468,16 +594,18 @@ if not st.session_state["logged_in"]:
 
 # --- 🔓 3. ලොග් වුණාට පස්සේ පේන කොටස ---
 
-# Role එක පෙන්වීමට සකස් කිරීම
-role_val = st.session_state.get("role", "User")
-role_display = role_val.capitalize() if role_val else "User"
+# --- 11. DYNAMIC SIDEBAR & ROLE ACCESS CONTROL ---
+
+# 1. Role එක ලස්සනට පෙන්වීමට සකස් කිරීම
+role_val = st.session_state.get("role", "user")
+role_display = "ADMINISTRATOR" if role_val == "admin" else "STAFF USER"
 
 st.sidebar.title(f"🏗️ KSD ERP v5.6")
 st.sidebar.info(f"Logged in as: **{role_display}**")
 
-# 👮 ROLE එක අනුව MENU එක තෝරා ගැනීම
-if st.session_state["role"] == "admin":
-    # ඇඩ්මින්ට පේන සියලුම මෙනු
+# 2. 👮 ROLE එක අනුව පෙන්වන MENU එක තීරණය කිරීම
+if st.session_state.get("role") == "admin":
+    # ඇඩ්මින්ට පද්ධතියේ සියලුම පාලන බලතල තියෙනවා
     menu_options = [
         "📊 Dashboard", 
         "🏗️ Site Operations", 
@@ -489,24 +617,28 @@ if st.session_state["role"] == "admin":
         "⚙️ Data Manager"
     ]
 else:
-    # සාමාන්‍ය USER (Staff) ට පේන්නේ මේක විතරයි
+    # සාමාන්‍ය USER (Staff) ට පේන්නේ දත්ත ඇතුළත් කරන කොටස විතරයි
+    # එතකොට එයාලට Dashboard එකේ තියෙන ලාභ-අලාභ බලන්න බැහැ
     menu_options = ["🏗️ Site Operations"]
 
-# දැන් Sidebar එකේ Selectbox එක පෙන්වනවා
+# 3. Sidebar එකේ මෙනු එක පෙන්වීම
 menu = st.sidebar.selectbox("MAIN MENU", menu_options)
 
-# Logout බටන් එක Sidebar එකේ පල්ලෙහාටම දාමු
+# 4. Logout බටන් එක (Sidebar එකේ පල්ලෙහාටම)
 st.sidebar.markdown("---")
-if st.sidebar.button("Logout 🔓", use_container_width=True):
+if st.sidebar.button("Logout 🔓", use_container_width=True, type="secondary"):
     st.session_state["logged_in"] = False
     st.session_state["role"] = None
+    st.success("Logged out successfully!")
     st.rerun()
-
+    
 # --- මෙතනින් පස්සේ ඔයාගේ පරණ කෝඩ් එකේ 'if menu == ...' කොටස් ආරම්භ කරන්න ---
 
 # --- 1. DASHBOARD SECTION (සම්පූර්ණ එකම මෙතන තියෙනවා) ---
-if menu == "📊 Dashboard":
+elif menu == "📊 Dashboard":
     st.markdown("<h2 style='color: #2E86C1;'>📊 Business Overview</h2>", unsafe_allow_html=True)
+    
+    # 1. දත්ත කොපියක් ලබා ගැනීම
     df = st.session_state.df.copy()
     
     if not df.empty:
@@ -514,61 +646,71 @@ if menu == "📊 Dashboard":
         st.subheader("📅 Filter Transactions")
         col_f1, col_f2 = st.columns(2)
         with col_f1:
+            # timedelta පාවිච්චි කරන්න නම් උඩින්ම import කරලා තියෙන්න ඕනේ
+            from datetime import timedelta
             start_date = st.date_input("From Date", datetime.now().date() - timedelta(days=7))
         with col_f2:
             end_date = st.date_input("To Date", datetime.now().date())
         
+        # Date column එක date format එකට හරවා ගැනීම
         df['Date'] = pd.to_datetime(df['Date']).dt.date
         mask = (df['Date'] >= start_date) & (df['Date'] <= end_date)
         filtered_df = df.loc[mask].copy()
 
         if not filtered_df.empty:
             # --- FINANCIAL METRICS ---
-            sales_df = filtered_df[filtered_df["Category"].str.contains("Sales Out", na=False)].copy()
-            sales_df['Income'] = pd.to_numeric(sales_df['Qty_Cubes'], errors='coerce').fillna(0) * \
-                                 pd.to_numeric(sales_df['Rate_At_Time'], errors='coerce').fillna(0)
+            # Category එකේ "Sales Out" තියෙන ඒවා විතරක් පෙරීම
+            sales_df = filtered_df[filtered_df["Category"].str.contains("Sales Out", case=False, na=False)].copy()
+            
+            # Amount එක හෝ (Qty * Rate) ගණනය කිරීම
+            sales_df['Income'] = pd.to_numeric(sales_df['Amount'], errors='coerce').fillna(0)
+            
             real_income = sales_df['Income'].sum()
             total_expenses = pd.to_numeric(filtered_df[filtered_df["Type"] == "Expense"]["Amount"], errors='coerce').sum()
 
             m1, m2, m3 = st.columns(3)
             m1.metric("Net Sales Income", f"Rs. {real_income:,.2f}")
             m2.metric("Total Expenses", f"Rs. {total_expenses:,.2f}")
-            m3.metric("Net Cashflow", f"Rs. {real_income - total_expenses:,.2f}")
+            m3.metric("Net Cashflow", f"Rs. {real_income - total_expenses:,.2f}", 
+                      delta=f"{((real_income - total_expenses)/real_income*100):.1f}% Margin" if real_income > 0 else None)
 
             st.divider()
 
             # ==========================================
-            # 📦 STOCK BALANCE (අපි අන්තිමට හදපු කොටස)
+            # 📦 STOCK BALANCE (Current Stock)
             # ==========================================
             st.subheader("📦 Plant Stock Balance (Current)")
             s_col1, s_col2 = st.columns(2)
             
-            # මුළු ඉතිහාසයම පරීක්ෂා කර stock එක ගණනය කිරීම
+            # Stock එක බලන්න මුළු ඉතිහාසයම ඕනේ (Filter එක අදාළ නැහැ)
             full_df = st.session_state.df.copy()
             
-            # Sand Calculation
-            s_in = full_df[full_df["Category"].str.contains("Stock Inward", na=False) & 
-                           full_df["Category"].str.contains("Sand", na=False)]["Qty_Cubes"].sum()
-            s_out = full_df[full_df["Category"].str.contains("Sales Out", na=False) & 
-                            full_df["Category"].str.contains("Sand", na=False)]["Qty_Cubes"].sum()
-            
-            # Soil Calculation
-            so_in = full_df[full_df["Category"].str.contains("Stock Inward", na=False) & 
-                            full_df["Category"].str.contains("Soil", na=False)]["Qty_Cubes"].sum()
-            so_out = full_df[full_df["Category"].str.contains("Sales Out", na=False) & 
-                             full_df["Category"].str.contains("Soil", na=False)]["Qty_Cubes"].sum()
+            # Helper function එකක් වැලි සහ පස් වෙනුවට Stock ගණනය කරන්න
+            def get_stock(material_name):
+                in_q = pd.to_numeric(full_df[full_df["Category"].str.contains("Inward", case=False, na=False) & 
+                                             full_df["Category"].str.contains(material_name, case=False, na=False)]["Qty_Cubes"], errors='coerce').sum()
+                out_q = pd.to_numeric(full_df[full_df["Category"].str.contains("Sales Out", case=False, na=False) & 
+                                              full_df["Category"].str.contains(material_name, case=False, na=False)]["Qty_Cubes"], errors='coerce').sum()
+                return in_q, out_q
+
+            # Sand & Soil Calculation
+            s_in, s_out = get_stock("Sand")
+            so_in, so_out = get_stock("Soil")
 
             s_col1.metric("Sand Remaining", f"{s_in - s_out:.2f} Cubes", delta=f"In: {s_in} | Out: {s_out}")
             s_col2.metric("Soil Remaining", f"{so_in - so_out:.2f} Cubes", delta=f"In: {so_in} | Out: {so_out}")
-            # ==========================================
-
+            
             st.divider()
+            
+            # Daily Trend Chart
             st.subheader("Daily Income Trend")
-            st.line_chart(sales_df.groupby('Date')['Income'].sum())
+            trend_data = sales_df.groupby('Date')['Income'].sum()
+            st.line_chart(trend_data)
+            
         else:
             st.warning("තෝරාගත් දින පරාසය තුළ දත්ත නැත.")
     else:
-        st.info("පද්ධතියේ දත්ත කිසිවක් නැත.")
+        st.info("පද්ධතියේ දත්ත කිසිවක් නැත. කරුණාකර දත්ත ඇතුළත් කරන්න.")
 
 # --- 2. SITE OPERATIONS SECTION ---
 # මේ 'elif' එක පටන් ගන්න ඕනේ උඩ තියෙන 'if menu == "📊 Dashboard":' එකට කෙළින්ම පල්ලෙහායින්
@@ -578,21 +720,22 @@ elif menu == "🏗️ Site Operations":
     
     op = st.radio("Select Activity Type", ["🚜 Excavator Work Log", "💰 Sales Out", "📥 Stock Inward (To Plant)"], horizontal=True)
     
-    # 1. වාහන ලිස්ට් එක
+    # 1. වාහන ලිස්ට් එක (Cloud එකෙන් එන දත්ත)
     v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
     
     # 2. ඩ්‍රයිවර්ලාගේ ලිස්ට් එක
     d_list = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else ["No Drivers Registered"]
     
-    # 3. Register කරපු Landownersලාගේ නම් ලිස්ට් එක (අලුතින් එකතු කළා)
-    l_list = [owner["Name"] for owner in st.session_state.landowners] if st.session_state.landowners else ["No Owners Registered"]
+    # 3. Landowners ලිස්ට් එක
+    l_list = st.session_state.lo_db["Name"].tolist() if not st.session_state.lo_db.empty else ["No Owners Registered"]
 
     with st.form("site_f", clear_on_submit=True):
         col1, col2 = st.columns(2)
         with col1:
+            # Operation එක අනුව වාහනය තෝරන විදිහ
             v = st.selectbox("Select Vehicle / Machine", v_list if op != "📥 Stock Inward (To Plant)" else ["Internal / Third Party"])
             d = st.date_input("Date", datetime.now().date())
-            material = st.selectbox("Material Type", ["Sand", "Soil", "Other"]) if (op == "💰 Sales Out" or op == "📥 Stock Inward (To Plant)") else ""
+            material = st.selectbox("Material Type", ["Sand", "Soil", "Other"]) if (op != "🚜 Excavator Work Log") else ""
             
             # Stock Inward එකේදී විතරක් Landowner සහ Driver තෝරන්න දෙනවා
             if op == "📥 Stock Inward (To Plant)":
@@ -600,210 +743,370 @@ elif menu == "🏗️ Site Operations":
                 src_driver = st.selectbox("Driver/Operator", d_list)
         
         with col2:
-            if "Excavator" in op:
-                val_label = "Work Hours"
-                unit = "Hrs"
-            else:
-                val_label = "Qty (Cubes)"
-                unit = "Cubes"
+            val_label = "Work Hours" if "Excavator" in op else "Qty (Cubes)"
+            unit = "Hrs" if "Excavator" in op else "Cubes"
                 
             val = st.number_input(val_label, min_value=0.0, step=0.5, value=0.0)
             r = st.number_input(f"Enter Rate per {unit} (LKR)", min_value=0.0, step=100.0, value=0.0)
             
         n = st.text_input("Additional Note")
         
-        if st.form_submit_button("📥 Save Record"):
-            if val <= 0: 
-                st.error(f"Enter valid {val_label}!")
-            elif r <= 0:
-                st.error("Enter valid Rate!")
+        if st.form_submit_button("📥 Save Record & Sync to Cloud"):
+            if val <= 0 or r <= 0: 
+                st.error("Please enter valid Qty/Hours and Rate!")
             else:
+                # දත්ත සැකසීම
                 record_type = "Inward" if op == "📥 Stock Inward (To Plant)" else "Process"
                 cat = f"{op} ({material})" if material else op
-                
-                # ගණනය කිරීම්
                 calculated_amount = val * r
-                q, h = (0, val) if "Excavator" in op else (val, 0)
+                q = val if "Cubes" in val_label else 0
+                h = val if "Hours" in val_label else 0
                 
-                # Note එකට Owner සහ Driver එකතු කිරීම (Stock Inward නම්)
                 final_note = n
                 if op == "📥 Stock Inward (To Plant)":
                     final_note = f"{n} | Owner: {src_owner} | Drv: {src_driver}"
                 
-                # --- නව පේළිය Dictionary එකක් ලෙස (ValueError එක මින් වැලකේ) ---
+                # --- Cloud එකට යවන දත්ත Dictionary එක ---
                 new_data = {
-                    "ID": len(st.session_state.df) + 1,
-                    "Date": d,
-                    "Name": "",
-                    "Record_Type": record_type,
+                    "Date": str(d),
+                    "Type": "Income" if op == "💰 Sales Out" else "Process",
                     "Category": cat,
                     "Entity": v,
                     "Note": final_note,
                     "Amount": calculated_amount,
                     "Qty_Cubes": q,
-                    "Expense": 0,
-                    "Work_Hours": h,
+                    "Hours": h,
                     "Rate_At_Time": r,
                     "Status": "Done"
                 }
                 
-                # DataFrame එකට එකතු කර සේව් කිරීම
-                new_row = pd.DataFrame([new_data])
-                st.session_state.df = pd.concat([st.session_state.df, new_row], ignore_index=True)
-                
-                save_all()
-                st.success(f"Successfully recorded! Total: Rs.{calculated_amount:,.2f}")
-                st.rerun()
+                # 1. Cloud එකට සේව් කිරීම (Supabase)
+                try:
+                    conn.table("master_log").insert(new_data).execute()
+                    
+                    # 2. සාර්ථක නම් Session State එක Refresh කිරීම
+                    st.session_state.df = load_data("master_log", cols_master)
+                    st.success(f"Successfully Recorded & Synced! Total: Rs.{calculated_amount:,.2f}")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error syncing with Cloud: {e}")
     
-    # පල්ලෙහා Today's Logs පෙන්වන කොටස
-    st.divider()
-    st.subheader("Today's Logs")
-    # Date format එක හරියට තියාගන්න
-    temp_df = st.session_state.df.copy()
-    temp_df['Date'] = pd.to_datetime(temp_df['Date']).dt.date
-    today_df = temp_df[temp_df["Date"] == datetime.now().date()]
-    st.dataframe(today_df, use_container_width=True)
+   # --- 12. TODAY'S LOGS DISPLAY (Cloud-Ready) ---
+st.divider()
+st.subheader("📅 Today's Logs Summary")
+
+# 1. දත්ත කොපියක් ලබා ගැනීම (Memory එකේ තියෙන අලුත්ම දත්ත)
+temp_df = st.session_state.df.copy()
+
+if not temp_df.empty:
+    # 2. Date column එක date format එකට හරවා ගැනීම (Error වැළැක්වීමට)
+    temp_df['Date'] = pd.to_datetime(temp_df['Date'], errors='coerce').dt.date
+    
+    # 3. ලංකාවේ අද දිනට ගැලපෙන දත්ත පෙරීම
+    # (Cloud server එක වෙන රටක තිබුණත් අපේ දිනේට හරියන්න)
+    today_date = datetime.now().date()
+    today_df = temp_df[temp_df["Date"] == today_date].copy()
+    
+    if not today_df.empty:
+        # දත්ත ටික අන්තිමට දාපු එක උඩට එන විදිහට පෙන්වමු
+        st.dataframe(
+            today_df.sort_values(by="id", ascending=False), 
+            use_container_width=True,
+            column_config={
+                "Amount": st.column_config.NumberColumn(format="Rs. %.2f"),
+                "Qty_Cubes": st.column_config.NumberColumn(format="%.2f Cubes"),
+                "Hours": st.column_config.NumberColumn(format="%.2f Hrs")
+            }
+        )
+        
+        # අද දවසේ කෙටි සාරාංශයක් (Quick Stats)
+        t_income = today_df[today_df["Type"] == "Income"]["Amount"].sum()
+        t_cubes = today_df["Qty_Cubes"].sum()
+        st.caption(f"💡 Today's Summary: Total Income Rs. {t_income:,.2f} | Total Volume: {t_cubes:.2f} Cubes")
+    else:
+        st.info("අද දින සඳහා තවමත් දත්ත ඇතුළත් කර නැත.")
+else:
+    st.warning("පද්ධතියේ දත්ත කිසිවක් නැත.")
     
 # --- 8. FINANCE & SHED (v56 FULL) ---
 elif menu == "💰 Finance & Shed":
     fin = st.radio("Finance Category", ["⛽ Fuel & Shed", "🔧 Repairs", "💸 Payroll", "🏦 Owner Advances", "🧾 Others"], horizontal=True)
+    
+    # වාහන ලිස්ට් එක (Cloud එකෙන් එන දත්ත)
     v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
     
     if fin == "⛽ Fuel & Shed":
         f1, f2 = st.tabs(["⛽ Log Fuel Bill", "💳 Settle Shed Payments"])
+        
         with f1:
+            st.subheader("⛽ Log Fuel Bill")
             with st.form("fuel", clear_on_submit=True):
-                d, v, l, c = st.date_input("Date"), st.selectbox("Vehicle", v_list), st.number_input("Liters"), st.number_input("Cost")
-                if st.form_submit_button("Save Fuel"):
-                    # Dictionary එකක් ලෙස දත්ත සැකසීම
-                    new_data = {
-                        "ID": len(st.session_state.df) + 1, "Date": d, "Time": "", "Type": "Expense",
-                        "Category": "Fuel Entry", "Entity": v, "Note": "Shed bill", "Amount": c,
-                        "Qty_Cubes": 0, "Fuel_Ltr": l, "Hours": 0, "Rate_At_Time": 0, "Status": "Pending"
-                    }
-                    st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_data])], ignore_index=True)
-                    save_all(); st.rerun()
+                col1, col2 = st.columns(2)
+                with col1:
+                    d = st.date_input("Date", datetime.now().date())
+                    v = st.selectbox("Vehicle", v_list)
+                with col2:
+                    l = st.number_input("Liters", min_value=0.0, step=1.0)
+                    c = st.number_input("Cost (LKR)", min_value=0.0, step=100.0)
+                
+                if st.form_submit_button("Save Fuel Entry"):
+                    if c <= 0:
+                        st.error("Please enter a valid cost!")
+                    else:
+                        fuel_data = {
+                            "Date": str(d),
+                            "Type": "Expense",
+                            "Category": "Fuel Entry",
+                            "Entity": v,
+                            "Note": "Shed Bill Entry",
+                            "Amount": c,
+                            "Fuel_Ltr": l,
+                            "Status": "Pending" # තවම සල්ලි ගෙවලා නැති නිසා
+                        }
+                        # Cloud Insert
+                        try:
+                            conn.table("master_log").insert(fuel_data).execute()
+                            st.session_state.df = load_data("master_log", cols_master)
+                            st.success(f"Fuel entry for {v} saved!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Sync error: {e}")
+
         with f2:
+            st.subheader("💳 Settle Shed Payments")
             with st.form("shed_pay", clear_on_submit=True):
-                # මෙතනට අලුතින් Date එක ඇඩ් කළා
                 pay_date = st.date_input("Payment Date", datetime.now().date())
-                am, ref = st.number_input("Amount Paid"), st.text_input("Reference")
+                am = st.number_input("Amount Paid (LKR)", min_value=0.0, step=500.0)
+                ref = st.text_input("Reference (Cheque No/Cash/Slip)")
                 
                 if st.form_submit_button("Record Payment"):
-                    new_data = {
-                        "ID": len(st.session_state.df) + 1, 
-                        "Date": pay_date, # අර උඩින් තෝරගත්ත pay_date එක මෙතනට වැටෙනවා
-                        "Time": datetime.now().strftime("%H:%M:%S"), 
-                        "Type": "Expense",
-                        "Category": "Shed Payment", 
-                        "Entity": "Shed", 
-                        "Note": ref, 
-                        "Amount": am,
-                        "Qty_Cubes": 0, "Fuel_Ltr": 0, "Hours": 0, "Rate_At_Time": 0, "Status": "Paid"
-                    }
-                    st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_data])], ignore_index=True)
-                    save_all()
-                    st.success(f"Payment of {am} recorded on {pay_date}")
-                    st.rerun()
+                    if am <= 0:
+                        st.error("Please enter a valid amount!")
+                    else:
+                        pay_data = {
+                            "Date": str(pay_date),
+                            "Time": datetime.now().strftime("%H:%M:%S"),
+                            "Type": "Expense",
+                            "Category": "Shed Payment",
+                            "Entity": "Shed",
+                            "Note": ref,
+                            "Amount": am,
+                            "Status": "Paid"
+                        }
+                        # Cloud Insert
+                        try:
+                            conn.table("master_log").insert(pay_data).execute()
+                            st.session_state.df = load_data("master_log", cols_master)
+                            st.success(f"Payment of Rs. {am:,.2f} recorded!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Sync error: {e}")
                     
     elif fin == "🔧 Repairs":
+        st.subheader("🔧 Log Vehicle Repair / Maintenance")
         with st.form("rep", clear_on_submit=True):
-            d, v, am, nt = st.date_input("Date"), st.selectbox("Vehicle", v_list), st.number_input("Cost"), st.text_input("Detail")
-            if st.form_submit_button("Save Repair"):
-                new_data = {
-                    "ID": len(st.session_state.df) + 1, "Date": d, "Time": "", "Type": "Expense",
-                    "Category": "Repair", "Entity": v, "Note": nt, "Amount": am,
-                    "Qty_Cubes": 0, "Fuel_Ltr": 0, "Hours": 0, "Rate_At_Time": 0, "Status": "Paid"
-                }
-                st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_data])], ignore_index=True)
-                save_all(); st.rerun()
+            col1, col2 = st.columns(2)
+            with col1:
+                d = st.date_input("Date", datetime.now().date())
+                v = st.selectbox("Vehicle / Machine", v_list)
+            with col2:
+                am = st.number_input("Repair Cost (LKR)", min_value=0.0, step=500.0)
+                nt = st.text_input("Repair Detail (e.g., Oil change, Tyre replace)")
+            
+            if st.form_submit_button("Save Repair Record"):
+                if am <= 0:
+                    st.error("Please enter a valid repair cost!")
+                else:
+                    # Cloud එකට ගැලපෙන දත්ත Dictionary එක
+                    repair_data = {
+                        "Date": str(d),
+                        "Type": "Expense",
+                        "Category": "Repair",
+                        "Entity": v,
+                        "Note": nt,
+                        "Amount": am,
+                        "Qty_Cubes": 0,
+                        "Fuel_Ltr": 0,
+                        "Hours": 0,
+                        "Rate_At_Time": 0,
+                        "Status": "Paid"
+                    }
+                    
+                    # 1. Cloud එකට සේව් කිරීම (Supabase)
+                    try:
+                        conn.table("master_log").insert(repair_data).execute()
+                        
+                        # 2. සාර්ථක නම් දත්ත Refresh කරමු
+                        st.session_state.df = load_data("master_log", cols_master)
+                        st.success(f"Repair record for {v} saved successfully!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error syncing with Cloud: {e}")
 
     # කලින් තිබුණ if/elif පේළියට කෙලින්ම යටින් මෙය තිබිය යුතුය
-    elif fin == "💸 Payroll":
+   elif fin == "💸 Payroll":
+        st.subheader("💸 Staff Payroll & Advances")
         dr_names = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else ["N/A"]
+        
         with st.form("pay", clear_on_submit=True):
-            dr = st.selectbox("Driver", dr_names)
+            col1, col2 = st.columns(2)
+            with col1:
+                dr = st.selectbox("Select Driver / Staff", dr_names)
+                pay_date = st.date_input("Date", datetime.now().date())
+                ty = st.selectbox("Payment Type", ["Driver Advance", "Salary", "Bonus"])
             
-            # දවස තෝරන්න අලුත් පේළිය
-            pay_date = st.date_input("Date", datetime.now().date()) 
-            
-            am = st.number_input("Amount")
-            ty = st.selectbox("Type", ["Driver Advance", "Salary"])
-            v_rel = st.selectbox("Vehicle", v_list)
-            
-            if st.form_submit_button("Save Payroll"):
-                new_data = {
-                    "ID": len(st.session_state.df) + 1, 
-                    "Date": pay_date, 
-                    "Time": "", 
-                    "Type": "Expense",
-                    "Category": ty, 
-                    "Entity": v_rel, 
-                    "Note": f"Driver: {dr}", 
-                    "Amount": am,
-                    "Qty_Cubes": 0, 
-                    "Fuel_Ltr": 0, 
-                    "Hours": 0, 
-                    "Rate_At_Time": 0, 
-                    "Status": "Paid"
-                }
-                st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_data])], ignore_index=True)
-                save_all()
-                st.rerun()
+            with col2:
+                am = st.number_input("Amount (LKR)", min_value=0.0, step=500.0)
+                v_rel = st.selectbox("Related Vehicle", v_list)
+                
+            if st.form_submit_button("Save Payroll Entry"):
+                if am <= 0:
+                    st.error("Please enter a valid amount!")
+                else:
+                    # Cloud එකට යවන දත්ත Dictionary එක
+                    pay_data = {
+                        "Date": str(pay_date),
+                        "Type": "Expense",
+                        "Category": ty,
+                        "Entity": v_rel, # වියදම අදාළ වාහනයට බැර කරනවා
+                        "Note": f"Driver: {dr}",
+                        "Amount": am,
+                        "Qty_Cubes": 0,
+                        "Fuel_Ltr": 0,
+                        "Hours": 0,
+                        "Rate_At_Time": 0,
+                        "Status": "Paid"
+                    }
+                    
+                    # 1. Cloud එකට සේව් කිරීම (Supabase)
+                    try:
+                        conn.table("master_log").insert(pay_data).execute()
+                        
+                        # 2. දත්ත Refresh කරමු
+                        st.session_state.df = load_data("master_log", cols_master)
+                        st.success(f"Payment of Rs. {am:,.2f} recorded for {dr}")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Sync error: {e}")
+                        
     elif fin == "🏦 Owner Advances":
+        st.subheader("🏦 Landowner Advances & Payments")
+        # Landownersලාගේ ලිස්ට් එක (Cloud එකෙන් එන දත්ත)
+        l_names = st.session_state.lo_db["Name"].tolist() if not st.session_state.lo_db.empty else ["N/A"]
+        
         with st.form("own_adv", clear_on_submit=True):
-            d, v, am, nt = st.date_input("Date"), st.selectbox("Vehicle", v_list), st.number_input("Amount"), st.text_input("Note")
-            if st.form_submit_button("Save Advance"):
-                new_data = {
-                    "ID": len(st.session_state.df) + 1, "Date": d, "Time": "", "Type": "Expense",
-                    "Category": "Owner Advance", "Entity": v, "Note": nt, "Amount": am,
-                    "Qty_Cubes": 0, "Fuel_Ltr": 0, "Hours": 0, "Rate_At_Time": 0, "Status": "Paid"
-                }
-                st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_data])], ignore_index=True)
-                save_all(); st.rerun()
-
+            col1, col2 = st.columns(2)
+            with col1:
+                d = st.date_input("Date", datetime.now().date())
+                owner = st.selectbox("Select Landowner", l_names)
+            with col2:
+                am = st.number_input("Advance Amount (LKR)", min_value=0.0, step=1000.0)
+                v_rel = st.selectbox("Related Vehicle/Site", v_list)
+            
+            nt = st.text_input("Additional Note (e.g., Cash/Cheque No)")
+            
+            if st.form_submit_button("Save Advance Record"):
+                if am <= 0:
+                    st.error("Please enter a valid amount!")
+                else:
+                    # Cloud එකට යවන දත්ත Dictionary එක
+                    adv_data = {
+                        "Date": str(d),
+                        "Type": "Expense",
+                        "Category": "Owner Advance",
+                        "Entity": v_rel,
+                        "Note": f"Owner: {owner} | {nt}",
+                        "Amount": am,
+                        "Qty_Cubes": 0,
+                        "Fuel_Ltr": 0,
+                        "Hours": 0,
+                        "Rate_At_Time": 0,
+                        "Status": "Paid"
+                    }
+                    
+                    # 1. Cloud එකට සේව් කිරීම (Supabase)
+                    try:
+                        conn.table("master_log").insert(adv_data).execute()
+                        
+                        # 2. දත්ත Refresh කරමු
+                        st.session_state.df = load_data("master_log", cols_master)
+                        st.success(f"Advance of Rs. {am:,.2f} saved for {owner}")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Sync error: {e}")
+                        
     elif fin == "🧾 Others":
-        with st.form("oth"):
-            d, cat, nt, am = st.date_input("Date"), st.selectbox("Category", ["Food", "Rent", "Utility", "Misc"]), st.text_input("Note"), st.number_input("Amount")
-            if st.form_submit_button("Save Other"):
-                new_data = {
-                    "ID": len(st.session_state.df) + 1, "Date": d, "Time": "", "Type": "Expense",
-                    "Category": cat, "Entity": "Admin", "Note": nt, "Amount": am,
-                    "Qty_Cubes": 0, "Fuel_Ltr": 0, "Hours": 0, "Rate_At_Time": 0, "Status": "Paid"
-                }
-                st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_data])], ignore_index=True)
-                save_all(); st.rerun()
+        st.subheader("🧾 Other Business Expenses")
+        with st.form("oth", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                d = st.date_input("Date", datetime.now().date())
+                cat = st.selectbox("Expense Category", ["Food", "Rent", "Utility", "Office", "Misc"])
+            with col2:
+                am = st.number_input("Amount (LKR)", min_value=0.0, step=100.0)
+                nt = st.text_input("Note / Description")
+            
+            if st.form_submit_button("Save Expense"):
+                if am <= 0:
+                    st.error("Please enter a valid amount!")
+                else:
+                    # Cloud Data Dictionary
+                    other_data = {
+                        "Date": str(d),
+                        "Type": "Expense",
+                        "Category": cat,
+                        "Entity": "Admin", # පොදු වියදමක් නිසා
+                        "Note": nt,
+                        "Amount": am,
+                        "Qty_Cubes": 0,
+                        "Fuel_Ltr": 0,
+                        "Hours": 0,
+                        "Rate_At_Time": 0,
+                        "Status": "Paid"
+                    }
+                    
+                    # 1. Supabase එකට Insert කිරීම
+                    try:
+                        conn.table("master_log").insert(other_data).execute()
+                        
+                        # 2. Refresh Application Data
+                        st.session_state.df = load_data("master_log", cols_master)
+                        st.success(f"Expense of Rs. {am:,.2f} for {cat} recorded!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Sync error: {e}")
 
 # --- 9. SYSTEM SETUP ---
 elif menu == "📑 Reports Center":
     st.markdown("<h2 style='color: #8E44AD;'>📑 Business Reports Center</h2>", unsafe_allow_html=True)
     
-    # Column Fixes
+    # 1. Column Fixes (Variables වෙනස් නොකර)
     df_raw = st.session_state.df.copy()
     df_raw.columns = [str(c).strip() for c in df_raw.columns]
     df_raw.rename(columns={'Vehicle No': 'Vehicle', 'Vehicle_No': 'Vehicle', 'Entity': 'Vehicle'}, inplace=True)
 
-    # Tabs
-
-    # Tabs ලිස්ට් එකට අලුත් එක ඇඩ් කරමු
+    # 2. Tabs (ඔයා දුන්න Variables ටික ඒ විදිහටම)
     r_inc, r_prof, r_gross, r_staff, r1, r2, r3, r4 = st.tabs([
         "💰 Daily Income Report", 
         "📊 Profit/Loss Analysis",
         "📈 Material Gross Earnings",
-        "👷 Staff Settlement", # <--- මෙන්න මේක අලුතින් ඇඩ් කළා
+        "👷 Staff Settlement",
         "🚜 Vehicle Settlement", 
         "👤 Driver Summary", 
         "📑 Daily Log", 
         "⛽ Shed Report"
     ])
     
+    # 3. Date Selection
     col_d1, col_d2 = st.columns(2)
     with col_d1:
+        # timedelta පාවිච්චියට උඩින්ම 'from datetime import timedelta' තියෙන්න ඕනේ
         f_d = st.date_input("From Date", datetime.now().date() - timedelta(days=30), key="r_from")
     with col_d2:
         t_d = st.date_input("To Date", datetime.now().date(), key="r_to")
 
-    df_raw['Date'] = pd.to_datetime(df_raw['Date']).dt.date
+    # 4. Filtering Logic
+    df_raw['Date'] = pd.to_datetime(df_raw['Date'], errors='coerce').dt.date
     df_f = df_raw[(df_raw["Date"] >= f_d) & (df_raw["Date"] <= t_d)].copy()
     
     # --- TAB: DAILY INCOME REPORT (FIXED) ---
@@ -811,43 +1114,49 @@ elif menu == "📑 Reports Center":
         st.subheader("Daily Sales & Income Statement")
         
         # 1. Column names වල තියෙන හිස්තැන් අයින් කරලා Clean කරමු
-        df_f.columns = [c.strip() for c in df_f.columns]
+        df_f.columns = [str(c).strip() for c in df_f.columns]
         
-        # 2. Sales Out records විතරක් පෙරමු
-        daily_sales = df_f[df_f["Category"].str.contains("Sales Out", na=False)].copy()
+        # 2. Sales Out records විතරක් පෙරමු (case-insensitive search)
+        daily_sales = df_f[df_f["Category"].str.contains("Sales Out", case=False, na=False)].copy()
         
         if not daily_sales.empty:
-            # 3. මෙතනදී Column එකක් නැති වුණොත් Error එකක් එන එක නවත්වන්න check එකක් දාමු
+            # 3. Column check - KeyError වැළැක්වීමට (ඔයාගේ logic එකමයි)
             available_cols = daily_sales.columns.tolist()
             required_cols = ['Date', 'Category', 'Entity', 'Qty_Cubes', 'Rate_At_Time', 'Amount']
             
-            # පද්ධතියේ තියෙන column ටික විතරක් තෝරා ගමු (KeyError වැළැක්වීමට)
+            # පද්ධතියේ තියෙන column ටික විතරක් තෝරා ගමු
             final_cols = [c for c in required_cols if c in available_cols]
-            
             display_sales = daily_sales[final_cols].copy()
             
-            # 4. ටේබල් එකේ Column names ලස්සන කරමු (Rename)
+            # 4. දත්ත වල අගයන් (Numbers) බව තහවුරු කරගමු
+            if 'Amount' in display_sales.columns:
+                display_sales['Amount'] = pd.to_numeric(display_sales['Amount'], errors='coerce').fillna(0)
+            if 'Qty_Cubes' in display_sales.columns:
+                display_sales['Qty_Cubes'] = pd.to_numeric(display_sales['Qty_Cubes'], errors='coerce').fillna(0)
+
+            # 5. ටේබල් එකේ Column names ලස්සන කරමු
             rename_dict = {
                 'Date': 'Date', 'Category': 'Material', 'Entity': 'Vehicle/Client', 
                 'Qty_Cubes': 'Qty', 'Rate_At_Time': 'Rate', 'Amount': 'Total Amount'
             }
             display_sales.rename(columns=rename_dict, inplace=True)
             
+            # Table එක පෙන්වීම
             st.dataframe(display_sales, use_container_width=True)
             
-            # මුළු මුදල පෙන්වීම
-            if 'Total Amount' in display_sales.columns:
-                total_daily_inc = display_sales['Total Amount'].sum()
-                st.success(f"Selected Period Total Income: **LKR {total_daily_inc:,.2f}**")
+            # 6. මුළු මුදල පෙන්වීම
+            total_daily_inc = display_sales['Total Amount'].sum()
+            st.success(f"Selected Period Total Income: **LKR {total_daily_inc:,.2f}**")
             
-            # PDF Button එක (කලින් විදිහටම)
+            # 7. PDF Button එක
             if st.button("📥 Download Daily Income PDF"):
                 inc_summary = {
                     "Report Type": "Daily Income Statement",
                     "Period": f"{f_d} to {t_d}",
                     "Total Items": len(display_sales),
-                    "Total Gross Income": f"LKR {display_sales['Total Amount'].sum():,.2f}" if 'Total Amount' in display_sales.columns else "0.00"
+                    "Total Gross Income": f"LKR {total_daily_inc:,.2f}"
                 }
+                # PDF එක generate කරලා Download ලින්ක් එක දෙනවා
                 pdf_fn = create_pdf(f"Daily_Income", display_sales, inc_summary)
                 with open(pdf_fn, "rb") as f:
                     st.download_button("📩 Click to Download PDF", f, file_name=f"Income_Report_{f_d}.pdf")
@@ -856,318 +1165,454 @@ elif menu == "📑 Reports Center":
             
     # --- TAB: PROFIT/LOSS ANALYSIS ---
     with r_prof:
-        st.subheader("Daily Profit & Loss Analysis")
+        st.subheader("📊 Daily Profit & Loss Analysis")
+        
         if not df_f.empty:
-            # Income (Sales)
-            inc_data = df_f[df_f["Category"].str.contains("Sales Out", na=False)].copy()
+            # 1. Income (Sales) - Case-insensitive search
+            inc_data = df_f[df_f["Category"].str.contains("Sales Out", case=False, na=False)].copy()
             inc_data['Val'] = pd.to_numeric(inc_data['Amount'], errors='coerce').fillna(0)
             
-            # Expense (All Expenses)
-            exp_data = df_f[df_f["Type"] == "Expense"].copy()
+            # 2. Expense (All Expenses)
+            # 'Type' එක 'Expense' තියෙන හෝ Category එකේ 'Advance/Salary/Fuel/Repair/Shed' තියෙන ඒවා සලකමු
+            exp_data = df_f[(df_f["Type"] == "Expense") | 
+                            (df_f["Category"].str.contains("Advance|Salary|Fuel|Repair|Shed", case=False, na=False))].copy()
             exp_data['Val'] = pd.to_numeric(exp_data['Amount'], errors='coerce').fillna(0)
 
+            # 3. දින අනුව Group කිරීම
             d_inc = inc_data.groupby('Date')['Val'].sum()
             d_exp = exp_data.groupby('Date')['Val'].sum()
             
+            # 4. Profit Table එක සෑදීම (ඔයාගේ variables ඒ විදිහටම)
             profit_df = pd.concat([d_inc, d_exp], axis=1).fillna(0)
             profit_df.columns = ['Income', 'Expense']
+            
+            # ශුද්ධ ලාභය ගණනය කිරීම
             profit_df['Net Profit'] = profit_df['Income'] - profit_df['Expense']
             
+            # 5. Visualizations (Chart & Table)
             st.bar_chart(profit_df[['Income', 'Expense']])
+            
+            # Table එක පෙන්වීම (Formatting සමඟ)
             st.dataframe(profit_df.style.format("{:,.2f}"), use_container_width=True)
             
-            # Totals
-            t_i, t_e = profit_df['Income'].sum(), profit_df['Expense'].sum()
-            st.info(f"Summary: Total Income: LKR {t_i:,.2f} | Total Expense: LKR {t_e:,.2f} | Net Profit: LKR {t_i-t_e:,.2f}")
+            # 6. Totals Summary
+            t_i = profit_df['Income'].sum()
+            t_e = profit_df['Expense'].sum()
+            net_p = t_i - t_e
+            
+            # ලාභය හෝ අලාභය අනුව පාට වෙනස් කර පෙන්වීම
+            if net_p >= 0:
+                st.success(f"✅ Summary: Total Income: LKR {t_i:,.2f} | Total Expense: LKR {t_e:,.2f} | Net Profit: LKR {net_p:,.2f}")
+            else:
+                st.error(f"⚠️ Summary: Total Income: LKR {t_i:,.2f} | Total Expense: LKR {t_e:,.2f} | Net Loss: LKR {net_p:,.2f}")
+        else:
+            st.info("දත්ත පද්ධතියේ නැත.")
 
     # --- TAB: MATERIAL GROSS EARNINGS (FIXED) ---
     with r_gross:
-        st.subheader("Material Gross Earnings (Sales Revenue)")
+        st.subheader("📈 Material Gross Earnings (Sales Revenue)")
         
-        # 1. Column names වල හිස්තැන් අයින් කරලා Clean කරමු
-        df_f.columns = [c.strip() for c in df_f.columns]
+        # 1. Column names clean කරමු (Variable names වෙනස් නොකර)
+        df_f.columns = [str(c).strip() for c in df_f.columns]
         
-        # 2. Sales records පමණක් පෙරමු
-        gross_df = df_f[df_f["Category"].str.contains("Sales Out", na=False)].copy()
+        # 2. Sales records පමණක් පෙරමු (case-insensitive search)
+        gross_df = df_f[df_f["Category"].str.contains("Sales Out", case=False, na=False)].copy()
         
         if not gross_df.empty:
-            # 3. Material Type එක වෙන් කරගමු
+            # 3. Material Type එක වෙන් කරගමු (Sand / Soil / Other)
             gross_df['Material_Type'] = gross_df['Category'].apply(
-                lambda x: "Sand" if "Sand" in x else ("Soil" if "Soil" in x else "Other")
+                lambda x: "Sand" if "Sand" in str(x) else ("Soil" if "Soil" in str(x) else "Other")
             )
             
-            # 4. Amount column එක තියෙනවාද බලමු (ගණනය කිරීම් වලට)
+            # 4. Amount column එක number එකක් බව ෂුවර් කරගමු
             if 'Amount' in gross_df.columns:
                 gross_df['Amount'] = pd.to_numeric(gross_df['Amount'], errors='coerce').fillna(0)
+                
+                # Summary Table එක සෑදීම
                 summary_gross = gross_df.groupby('Material_Type')['Amount'].sum().reset_index()
                 summary_gross.columns = ['Material', 'Total Gross Earning (LKR)']
                 
+                # Visual Layout
                 col_g1, col_g2 = st.columns([1, 2])
                 with col_g1:
-                    st.write("**Earnings by Material:**")
-                    st.dataframe(summary_gross.style.format({"Total Gross Earning (LKR)": "{:,.2f}"}), use_container_width=True)
+                    st.write("**Earnings Summary:**")
+                    st.dataframe(
+                        summary_gross.style.format({"Total Gross Earning (LKR)": "{:,.2f}"}), 
+                        use_container_width=True,
+                        hide_index=True
+                    )
                 
                 with col_g2:
-                    st.bar_chart(data=summary_gross, x='Material', y='Total Gross Earning (LKR)')
+                    # Chart එකේ Material එක x axis එකටත් Earning එක y axis එකටත් ගනිමු
+                    st.bar_chart(data=summary_gross.set_index('Material'))
             
             st.divider()
-            st.write("**Detailed Sales Log:**")
+            st.write("**Detailed Sales Log (Period Wise):**")
             
-            # 5. Column එකක් නැති වුණොත් Error එක එන එක මෙතනින් නවත්වනවා
+            # 5. Column check - KeyError වැළැක්වීමට (ඔයාගේ logic එකමයි)
             req_cols = ['Date', 'Entity', 'Category', 'Qty_Cubes', 'Amount']
             available_cols = [c for c in req_cols if c in gross_df.columns]
             
-            # තියෙන Column ටික විතරක් පෙන්වන්න
-            st.dataframe(gross_df[available_cols], use_container_width=True)
+            # තියෙන Column ටික විතරක් ලස්සනට පෙන්වමු
+            st.dataframe(
+                gross_df[available_cols].sort_values(by='Date', ascending=False), 
+                use_container_width=True
+            )
         else:
-            st.info("No sales records found for the selected period.")
+            st.info("තෝරාගත් දින පරාසය තුළ විකුණුම් දත්ත (Sales records) කිසිවක් නැත.")
 
+    # --- TAB: STAFF SETTLEMENT (FIXED) ---
     with r_staff:
         st.subheader("👷 Staff Payment & Settlement Report")
         
-        # Staff ලිස්ට් එක ගන්නවා
-        if not st.session_state.staff_db.empty:
-            s_list = st.session_state.staff_db["Name"].tolist()
-            sel_staff = st.selectbox("Select Staff Member", s_list, key="staff_rep_sel")
+        # 1. Staff ලිස්ට් එක ගන්නවා (Cloud DB එකෙන්)
+        if not st.session_state.dr_db.empty: # මෙතන dr_db හෝ staff_db ඔයා පාවිච්චි කරන එකට ගැලපෙන්න
+            s_list = st.session_state.dr_db["Name"].tolist()
+            sel_staff = st.selectbox("Select Staff Member / Driver", s_list, key="staff_rep_sel")
             
+            # Form එකක් වෙනුවට Button එකක් පාවිච්චි කරන එක මේකට හොඳයි
             if st.button("Generate Staff Report 📄", key="gen_staff_btn"):
-                # Staff කෙනාගේ නම Note එකේ තියෙන පේළි විතරක් Filter කරනවා
-                staff_mask = df_f['Note'].str.contains(sel_staff, na=False)
+                # 2. Staff කෙනාගේ නම Note එකේ තියෙන පේළි විතරක් Filter කරනවා 
+                # (case=False දැම්මම Capital/Simple ප්‍රශ්නයක් එන්නේ නැහැ)
+                staff_mask = df_f['Note'].str.contains(str(sel_staff), case=False, na=False)
                 staff_rep_data = df_f[staff_mask].copy()
                 
                 if not staff_rep_data.empty:
-                    # කලින් මම දීපු create_staff_pdf function එක මෙතනදී call කරනවා
-                    fn = create_staff_pdf(sel_staff, staff_rep_data)
-                    with open(fn, "rb") as f:
-                        st.download_button("Download Staff Report 📥", f, file_name=fn)
-                    st.success(f"Report generated for {sel_staff}")
-                    st.dataframe(staff_rep_data[["Date", "Category", "Note", "Hours", "Amount"]], use_container_width=True)
+                    # 3. PDF Function එක call කිරීම (Variable names ඒ විදිහටම)
+                    # ඔයා කලින් හදපු create_staff_pdf function එක මෙතන වැඩ කරනවා
+                    try:
+                        fn = create_staff_pdf(sel_staff, staff_rep_data)
+                        with open(fn, "rb") as f:
+                            st.download_button("Download Staff Report 📥", f, file_name=f"Staff_Report_{sel_staff}.pdf")
+                        
+                        st.success(f"Report generated for {sel_staff}")
+                        
+                        # 4. Table එකේ Summary එකක් පෙන්වීම
+                        # Column names තියෙනවාද කියලා check කරලා පෙන්වමු
+                        disp_cols = ["Date", "Category", "Note", "Hours", "Amount"]
+                        actual_cols = [c for c in disp_cols if c in staff_rep_data.columns]
+                        
+                        st.dataframe(
+                            staff_rep_data[actual_cols].sort_values(by="Date", ascending=False), 
+                            use_container_width=True
+                        )
+                        
+                        # මුළු පඩි සහ අත්තිකාරම් එකතුව
+                        total_pay = pd.to_numeric(staff_rep_data['Amount'], errors='coerce').sum()
+                        st.info(f"Total Transactions for {sel_staff}: **LKR {total_pay:,.2f}**")
+                        
+                    except Exception as e:
+                        st.error(f"PDF Generation Error: {e}")
                 else:
                     st.warning(f"No transactions found for {sel_staff} in the selected period.")
         else:
-            st.info("Please register staff members in System Setup first.")
+            st.info("Please register staff members/drivers in System Setup first.")
 
     # --- TAB 1: VEHICLE SETTLEMENT ---
    # 1. වාහන ලැයිස්තුව ලබා ගනිමු
     v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
 
+    # --- TAB: VEHICLE / MACHINE SETTLEMENT (FIXED) ---
     with r1:
-        st.subheader("Vehicle / Machine Settlement")
+        st.subheader("🚜 Vehicle / Machine Settlement & Profitability")
         
-        dr_list = v_list # වාහන ලැයිස්තුව
+        # වාහන ලැයිස්තුව (Variable names ඔයාගේ ඒවාමයි)
+        dr_list = v_list 
         selected_ve = st.selectbox("Select Vehicle to Settle", dr_list, key="settle_ve")
         
         if selected_ve and selected_ve != "N/A":
+            # 1. Column එක හරියටම අහුවෙනවාද කියලා බලනවා
             col_options = ['Entity', 'Vehicle', 'Vehicle_No', 'Machine', 'No']
             target_col = next((c for c in col_options if c in df_f.columns), None)
             
             if target_col:
+                # 2. තෝරාගත් වාහනයට අදාළ දත්ත පෙරීම
                 ve_records = df_f[df_f[target_col] == selected_ve].copy()
                 
                 if not ve_records.empty:
-                    # Excavator එකක්ද කියා පරීක්ෂා කිරීම
-                    is_excavator = any(x in selected_ve.upper() for x in ["EX", "PC", "EXCAVATOR"])
+                    # 3. Excavator එකක්ද කියා පරීක්ෂා කිරීම (Variable name ඒ විදිහටම)
+                    is_excavator = any(x in str(selected_ve).upper() for x in ["EX", "PC", "EXCAVATOR", "JCB"])
                     
-                    # Column names වල spaces අයින් කිරීම
-                    ve_records.columns = [c.strip() for c in ve_records.columns]
+                    # Column names clean කිරීම
+                    ve_records.columns = [str(c).strip() for c in ve_records.columns]
                     
-                    # --- පැය ගණන ගණනය කිරීම (අලුත් කොටස) ---
-                    # 'Work_Hours' හෝ 'Qty_Cubes' column එකෙන් පැය ගණන ගන්නවා
+                    # 4. පැය ගණන හෝ කියුබ් ගණන (Units) ගණනය කිරීම
+                    # Cloud එකේදී මේවා numbers බවට හරවා ගනිමු
                     h_col = 'Work_Hours' if 'Work_Hours' in ve_records.columns else 'Qty_Cubes'
-                    total_hours = pd.to_numeric(ve_records[h_col], errors='coerce').sum()
+                    ve_records[h_col] = pd.to_numeric(ve_records[h_col], errors='coerce').fillna(0)
+                    total_units = ve_records[h_col].sum()
                     
-                    # Earnings සහ Expenses ගණනය කිරීම
+                    # 5. Earnings සහ Expenses ගණනය කිරීම
+                    ve_records['Amount'] = pd.to_numeric(ve_records['Amount'], errors='coerce').fillna(0)
+                    
                     if is_excavator:
-                        gross_earning = pd.to_numeric(ve_records['Amount'], errors='coerce').sum()
+                        # Excavator එකක් නම් Income (Sales) ටික එකතු කරනවා
+                        gross_earning = ve_records[ve_records["Type"] == "Income"]["Amount"].sum()
                     else:
+                        # රෙන්ට් ලොරියක් නම් සාමාන්‍යයෙන් මේක 0.00 (වියදම් විතරයි බලන්නේ)
                         gross_earning = 0.0
                     
-                    total_exp = pd.to_numeric(ve_records[ve_records["Type"] == "Expense"]["Amount"], errors='coerce').sum()
+                    total_exp = ve_records[ve_records["Type"] == "Expense"]["Amount"].sum()
                     net_balance = gross_earning - total_exp
                     
-                    # Metrics (මුළු පැය ගණනත් මෙතනට දැම්මා)
-                    c1, c2, c3, c4 = st.columns(4) # Column 4ක් කළා
+                    # 6. Metrics Display (Visuals)
+                    c1, c2, c3, c4 = st.columns(4)
                     if is_excavator:
-                        c1.metric("Total Hours", f"{total_hours:,.2f} hrs")
+                        c1.metric("Total Work Hours", f"{total_units:,.2f} hrs")
                         c2.metric("Gross Earning", f"Rs. {gross_earning:,.2f}")
                     else:
-                        c1.metric("Gross Earning", "Rs. 0.00")
-                        c2.metric("Type", "Rented Lorry")
+                        c1.metric("Total Qty", f"{total_units:,.2f} Cubes")
+                        c2.metric("Status", "Rented Lorry")
                     
                     c3.metric("Total Expenses", f"Rs. {total_exp:,.2f}")
-                    c4.metric("Net Settlement", f"Rs. {net_balance:,.2f}")
+                    # ලාභයක්ද අලාභයක්ද කියලා පෙන්වනවා
+                    c4.metric("Net Settlement", f"Rs. {net_balance:,.2f}", delta=f"{net_balance:,.2f}")
                     
                     st.divider()
 
-                    # PDF Download Button
+                    # 7. PDF Download Button (ඔයාගේ logic එකමයි)
                     if st.button("📥 Download Settlement PDF"):
                         summary_data = {
                             "Vehicle/Machine": selected_ve,
-                            "Type": "Excavator (Own)" if is_excavator else "None",
-                            "Total Quantity / Hours": f"{total_hours:,.2f}", # <--- මේක PDF එකට යනවා
+                            "Type": "Excavator/Own" if is_excavator else "Lorry/Rented",
+                            "Total Units/Hours": f"{total_units:,.2f}",
                             "Gross Earnings": f"Rs. {gross_earning:,.2f}",
                             "Total Expenses": f"Rs. {total_exp:,.2f}",
                             "Net Balance": f"Rs. {net_balance:,.2f}",
                             "Period": f"{f_d} to {t_d}"
                         }
-                        # කලින් අපි හදාගත්ත create_pdf එක මෙතනදී call වෙනවා
+                        # PDF Function එක call කිරීම
                         pdf_path = create_pdf("Settlement_Report", ve_records, summary_data)
                         with open(pdf_path, "rb") as f:
                             st.download_button("📩 Download PDF Now", f, file_name=f"{selected_ve}_Settlement.pdf")
 
+                    # 8. Detailed Log Table
                     st.write(f"**Detailed Transaction Log for {selected_ve}:**")
-                    display_cols = ['Date', 'Category', 'Qty_Cubes', 'Work_Hours', 'Amount', 'Type']
+                    display_cols = ['Date', 'Category', 'Qty_Cubes', 'Work_Hours', 'Amount', 'Type', 'Note']
                     safe_cols = [c for c in display_cols if c in ve_records.columns]
-                    st.dataframe(ve_records[safe_cols], use_container_width=True)
+                    st.dataframe(ve_records[safe_cols].sort_values(by='Date', ascending=False), use_container_width=True)
+                    
                 else:
                     st.info(f"No records found for {selected_ve} in the selected period.")
             else:
-                st.error("Could not find a 'Vehicle' or 'Entity' column.")
+                st.error("System Error: Could not find identification columns (Entity/Vehicle).")
+                
                 # --- මෙන්න මෙතනින් පටන් ගන්න (Landowner Settlement Section) ---
       # --- Landowner Settlement Section ---
         st.divider()
         st.subheader("Landowner Settlement")
 
-        # 1. නම් ටික ගන්නා ක්‍රමය
+        # 1. නම් ලැයිස්තුව ලබා ගැනීම (ඔයාගේ logic එකමයි)
         registered_landowners = []
-        if 'landowners' in st.session_state and st.session_state.landowners:
-            registered_landowners = [owner.get('Name') for owner in st.session_state.landowners if owner.get('Name')]
-        
-        if not registered_landowners:
-            if 'df' in st.session_state and not st.session_state.df.empty:
-                registered_landowners = [name for name in st.session_state.df['Entity'].unique().tolist() if name and str(name).lower() != 'nan']
+        if 'lo_db' in st.session_state and not st.session_state.lo_db.empty:
+            registered_landowners = st.session_state.lo_db["Name"].tolist()
+        elif 'df' in st.session_state and not st.session_state.df.empty:
+            registered_landowners = [name for name in st.session_state.df['Entity'].unique().tolist() if name and str(name).lower() != 'nan']
 
         if not registered_landowners:
             registered_landowners = ["N/A"]
 
-        # 2. Dropdown
+        # 2. Selectbox
         selected_landowner = st.selectbox("Select Landowner", options=registered_landowners, key="settle_lo_final_v5")
 
         if selected_landowner and selected_landowner != "N/A":
-            df_f = st.session_state.df.copy()
+            df_f_copy = st.session_state.df.copy() # variable නම පොඩ්ඩක් වෙනස් කළා filter වෙච්ච df එක නිසා
             search_name = str(selected_landowner).strip()
             
-            # --- මෙන්න මෙතන මම Filter එක වෙනස් කළා ---
-            # Entity එකේ හරි Note එකේ හරි නම තියෙනවා නම් ඒ record එක ගන්නවා
-            mask_entity = df_f['Entity'].astype(str).str.strip().str.lower() == search_name.lower()
-            mask_note = df_f['Note'].fillna("").astype(str).str.contains(search_name, case=False)
+            # --- Filtering Logic (ඔයාගේ සුපිරි filter එක) ---
+            mask_entity = df_f_copy['Entity'].astype(str).str.strip().str.lower() == search_name.lower()
+            mask_note = df_f_copy['Note'].fillna("").astype(str).str.contains(search_name, case=False)
             
-            lo_records = df_f[mask_entity | mask_note].copy()
+            lo_records = df_f_copy[mask_entity | mask_note].copy()
             
             if not lo_records.empty:
-                st.success(f"Found {len(lo_records)} records for {search_name}")
-                
-                # Amount clean කිරීම
+                # Amount Cleaning
                 lo_records['Amount'] = pd.to_numeric(
-                    lo_records['Amount'].astype(str).str.replace(',', '').str.replace('Rs.', ''), 
+                    lo_records['Amount'].astype(str).str.replace(',', '').str.replace('Rs.', '').str.strip(), 
                     errors='coerce'
                 ).fillna(0)
                 
-                # ගණනය කිරීම්
+                # ගණනය කිරීම් (Inward = ආපු වැලි / Advance = දීපු සල්ලි)
                 total_payable = lo_records[lo_records['Category'].str.contains('Inward|Stock In', case=False, na=False)]['Amount'].sum()
                 total_paid = lo_records[lo_records['Category'].str.contains('Advance|Payment', case=False, na=False)]['Amount'].sum()
                 lo_balance = total_payable - total_paid
 
-                # Metrics
+                # 3. Metrics (Display)
                 m1, m2, m3 = st.columns(3)
-                m1.metric("Total Payable", f"Rs. {total_payable:,.2f}")
-                m2.metric("Total Paid", f"Rs. {total_paid:,.2f}")
-                m3.metric("Balance Due", f"Rs. {lo_balance:,.2f}")
+                m1.metric("Total Payable (Stock)", f"Rs. {total_payable:,.2f}")
+                m2.metric("Total Paid (Advances)", f"Rs. {total_paid:,.2f}")
+                m3.metric("Balance Due", f"Rs. {lo_balance:,.2f}", delta=f"{-lo_balance:,.2f}", delta_color="inverse")
 
-                # PDF Report Button
-                # PDF Report Button
-                # PDF Report Button
+                # 4. PDF Generation
                 if st.button("📄 Generate Landowner Report"):
-                    # 1. Summary එක පිරවීම
                     lo_summary = {
-                        "Landowner Name": str(search_name),
+                        "Landowner Name": search_name,
                         "Report Date": datetime.now().strftime("%Y-%m-%d"),
-                        "Total Payable": f"Rs. {total_payable:,.2f}",
-                        "Total Paid": f"Rs. {total_paid:,.2f}",
-                        "Balance Due": f"Rs. {lo_balance:,.2f}"
+                        "Total Stock Value": f"Rs. {total_payable:,.2f}",
+                        "Total Advances Paid": f"Rs. {total_paid:,.2f}",
+                        "Net Balance Payable": f"Rs. {lo_balance:,.2f}"
                     }
                     
                     try:
-                        # 2. PDF එක හැදීම (TypeError එක එන්නේ නැති වෙන්න report_type අයින් කළා)
-                        # ඔයාගේ create_pdf එකේ arguments තියෙන පිළිවෙළටම මේවා යනවා
-                        lo_pdf_path = create_pdf(
-                            f"Settlement_{search_name}", 
-                            lo_records, 
-                            lo_summary
-                        )
-                        
-                        # 3. Download Button
+                        # ඔයාගේ create_pdf එකට ගැලපෙන විදිහට arguments දීම
+                        lo_pdf_path = create_pdf(f"LO_Settlement_{search_name}", lo_records, lo_summary)
                         with open(lo_pdf_path, "rb") as f:
-                            st.download_button(
-                                label="⬇️ Download Settlement PDF",
-                                data=f,
-                                file_name=f"Settlement_{search_name}.pdf",
-                                mime="application/pdf"
-                            )
+                            st.download_button("⬇️ Download Settlement PDF", f, file_name=f"LO_{search_name}.pdf")
+                        st.success("Report generated successfully!")
                     except Exception as e:
-                        # මෙතනදී arguments ගණන මදි වුණොත් error එකක් ඒවි, එහෙම වුණොත් මට කියන්න
-                        st.error(f"PDF එක හදද්දී ප්‍රශ්නයක් වුණා: {e}")
+                        st.error(f"PDF error: {e}")
                 
-                # Table එක
-                st.write(f"**Transaction Log for {search_name}:**")
-                display_cols = ['Date', 'Category', 'Qty_Cubes', 'Amount', 'Note']
+                # 5. Table
+                st.write(f"**Detailed History for {search_name}:**")
+                display_cols = ['Date', 'Category', 'Entity', 'Qty_Cubes', 'Amount', 'Note']
                 existing_cols = [c for c in display_cols if c in lo_records.columns]
-                st.dataframe(lo_records[existing_cols], use_container_width=True)
+                st.dataframe(lo_records[existing_cols].sort_values(by='Date', ascending=False), use_container_width=True)
                 
             else:
-                st.warning(f"No records linked to '{search_name}' in Entity or Note.")
-                        
-    # --- TAB 2: DRIVER SUMMARY ---
+                st.warning(f"No records linked to '{search_name}' found.")
+                
+    # --- TAB 2: DRIVER SUMMARY (FIXED) ---
     with r2:
-            # මේ පේළියේ ඉඳන් පල්ලෙහාට හැම පේළියක්ම එකම මට්ටමට ඉන්ඩෙන්ට් වෙන්න ඕනේ
-            dr_list = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else []
-            sel_dr = st.selectbox("Select Driver", dr_list)
+        st.subheader("👤 Driver Salary & Advance Summary")
+        
+        # 1. ඩ්‍රයිවර්ලාගේ ලැයිස්තුව ලබා ගැනීම
+        dr_list = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else []
+        sel_dr = st.selectbox("Select Driver", dr_list, key="dr_sum_select")
+        
+        if sel_dr:
+            # 2. Driver filter කිරීම (Note එක ඇතුළේ නම තියෙනවාද බලනවා)
+            # case=False නිසා නම ලියපු විදිහ (Capital/Simple) ප්‍රශ්නයක් වෙන්නේ නැහැ
+            dr_rep = df_f[df_f["Note"].fillna("").astype(str).str.contains(str(sel_dr), case=False)].copy()
             
-            if sel_dr:
-                # Driver filter කරන කොටස (නම අනුව)
-                dr_rep = df_f[df_f["Note"].fillna("").astype(str).str.contains(sel_dr, case=False)].copy()
+            if not dr_rep.empty:
+                # 3. Category එකෙන් වැදගත් දේවල් විතරක් පෙරීම (Salary/Advance/Payroll)
+                dr_rep = dr_rep[dr_rep['Category'].str.contains('Salary|Advance|Payroll|D.Advance', case=False, na=False)].copy()
+            
+            if not dr_rep.empty:
+                # 4. Amount එක numeric කරලා sum එක ගැනීම
+                dr_rep['Clean_Amount'] = pd.to_numeric(
+                    dr_rep['Amount'].astype(str).str.replace(',', '').str.replace('Rs.', '').str.strip(), 
+                    errors='coerce'
+                ).fillna(0)
                 
-                # වැදගත්ම දේ: Category එකෙන් Salary සහ Advance විතරක් ඉතිරි කර ගැනීම
-                if not dr_rep.empty:
-                    dr_rep = dr_rep[dr_rep['Category'].str.contains('Salary|Advance|Payroll|D.Advance', case=False, na=False)]
-                
-                # Amount එක numeric කරලා sum එක ගැනීම
-                dr_rep['Clean_Amount'] = pd.to_numeric(dr_rep['Amount'].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
                 total_paid = dr_rep['Clean_Amount'].sum()
                 
+                # Metric එක පෙන්වීම
                 st.metric(f"Total Paid to {sel_dr}", f"Rs. {total_paid:,.2f}")
                 
-                # DataFrame එක පෙන්වීම
+                # 5. DataFrame එක පෙන්වීම (Sorting එකක් එක්ක)
                 cols_to_show = ['Date', 'Category', 'Note', 'Amount']
                 existing_cols = [c for c in cols_to_show if c in dr_rep.columns]
+                st.dataframe(dr_rep[existing_cols].sort_values(by='Date', ascending=False), use_container_width=True)
                 
-                if not dr_rep.empty:
-                    st.dataframe(dr_rep[existing_cols], use_container_width=True)
-                    
-                    # PDF Report එක හදන බටන් එක
-                    if st.button("📄 Download Driver Settlement PDF"):
-                        summary_data = {
-                            "Driver Name": sel_dr,
-                            "Total Paid": f"Rs. {total_paid:,.2f}",
-                            "Description": "Salary & Advance Only"
-                        }
+                # 6. PDF Report එක හදන බටන් එක
+                if st.button("📄 Download Driver Settlement PDF", key="btn_dr_pdf"):
+                    summary_data = {
+                        "Driver Name": str(sel_dr),
+                        "Total Paid": f"Rs. {total_paid:,.2f}",
+                        "Description": "Salary & Advance Statement",
+                        "Report Period": f"{f_d} to {t_d}"
+                    }
+                    try:
+                        # ඔයා හදපු create_driver_pdf function එක මෙතන call කරනවා
                         pdf_fn = create_driver_pdf(f"Settlement_{sel_dr}", dr_rep, summary_data)
                         with open(pdf_fn, "rb") as f:
-                            st.download_button("⬇️ Click to Download PDF", f, file_name=pdf_fn)
-                else:
-                    st.info(f"No Salary or Advance records found for {sel_dr}")
-
-    # --- TAB 3: DAILY LOG ---
+                            st.download_button("⬇️ Click to Download PDF", f, file_name=f"Driver_Report_{sel_dr}.pdf")
+                    except Exception as e:
+                        st.error(f"Error generating PDF: {e}")
+            else:
+                st.info(f"No Salary or Advance records found for {sel_dr} in the selected period.")
+                
+    # --- TAB 3: DAILY LOG (FULL AUDIT TRAIL) ---
     with r3:
-        st.dataframe(df_f, use_container_width=True)
+        st.subheader("📋 Master Daily Transaction Log")
+        
+        if not df_f.empty:
+            # 1. පෙන්වන්න ඕනේ Column ටික සහ ඒවායේ පිළිවෙළ හදමු
+            # මේකෙන් අනවශ්‍ය internal ID columns වගේ ඒවා අයින් වෙනවා
+            log_cols = ['Date', 'Type', 'Category', 'Entity', 'Qty_Cubes', 'Work_Hours', 'Amount', 'Note']
+            available_log_cols = [c for c in log_cols if c in df_f.columns]
+            
+            # 2. අලුත්ම දත්ත ටික උඩට එන විදිහට Sort කරමු (Latest First)
+            display_log = df_f[available_log_cols].sort_values(by='Date', ascending=False)
+            
+            # 3. Table එක ලස්සනට පෙන්වීම
+            st.dataframe(
+                display_log.style.format({
+                    "Amount": "{:,.2f}", 
+                    "Qty_Cubes": "{:,.2f}",
+                    "Work_Hours": "{:,.2f}"
+                }), 
+                use_container_width=True,
+                height=500 # Table එකේ උස පාලනය කිරීම (ගොඩක් data තිබුණොත් ලේසියි)
+            )
+            
+            # 4. පොඩි Summary එකක් පහළින් පෙන්වමු
+            total_entries = len(display_log)
+            st.caption(f"Showing {total_entries} transactions for the selected period.")
+            
+            # 5. CSV විදිහට Export කරන්න ඕන නම් (Excel වලට ගන්න)
+            csv = display_log.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Export Full Log as CSV",
+                data=csv,
+                file_name=f"Daily_Log_{f_d}_to_{t_d}.csv",
+                mime='text/csv',
+            )
+        else:
+            st.info("තෝරාගත් දින පරාසය සඳහා දත්ත කිසිවක් වාර්තා වී නැත.")
 
-    # --- TAB 4: SHED REPORT ---
+    # --- TAB 4: SHED REPORT (FUEL & PAYMENTS) ---
     with r4:
+        st.subheader("⛽ Fuel & Shed Settlement Analysis")
+        
+        # 1. Fuel සහ Shed වලට අදාළ දත්ත විතරක් පෙරීම (Case-insensitive)
         shed_f = df_f[df_f["Category"].str.contains("Fuel|Shed", na=False, case=False)].copy()
-        f_bill = pd.to_numeric(shed_f[shed_f["Category"] == "Fuel Entry"]["Amount"], errors='coerce').sum()
-        p_paid = pd.to_numeric(shed_f[shed_f["Category"] == "Shed Payment"]["Amount"], errors='coerce').sum()
-        st.metric("Shed Debt", f"Rs. {f_bill - p_paid:,.2f}")
-        st.dataframe(shed_f, use_container_width=True)
+        
+        if not shed_f.empty:
+            # 2. Amount එක numeric කරලා sum එක ගැනීම (Variable names ඔයාගේ ඒවාමයි)
+            # Fuel Entry = අපිට ආපු බිල් එක (ණය)
+            # Shed Payment = අපි ෂෙඩ් එකට ගෙවපු සල්ලි
+            f_bill = pd.to_numeric(shed_f[shed_f["Category"].str.contains("Fuel", case=False, na=False)]["Amount"], errors='coerce').sum()
+            p_paid = pd.to_numeric(shed_f[shed_f["Category"].str.contains("Shed Payment|Shed Pay", case=False, na=False)]["Amount"].astype(str).str.replace(',', ''), errors='coerce').sum()
+            
+            # 3. Metrics පෙන්වීම
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Total Fuel Bill", f"Rs. {f_bill:,.2f}")
+            c2.metric("Total Paid to Shed", f"Rs. {p_paid:,.2f}")
+            
+            debt = f_bill - p_paid
+            # ණය ප්‍රමාණය රතු පාටින් පෙන්වන්න inverse delta එකක් දැම්මා
+            c3.metric("Shed Debt (Balance)", f"Rs. {debt:,.2f}", delta=f"{-debt:,.2f}", delta_color="inverse")
+            
+            st.divider()
+            
+            # 4. Table එක (Sorting එකක් එක්ක)
+            st.write("**Fuel & Payment History:**")
+            display_cols = ['Date', 'Category', 'Entity', 'Qty_Cubes', 'Amount', 'Note']
+            actual_cols = [c for c in display_cols if c in shed_f.columns]
+            
+            st.dataframe(
+                shed_f[actual_cols].sort_values(by='Date', ascending=False).style.format({"Amount": "{:,.2f}"}), 
+                use_container_width=True
+            )
+            
+            # 5. Shed PDF එකක් ඕනේ නම් (Optional)
+            if st.button("📄 Download Shed Statement"):
+                try:
+                    summary = {
+                        "Shed Name": "Shed Account",
+                        "Total Bill": f"Rs. {f_bill:,.2f}",
+                        "Total Paid": f"Rs. {p_paid:,.2f}",
+                        "Outstanding Debt": f"Rs. {debt:,.2f}"
+                    }
+                    fn = create_pdf("Shed_Report", shed_f, summary)
+                    with open(fn, "rb") as f:
+                        st.download_button("⬇️ Download PDF", f, file_name="Shed_Report.pdf")
+                except Exception as e:
+                    st.error(f"Error: {e}")
+        else:
+            st.info("තෝරාගත් දින පරාසය තුළ ඉන්ධන හෝ ෂෙඩ් ගෙවීම් වාර්තා වී නැත.")
 
 # --- 10. SYSTEM SETUP (මේ කොටස අලුතින් ඇතුළත් කරන්න) ---
 elif menu == "⚙️ System Setup":
@@ -1176,86 +1621,159 @@ elif menu == "⚙️ System Setup":
         # ටැබ් තුනක් සාදමු - වාහන, ඩ්‍රයිවර්ස්ලා සහ අනෙකුත් සේවකයෝ
         setup_tab1, setup_tab2, setup_tab3 = st.tabs(["🚜 Vehicles", "👷 Drivers", "👥 Staff Management"])
 
-        # --- TAB 1: VEHICLES ---
+        # --- TAB 1: VEHICLES (SYSTEM SETUP) ---
         with setup_tab1:
             st.subheader("🚜 Add New Vehicle / Machine")
+            
+            # 1. වාහන ලියාපදිංචි කිරීමේ Form එක (Variable names ඔයාගේ ඒවාමයි)
             with st.form("v_setup_form", clear_on_submit=True):
                 col1, col2 = st.columns(2)
                 with col1:
-                    v_no = st.text_input("Vehicle Number")
-                    v_type = st.selectbox("Vehicle Type", ["Tipper", "Excavator", "JCB", "Tractor", "Other"])
+                    v_no = st.text_input("Vehicle Number (Ex: WP CP-1234)")
+                    v_type = st.selectbox("Vehicle Type", ["Tipper", "Excavator", "JCB", "Tractor", "Lorry", "Other"])
                 with col2:
                     v_owner = st.text_input("Owner Name")
-                    v_rate = st.number_input("Rate per Unit", min_value=0.0)
+                    v_rate = st.number_input("Rate per Unit (LKR)", min_value=0.0, step=100.0)
                 
                 if st.form_submit_button("✅ Register Vehicle"):
                     if v_no:
-                        new_v = pd.DataFrame([[v_no, v_type, v_owner, v_rate]], columns=["No", "Type", "Owner", "Rate_Per_Unit"])
-                        st.session_state.ve_db = pd.concat([st.session_state.ve_db, new_v], ignore_index=True)
-                        save_all(); st.success(f"Vehicle {v_no} registered!"); st.rerun()
+                        # ඩියුප්ලිකේට් චෙක් එකක් දාමු - එකම වාහනය දෙපාරක් වැටෙන්න බැහැ
+                        if v_no not in st.session_state.ve_db["No"].values:
+                            new_v = pd.DataFrame([[v_no, v_type, v_owner, v_rate]], 
+                                                 columns=["No", "Type", "Owner", "Rate_Per_Unit"])
+                            
+                            # session_state එකට ඇඩ් කරනවා
+                            st.session_state.ve_db = pd.concat([st.session_state.ve_db, new_v], ignore_index=True)
+                            
+                            # Database එකට සේව් කරලා රීලෝඩ් කරනවා
+                            save_all()
+                            st.success(f"Vehicle {v_no} registered successfully!")
+                            st.rerun()
+                        else:
+                            st.error(f"Vehicle {v_no} is already registered in the system!")
+                    else:
+                        st.warning("Please enter a Vehicle Number to continue.")
 
+            # 2. ලියාපදිංචි වාහන ලැයිස්තුව සහ කළමනාකරණය
             if not st.session_state.ve_db.empty:
                 st.divider()
-                ve_to_manage = st.selectbox("Select Vehicle to Manage", st.session_state.ve_db["No"].tolist())
-                if st.button("Delete Vehicle ❌", key="del_ve"):
-                    st.session_state.ve_db = st.session_state.ve_db[st.session_state.ve_db["No"] != ve_to_manage]
-                    save_all(); st.rerun()
-
-        # --- TAB 2: DRIVERS ---
+                st.subheader("📋 Registered Vehicles List")
+                
+                # පවතින වාහන බලාගන්න ටේබල් එකක්
+                st.dataframe(st.session_state.ve_db, use_container_width=True, hide_index=True)
+                
+                # වාහනයක් ඉවත් කිරීම (Delete Section)
+                col_m1, col_m2 = st.columns([2, 1])
+                with col_m1:
+                    ve_to_manage = st.selectbox("Select Vehicle to Manage/Delete", 
+                                              st.session_state.ve_db["No"].tolist(), key="manage_ve_sel")
+                with col_m2:
+                    st.write(" ") # Space for alignment
+                    if st.button("Delete Vehicle ❌", key="del_ve", use_container_width=True):
+                        st.session_state.ve_db = st.session_state.ve_db[st.session_state.ve_db["No"] != ve_to_manage]
+                        save_all()
+                        st.warning(f"Vehicle {ve_to_manage} removed.")
+                        st.rerun()
+                        
+        # --- TAB 2: DRIVERS / OPERATORS ---
         with setup_tab2:
-            st.subheader("Add New Driver / Operator")
+            st.subheader("👷 Add New Driver / Operator")
+            
+            # 1. ඩ්‍රයිවර් ලියාපදිංචි කිරීමේ Form එක (ඔයාගේ logic එකමයි)
             with st.form("d_setup_form", clear_on_submit=True):
                 col1, col2 = st.columns(2)
                 with col1:
-                    d_name = st.text_input("Driver Name")
+                    d_name = st.text_input("Full Name")
+                    d_phone = st.text_input("Contact Number", placeholder="07x-xxxxxxx")
                 with col2:
-                    d_salary = st.number_input("Daily Salary", min_value=0.0)
-                d_phone = st.text_input("Contact Number")
+                    d_salary = st.number_input("Daily Salary (Rs.)", min_value=0.0, step=100.0)
                 
                 if st.form_submit_button("✅ Register Driver"):
                     if d_name:
-                        new_d = pd.DataFrame([[d_name, d_phone, d_salary]], columns=["Name", "Phone", "Daily_Salary"])
-                        st.session_state.dr_db = pd.concat([st.session_state.dr_db, new_d], ignore_index=True)
-                        save_all(); st.success("Driver registered!"); st.rerun()
+                        # පවතින ලැයිස්තුවේ නම තියෙනවාද බලනවා
+                        if d_name not in st.session_state.dr_db["Name"].values:
+                            new_d = pd.DataFrame([[d_name, d_phone, d_salary]], 
+                                                 columns=["Name", "Phone", "Daily_Salary"])
+                            
+                            st.session_state.dr_db = pd.concat([st.session_state.dr_db, new_d], ignore_index=True)
+                            
+                            # Database එකට save කරලා refresh කරනවා
+                            save_all()
+                            st.success(f"Driver {d_name} registered successfully!")
+                            st.rerun()
+                        else:
+                            st.error(f"Driver {d_name} is already in the system!")
+                    else:
+                        st.warning("Please enter the Driver's Name.")
 
+            # 2. ලියාපදිංචි ඩ්‍රයිවර්ලා කළමනාකරණය
             if not st.session_state.dr_db.empty:
                 st.divider()
-                dr_to_manage = st.selectbox("Select Driver to Manage", st.session_state.dr_db["Name"].tolist())
-                if st.button("Delete Driver ❌", key="del_dr"):
-                    st.session_state.dr_db = st.session_state.dr_db[st.session_state.dr_db["Name"] != dr_to_manage]
-                    save_all(); st.rerun()
+                st.subheader("📋 Registered Driver List")
+                
+                # Table එක පෙන්වීම
+                st.dataframe(st.session_state.dr_db, use_container_width=True, hide_index=True)
+                
+                # ඉවත් කිරීම (Delete Section)
+                col_dr1, col_dr2 = st.columns([2, 1])
+                with col_dr1:
+                    dr_to_manage = st.selectbox("Select Driver to Manage", 
+                                                st.session_state.dr_db["Name"].tolist(), key="sel_dr_manage")
+                with col_dr2:
+                    st.write(" ") # Padding
+                    if st.button("Delete Driver ❌", key="del_dr", use_container_width=True):
+                        st.session_state.dr_db = st.session_state.dr_db[st.session_state.dr_db["Name"] != dr_to_manage]
+                        save_all()
+                        st.warning(f"Driver {dr_to_manage} removed.")
+                        st.rerun()
 
-        # --- TAB 3: STAFF MANAGEMENT (අලුතින්ම ඇඩ් කළ කොටස) ---
+       # --- TAB 3: STAFF MANAGEMENT (Syntaxcore ERP Standard) ---
         with setup_tab3:
             st.subheader("👷 Register Plant Staff Members")
+            
+            # 1. Staff Form එක
             with st.form("staff_setup_form", clear_on_submit=True):
                 col1, col2 = st.columns(2)
                 with col1:
-                    s_name = st.text_input("Staff Member Name")
-                    s_pos = st.selectbox("Position", ["Helper", "Operator", "Supervisor", "Security", "Other"])
+                    s_name = st.text_input("Full Name")
+                    s_pos = st.selectbox("Position", ["Supervisor", "Operator", "Helper", "Security", "Manager", "Other"])
                 with col2:
-                    s_rate = st.number_input("Daily Rate (LKR)", min_value=0.0)
+                    s_rate = st.number_input("Daily Rate (LKR)", min_value=0.0, step=50.0)
                 
                 if st.form_submit_button("✅ Register Staff Member"):
                     if s_name:
-                        new_s = pd.DataFrame([{"Name": s_name, "Position": s_pos, "Daily_Rate": s_rate}])
-                        st.session_state.staff_db = pd.concat([st.session_state.staff_db, new_s], ignore_index=True)
-                        save_all()
-                        st.success(f"Staff member {s_name} registered!")
-                        st.rerun()
+                        # ඩියුප්ලිකේට් චෙක් එකක්
+                        if s_name not in st.session_state.staff_db["Name"].values:
+                            new_s = pd.DataFrame([{"Name": s_name, "Position": s_pos, "Daily_Rate": s_rate}])
+                            st.session_state.staff_db = pd.concat([st.session_state.staff_db, new_s], ignore_index=True)
+                            save_all()
+                            st.success(f"Staff member {s_name} registered successfully!")
+                            st.rerun()
+                        else:
+                            st.error(f"{s_name} is already registered!")
                     else:
-                        st.error("Please enter a name.")
+                        st.error("Please enter a name to register.")
 
-            # දැනට ඉන්න Staff ලිස්ට් එක කළමනාකරණය
+            # 2. Staff කළමනාකරණය
             if not st.session_state.staff_db.empty:
                 st.divider()
-                st.write("### Current Staff List")
-                st.dataframe(st.session_state.staff_db, use_container_width=True)
+                st.write("### 📋 Current Staff Directory")
                 
-                s_to_del = st.selectbox("Select Staff to Remove", st.session_state.staff_db["Name"].tolist())
-                if st.button("Remove Staff Member ❌", key="del_staff"):
-                    st.session_state.staff_db = st.session_state.staff_db[st.session_state.staff_db["Name"] != s_to_del]
-                    save_all(); st.rerun()
+                # Index එක නැතුව Table එක පෙන්වීම (පිරිසිදුයි)
+                st.dataframe(st.session_state.staff_db, use_container_width=True, hide_index=True)
+                
+                # ඉවත් කිරීම (Delete Section)
+                col_sd1, col_sd2 = st.columns([2, 1])
+                with col_sd1:
+                    s_to_del = st.selectbox("Select Staff to Remove", 
+                                          st.session_state.staff_db["Name"].tolist(), key="staff_del_sel")
+                with col_sd2:
+                    st.write(" ") # Space adjustment
+                    if st.button("Remove Staff Member ❌", key="del_staff", use_container_width=True):
+                        st.session_state.staff_db = st.session_state.staff_db[st.session_state.staff_db["Name"] != s_to_del]
+                        save_all()
+                        st.warning(f"Member {s_to_del} removed from system.")
+                        st.rerun()
                     
 # --- මේක වෙනම Menu එකක් විදිහට පල්ලෙහායින් දාන්න ---
 elif menu == "👤 Manage Landowners":
@@ -1266,7 +1784,7 @@ elif menu == "👤 Manage Landowners":
 
     # --- TAB 1: Register New Landowner ---
     with l_tab1:
-        st.subheader("Add a New Landowner to System")
+        st.subheader("🆕 Add a New Landowner to System")
         with st.form("landowner_reg_form", clear_on_submit=True):
             col1, col2 = st.columns(2)
             with col1:
@@ -1274,49 +1792,52 @@ elif menu == "👤 Manage Landowners":
                 l_addr = st.text_input("Land Location / Address")
             with col2:
                 l_cont = st.text_input("Contact Number")
-                # මෙන්න මචං කියුබ් එකක ගාණ ඇඩ් කරන තැන (Opening Balance එක වෙනුවට)
+                # කියුබ් එකක ගාණ ඇඩ් කරන තැන
                 l_rate = st.number_input("Rate Per Cube (LKR)", min_value=0.0, step=100.0)
             
             if st.form_submit_button("✅ Register Landowner"):
                 if l_name:
-                    # අලුත් row එකක් හදනවා - Rate_Per_Cube column එකත් එක්ක
-                    new_lo = pd.DataFrame([{
-                        "Name": l_name, 
-                        "Address": l_addr, 
-                        "Contact": l_cont, 
-                        "Rate_Per_Cube": l_rate
-                    }])
-                    
-                    # Session state එකට එකතු කරනවා
-                    st.session_state.lo_db = pd.concat([st.session_state.lo_db, new_lo], ignore_index=True)
-                    
-                    # File එකට සේව් කරනවා (LANDOWNER_FILE එකට)
-                    st.session_state.lo_db.to_csv(LANDOWNER_FILE, index=False)
-                    
-                    st.success(f"Registered {l_name} with Rate: LKR {l_rate:,.2f} per Cube!")
-                    st.rerun()
+                    # ඩියුප්ලිකේට් චෙක් එකක් (නම අනුව)
+                    if l_name not in st.session_state.lo_db["Name"].values:
+                        new_lo = pd.DataFrame([{
+                            "Name": l_name, 
+                            "Address": l_addr, 
+                            "Contact": l_cont, 
+                            "Rate_Per_Cube": l_rate
+                        }])
+                        
+                        st.session_state.lo_db = pd.concat([st.session_state.lo_db, new_lo], ignore_index=True)
+                        # CSV එකට සේව් කිරීම
+                        st.session_state.lo_db.to_csv(LANDOWNER_FILE, index=False)
+                        
+                        st.success(f"Registered {l_name} with Rate: Rs. {l_rate:,.2f}")
+                        st.rerun()
+                    else:
+                        st.error("This landowner is already registered.")
                 else:
                     st.error("Landowner Name is required!")
 
     # --- TAB 2: Give Advance ---
     with l_tab2:
-        st.subheader("Record Advance Payment")
+        st.subheader("💰 Record Advance Payment")
         if not st.session_state.lo_db.empty:
             with st.form("lo_advance_form", clear_on_submit=True):
                 lo_names = st.session_state.lo_db["Name"].tolist()
                 selected_lo = st.selectbox("Select Landowner", lo_names)
                 adv_date = st.date_input("Date", datetime.now().date())
-                adv_amount = st.number_input("Advance Amount (LKR)", min_value=0.0)
-                adv_note = st.text_input("Reference Note")
+                adv_amount = st.number_input("Advance Amount (LKR)", min_value=0.0, step=1000.0)
+                adv_note = st.text_input("Reference Note (Ex: Cheque No, Bank)")
 
                 if st.form_submit_button("✅ Save Advance Payment"):
                     if adv_amount > 0:
+                        # ප්‍රධාන සටහනට (Master DF) ඇතුළත් කිරීම
+                        # මෙතන Category එක 'Landowner Advance' නිසා Reports වලට auto අහු වෙනවා
                         new_entry = {
                             "ID": len(st.session_state.df) + 1,
-                            "Date": adv_date,
+                            "Date": adv_date.strftime("%Y-%m-%d"),
                             "Time": datetime.now().strftime("%H:%M:%S"),
                             "Type": "Expense",
-                            "Category": "Landowner Advance",
+                            "Category": "Landowner Advance", # මෙන්න මේ වචනය වැදගත්
                             "Entity": selected_lo,
                             "Note": adv_note,
                             "Amount": adv_amount,
@@ -1324,129 +1845,152 @@ elif menu == "👤 Manage Landowners":
                             "Status": "Paid"
                         }
                         st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_entry])], ignore_index=True)
-                        save_all()
-                        st.success(f"LKR {adv_amount:,.2f} advance paid to {selected_lo} recorded!")
+                        save_all() # Master data save කිරීම
+                        st.success(f"LKR {adv_amount:,.2f} advance paid to {selected_lo}!")
                         st.rerun()
         else:
             st.info("No landowners registered yet. Use the first tab to add someone.")
 
     # --- TAB 3: View & Manage ---
     with l_tab3:
-        st.subheader("Registered Landowners List")
+        st.subheader("📋 Registered Landowners List")
         if not st.session_state.lo_db.empty:
-            st.dataframe(st.session_state.lo_db, use_container_width=True)
+            st.dataframe(st.session_state.lo_db, use_container_width=True, hide_index=True)
             
-            # මකන්න ඕනේ නම් ඒකටත් option එකක්
             st.divider()
-            lo_to_del = st.selectbox("Select Landowner to Remove", st.session_state.lo_db["Name"].tolist())
-            if st.button("Delete Landowner ❌"):
-                st.session_state.lo_db = st.session_state.lo_db[st.session_state.lo_db["Name"] != lo_to_del]
-                st.session_state.lo_db.to_csv(LANDOWNER_FILE, index=False)
-                st.rerun()
+            col_d1, col_d2 = st.columns([2, 1])
+            with col_d1:
+                lo_to_del = st.selectbox("Select Landowner to Remove", st.session_state.lo_db["Name"].tolist(), key="del_lo_box")
+            with col_d2:
+                st.write("") # Padding
+                st.write("") 
+                if st.button("Delete Landowner ❌", use_container_width=True):
+                    st.session_state.lo_db = st.session_state.lo_db[st.session_state.lo_db["Name"] != lo_to_del]
+                    st.session_state.lo_db.to_csv(LANDOWNER_FILE, index=False)
+                    st.warning(f"{lo_to_del} removed from database.")
+                    st.rerun()
+                
 # --- 12. staff payroll (මේ කොටස අලුතින් ඇතුළත් කරන්න) ---
-elif menu == "👷 Staff Payroll":
-        st.subheader("Staff Salary & Advance Management")
+# --- STAFF PAYROLL SECTION ---
+    elif menu == "👷 Staff Payroll":
+        st.subheader("💳 Staff Salary & Advance Management")
         
-        # සේවකයන්ගේ නම් ටික ලිස්ට් එකකට ගන්නවා
+        # 1. සේවකයන්ගේ නම් ටික ලිස්ට් එකකට ගැනීම (Variable names ඔයාගේ ඒවාමයි)
         s_names = st.session_state.staff_db["Name"].tolist() if not st.session_state.staff_db.empty else []
         
         if not s_names:
-            st.warning("Please register staff members first in the Staff Database section.")
+            st.warning("Please register staff members first in the 'System Setup' section.")
         else:
+            # 2. Payment Form එක
             with st.form("staff_pay", clear_on_submit=True):
                 col1, col2 = st.columns(2)
                 with col1:
                     member = st.selectbox("Select Staff Member", s_names)
                     pay_date = st.date_input("Date", datetime.now().date())
-                    days = st.number_input("Work Days", min_value=0, step=1)
+                    days = st.number_input("Work Days / Shift Count", min_value=0, step=1)
                 with col2:
                     pay_type = st.selectbox("Payment Type", ["Salary", "Advance", "Food/Other"])
-                    amount = st.number_input("Amount (LKR)", min_value=0.0)
+                    amount = st.number_input("Amount (LKR)", min_value=0.0, step=500.0)
                 
-                note = st.text_input("Additional Note")
+                note = st.text_input("Additional Note (Ex: OT, Bonus, Deduction)")
                 
-                if st.form_submit_button("Save Staff Payment"):
-                    # Main Database එකට දත්ත එකතු කිරීම
-                    new_staff_data = {
-                        "ID": len(st.session_state.df) + 1, 
-                        "Date": pay_date, 
-                        "Time": datetime.now().strftime("%H:%M:%S"), 
-                        "Type": "Expense",
-                        "Category": f"Staff {pay_type}", 
-                        "Entity": "Plant General", 
-                        "Note": f"{member} | Days: {days} | {note}", 
-                        "Amount": amount,
-                        "Qty_Cubes": 0, "Fuel_Ltr": 0, 
-                        "Hours": days, # වැඩ කරපු දවස් ගණන මෙතනට දාමු
-                        "Rate_At_Time": 0, 
-                        "Status": "Paid"
-                    }
-                    st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_staff_data])], ignore_index=True)
-                    save_all()
-                    st.success(f"Payment saved for {member}")
-                    st.rerun()
+                if st.form_submit_button("✅ Save Staff Payment"):
+                    if amount > 0:
+                        # Main Database (st.session_state.df) එකට දත්ත එකතු කිරීම
+                        new_staff_data = {
+                            "ID": len(st.session_state.df) + 1, 
+                            "Date": pay_date.strftime("%Y-%m-%d"), 
+                            "Time": datetime.now().strftime("%H:%M:%S"), 
+                            "Type": "Expense",
+                            "Category": f"Staff {pay_type}", # Staff Salary / Staff Advance විදිහට වැටේ
+                            "Entity": member, # මෙතනට නම දැම්මම Report එකට ලේසියි
+                            "Note": f"Days: {days} | {note}", 
+                            "Amount": amount,
+                            "Qty_Cubes": 0, 
+                            "Fuel_Ltr": 0, 
+                            "Hours": days, # වැඩ කරපු දවස් ගණන
+                            "Rate_At_Time": 0, 
+                            "Status": "Paid"
+                        }
+                        
+                        st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_staff_data])], ignore_index=True)
+                        save_all() # Cloud එකට සේව් කිරීම
+                        st.success(f"Rs. {amount:,.2f} {pay_type} saved for {member}!")
+                        st.rerun()
+                    else:
+                        st.error("Amount must be greater than 0.")
 
 
 # --- 11. DATA MANAGER (EDIT / DELETE) ---
-elif menu == "⚙️ Data Manager":
-    st.markdown(f"<h2 style='color: #E67E22;'>⚙️ Data Manager</h2>", unsafe_allow_html=True)
-    st.info("මෙහිදී ඔබට වැරදිලාවත් ඇතුළත් කළ දත්ත Edit කිරීමට හෝ Delete කිරීමට හැකියාව ඇත.")
-    
-    if st.session_state.df.empty:
-        st.warning("No data found in the system.")
-    else:
-        # ID එකෙන් Record එක සොයා ගැනීම
-        search_id = st.number_input("Enter Record ID to Edit/Delete", min_value=1, step=1)
+# --- DATA MANAGER SECTION ---
+    elif menu == "⚙️ Data Manager":
+        st.markdown(f"<h2 style='color: #E67E22;'>⚙️ Data Manager</h2>", unsafe_allow_html=True)
+        st.info("මෙහිදී ඔබට වැරදිලාවත් ඇතුළත් කළ දත්ත Edit කිරීමට හෝ Delete කිරීමට හැකියාව ඇත.")
         
-        # DataFrame එකේ index එක හරියටම අල්ලගන්නවා
-        record_idx = st.session_state.df.index[st.session_state.df["ID"] == search_id].tolist()
-        
-        if record_idx:
-            idx = record_idx[0]
-            record = st.session_state.df.loc[idx]
-            
-            st.write("Current Data for ID:", search_id)
-            st.dataframe(pd.DataFrame([record])) # තෝරාගත් row එක විතරක් පෙන්වයි
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.subheader("📝 Edit Record")
-                with st.form("edit_record_form"):
-                    u_date = st.date_input("Date", value=record["Date"])
-                    u_entity = st.text_input("Vehicle / Entity", value=record["Entity"])
-                    u_note = st.text_input("Note", value=record["Note"])
-                    u_amount = st.number_input("Amount", value=float(record["Amount"]))
-                    u_qty = st.number_input("Qty (Cubes)", value=float(record["Qty_Cubes"]))
-                    u_hours = st.number_input("Hours", value=float(record["Hours"]))
-                    u_rate = st.number_input("Rate", value=float(record["Rate_At_Time"]))
-                    
-                    if st.form_submit_button("✅ Update Now"):
-                        st.session_state.df.at[idx, "Date"] = u_date
-                        st.session_state.df.at[idx, "Entity"] = u_entity
-                        st.session_state.df.at[idx, "Note"] = u_note
-                        st.session_state.df.at[idx, "Amount"] = u_amount
-                        st.session_state.df.at[idx, "Qty_Cubes"] = u_qty
-                        st.session_state.df.at[idx, "Hours"] = u_hours
-                        st.session_state.df.at[idx, "Rate_At_Time"] = u_rate
-                        
-                        save_all() # CSV එකට save කරනවා
-                        st.success("Record updated successfully!")
-                        st.rerun()
-
-            with col2:
-                st.subheader("🗑️ Delete Record")
-                st.error("ප්‍රවේසමෙන්! මෙය මැකූ පසු නැවත ලබාගත නොහැක.")
-                if st.button("🔥 Confirm Permanent Delete"):
-                    st.session_state.df = st.session_state.df.drop(idx).reset_index(drop=True)
-                    save_all()
-                    st.success("Record deleted!")
-                    st.rerun()
+        if st.session_state.df.empty:
+            st.warning("No data found in the system to manage.")
         else:
-            st.warning("Could not find a record with that ID. Please check the ID in the table below.")
+            # 1. ID එකෙන් Record එක සොයා ගැනීම
+            search_id = st.number_input("Enter Record ID to Edit/Delete", min_value=1, step=1)
+            
+            # DataFrame එකේ index එක හරියටම අල්ලගන්නවා (ඔයාගේ logic එක)
+            record_idx = st.session_state.df.index[st.session_state.df["ID"] == search_id].tolist()
+            
+            if record_idx:
+                idx = record_idx[0]
+                record = st.session_state.df.loc[idx]
+                
+                st.write(f"### 🔍 Managing Record ID: {search_id}")
+                # තෝරාගත් row එක ලස්සනට පෙන්වීම
+                st.dataframe(pd.DataFrame([record]), use_container_width=True, hide_index=True)
+                
+                col1, col2 = st.columns(2)
+                
+                # --- EDIT FORM ---
+                with col1:
+                    st.subheader("📝 Edit Record")
+                    with st.form("edit_record_form", clear_on_submit=True):
+                        # දැනට තියෙන දත්ත Default Values විදිහට දෙනවා
+                        u_date = st.date_input("Update Date", value=pd.to_datetime(record["Date"]))
+                        u_entity = st.text_input("Vehicle / Entity Name", value=str(record["Entity"]))
+                        u_note = st.text_input("Modify Note", value=str(record["Note"]))
+                        u_amount = st.number_input("Amount (LKR)", value=float(record["Amount"]), step=100.0)
+                        u_qty = st.number_input("Quantity (Cubes)", value=float(record["Qty_Cubes"]), step=0.5)
+                        u_hours = st.number_input("Hours / Days", value=float(record["Hours"]), step=0.5)
+                        u_rate = st.number_input("Rate Used", value=float(record["Rate_At_Time"]), step=10.0)
+                        
+                        if st.form_submit_button("✅ Update Record Now"):
+                            # Session State එකේ අදාළ පේළිය Update කිරීම
+                            st.session_state.df.at[idx, "Date"] = u_date.strftime("%Y-%m-%d")
+                            st.session_state.df.at[idx, "Entity"] = u_entity
+                            st.session_state.df.at[idx, "Note"] = u_note
+                            st.session_state.df.at[idx, "Amount"] = u_amount
+                            st.session_state.df.at[idx, "Qty_Cubes"] = u_qty
+                            st.session_state.df.at[idx, "Hours"] = u_hours
+                            st.session_state.df.at[idx, "Rate_At_Time"] = u_rate
+                            
+                            save_all() # Cloud/CSV වෙත සේව් කිරීම
+                            st.success(f"Record {search_id} has been updated!")
+                            st.rerun()
 
-        # පහළින් සම්පූර්ණ දත්ත වගුව පෙන්වනවා ID එක ලේසියෙන් බලාගන්න
-        st.divider()
-        st.write("All Transactions (Use ID from here):")
-        # අලුත්ම දත්ත උඩට එන විදියට පෙන්වනවා
-        st.dataframe(st.session_state.df.sort_values(by="ID", ascending=False), use_container_width=True)
+                # --- DELETE BUTTON ---
+                with col2:
+                    st.subheader("🗑️ Delete Record")
+                    st.error("❗ Warning: This action cannot be undone.")
+                    if st.button("🔥 Confirm Permanent Delete", use_container_width=True):
+                        # Row එක අයින් කරලා Index එක Reset කරනවා (ඔයාගේ logic එක)
+                        st.session_state.df = st.session_state.df.drop(idx).reset_index(drop=True)
+                        save_all()
+                        st.success(f"Record {search_id} deleted forever!")
+                        st.rerun()
+            else:
+                st.warning(f"No record found with ID: {search_id}. Please check the Master Log below.")
+
+            # 3. සම්පූර්ණ Log එක පහළින් පෙන්වීම (Latest First)
+            st.divider()
+            st.write("#### 📋 Full Transaction Log (Use ID to Edit/Delete)")
+            st.dataframe(
+                st.session_state.df.sort_values(by="ID", ascending=False), 
+                use_container_width=True, 
+                hide_index=True
+            )
