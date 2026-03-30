@@ -1622,7 +1622,7 @@ elif menu == "⚙️ System Setup":
 elif menu == "👤 Manage Landowners":
         st.markdown("<h2 style='color: #1E8449;'>👤 Landowner Management</h2>", unsafe_allow_html=True)
         
-        # Tabs තුනක් හදමු - Register, Advance සහ View
+        # Tabs තුනක් හදමු
         l_tab1, l_tab2, l_tab3 = st.tabs(["🆕 Register Landowner", "💰 Give Advance", "📋 View All"])
 
         # --- TAB 1: Register New Landowner ---
@@ -1639,17 +1639,26 @@ elif menu == "👤 Manage Landowners":
                 
                 if st.form_submit_button("✅ Register Landowner"):
                     if l_name:
+                        # ඩියුප්ලිකේට් චෙක් එක
                         if l_name not in st.session_state.lo_db["Name"].values:
-                            new_lo = pd.DataFrame([{
-                                "Name": l_name, 
-                                "Address": l_addr, 
-                                "Contact": l_cont, 
-                                "Rate_Per_Cube": l_rate
-                            }])
-                            st.session_state.lo_db = pd.concat([st.session_state.lo_db, new_lo], ignore_index=True)
-                            save_all() # Cloud එකට සේව් කිරීම
-                            st.success(f"Registered {l_name} with Rate: Rs. {l_rate:,.2f}")
-                            st.rerun()
+                            try:
+                                # 1. Supabase එකට කෙලින්ම දත්ත යවනවා (මේක තමයි විශ්වාසවන්තම ක්‍රමය)
+                                new_entry = {
+                                    "Name": l_name, 
+                                    "Address": l_addr, 
+                                    "Contact": l_cont, 
+                                    "Rate_Per_Cube": l_rate
+                                }
+                                conn.table("landowners").insert(new_entry).execute()
+                                
+                                # 2. Local Session එකත් Update කරනවා
+                                new_lo = pd.DataFrame([new_entry])
+                                st.session_state.lo_db = pd.concat([st.session_state.lo_db, new_lo], ignore_index=True)
+                                
+                                st.success(f"Registered {l_name} and Synced with Cloud!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Cloud Save Error: {e}")
                         else:
                             st.error("This landowner is already registered.")
                     else:
@@ -1678,17 +1687,18 @@ elif menu == "👤 Manage Landowners":
                                 "Qty_Cubes": 0, "Hours": 0, "Rate_At_Time": 0, "Status": "Paid"
                             }
                             try:
+                                # කෙලින්ම Master Log එකටත් යවනවා
                                 conn.table("master_log").insert(new_entry).execute()
-                                # 'cols_master' කියන variable එක උඩින් define කරලා ඇති නේද?
+                                # ආපහු Database එකෙන් දත්ත Refresh කරගන්නවා
                                 st.session_state.df = load_data("master_log", cols_master)
-                                st.success(f"LKR {adv_amount:,.2f} advance paid to {selected_lo}!")
+                                st.success(f"LKR {adv_amount:,.2f} advance paid to {selected_lo} and saved to Cloud!")
                                 st.rerun()
                             except Exception as e:
-                                st.error(f"Error: {e}")
+                                st.error(f"Error Syncing Advance: {e}")
             else:
                 st.info("No landowners registered yet.")
 
-        # --- TAB 3: View & Manage (Landowners) ---
+        # --- TAB 3: View & Manage ---
         with l_tab3:
             st.subheader("📋 Registered Landowners List")
             if not st.session_state.lo_db.empty:
@@ -1696,10 +1706,14 @@ elif menu == "👤 Manage Landowners":
                 st.divider()
                 lo_to_del = st.selectbox("Select Landowner to Remove", st.session_state.lo_db["Name"].tolist(), key="del_lo_box")
                 if st.button("Delete Landowner ❌"):
-                    st.session_state.lo_db = st.session_state.lo_db[st.session_state.lo_db["Name"] != lo_to_del]
-                    save_all()
-                    st.warning(f"{lo_to_del} removed.")
-                    st.rerun()
+                    try:
+                        # Supabase එකෙනුත් අයින් කරනවා
+                        conn.table("landowners").delete().eq("Name", lo_to_del).execute()
+                        st.session_state.lo_db = st.session_state.lo_db[st.session_state.lo_db["Name"] != lo_to_del]
+                        st.warning(f"{lo_to_del} removed from Cloud.")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Delete Error: {e}")
 
 # --- 12. STAFF PAYROLL SECTION (දැන් මේක හරියටම Align වෙලා තියෙන්නේ) ---
 elif menu == "👷 Staff Payroll":
