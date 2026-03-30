@@ -715,16 +715,15 @@ elif menu == "📊 Dashboard":
 # --- 2. SITE OPERATIONS SECTION ---
 # මේ 'elif' එක පටන් ගන්න ඕනේ උඩ තියෙන 'if menu == "📊 Dashboard":' එකට කෙළින්ම පල්ලෙහායින්
 # --- කලින් තිබුණු Site Operations එක අයින් කරලා මේක දාන්න ---
-elif menu == "🏗️ Site Operations":
+# --- 7. SITE OPERATIONS ---
+    elif menu == "🏗️ Site Operations":
         st.markdown(f"<h2 style='color: #E67E22;'>🏗️ Site Operations & Stock Manager</h2>", unsafe_allow_html=True)
         
         op = st.radio("Select Activity Type", ["🚜 Excavator Work Log", "💰 Sales Out", "📥 Stock Inward (To Plant)"], horizontal=True)
         
-        # 1. වාහන ලිස්ට් එක
+        # දත්ත ලබා ගැනීම
         v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
-        # 2. ඩ්‍රයිවර්ලාගේ ලිස්ට් එක
         d_list = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else ["No Drivers Registered"]
-        # 3. Landowners ලිස්ට් එක
         l_list = st.session_state.lo_db["Name"].tolist() if not st.session_state.lo_db.empty else ["No Owners Registered"]
 
         with st.form("site_f", clear_on_submit=True):
@@ -750,7 +749,6 @@ elif menu == "🏗️ Site Operations":
                 if val <= 0 or r <= 0: 
                     st.error("Please enter valid Qty/Hours and Rate!")
                 else:
-                    record_type = "Inward" if op == "📥 Stock Inward (To Plant)" else "Process"
                     cat = f"{op} ({material})" if material else op
                     calculated_amount = val * r
                     q = val if "Cubes" in val_label else 0
@@ -769,6 +767,7 @@ elif menu == "🏗️ Site Operations":
                         "Amount": calculated_amount,
                         "Qty_Cubes": q,
                         "Hours": h,
+                        "Fuel_Ltr": 0,
                         "Rate_At_Time": r,
                         "Status": "Done"
                     }
@@ -781,285 +780,159 @@ elif menu == "🏗️ Site Operations":
                     except Exception as e:
                         st.error(f"Error syncing with Cloud: {e}")
 
-        # --- පල්ලෙහා තියෙන Logs Summary කෑල්ල දැන් මෙතනට අයිතියි (Indented) ---
+        # Summary Table
         st.divider()
         st.subheader("📅 Today's Logs Summary")
-
         temp_df = st.session_state.df.copy()
-
         if not temp_df.empty:
             temp_df['Date'] = pd.to_datetime(temp_df['Date'], errors='coerce').dt.date
-            today_date = datetime.now().date()
-            today_df = temp_df[temp_df["Date"] == today_date].copy()
-            
+            today_df = temp_df[temp_df["Date"] == datetime.now().date()].copy()
             if not today_df.empty:
-                st.dataframe(
-                    today_df.sort_values(by="ID", ascending=False), 
-                    use_container_width=True,
-                    column_config={
-                        "Amount": st.column_config.NumberColumn(format="Rs. %.2f"),
-                        "Qty_Cubes": st.column_config.NumberColumn(format="%.2f Cubes"),
-                        "Hours": st.column_config.NumberColumn(format="%.2f Hrs")
-                    }
-                )
-                t_income = today_df[today_df["Type"] == "Income"]["Amount"].sum()
-                t_cubes = today_df["Qty_Cubes"].sum()
-                st.caption(f"💡 Today's Summary: Total Income Rs. {t_income:,.2f} | Total Volume: {t_cubes:.2f} Cubes")
-            else:
-                st.info("අද දින සඳහා තවමත් දත්ත ඇතුළත් කර නැත.")
-        else:
-            st.warning("පද්ධතියේ දත්ත කිසිවක් නැත.")
+                st.dataframe(today_df.sort_values(by="ID", ascending=False), use_container_width=True)
 
-    # මෙතනින් පස්සේ ඔයාගේ ඊළඟ elif (Finance & Shed) එක පටන් ගන්න.
-    
-# --- 8. FINANCE & SHED (v56 FULL) ---
-elif menu == "💰 Finance & Shed":
-    fin = st.radio("Finance Category", ["⛽ Fuel & Shed", "🔧 Repairs", "💸 Payroll", "🏦 Owner Advances", "🧾 Others"], horizontal=True)
-    
-    # වාහන ලිස්ට් එක (Cloud එකෙන් එන දත්ත)
-    v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
-    
-    if fin == "⛽ Fuel & Shed":
-        f1, f2 = st.tabs(["⛽ Log Fuel Bill", "💳 Settle Shed Payments"])
+    # --- 8. FINANCE & SHED ---
+    elif menu == "💰 Finance & Shed":
+        st.markdown(f"<h2 style='color: #2E86C1;'>💰 Finance & Shed Management</h2>", unsafe_allow_html=True)
+        fin = st.radio("Finance Category", ["⛽ Fuel & Shed", "🔧 Repairs", "💸 Payroll", "🏦 Owner Advances", "🧾 Others"], horizontal=True)
         
-        with f1:
-            st.subheader("⛽ Log Fuel Bill")
-            with st.form("fuel", clear_on_submit=True):
+        v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
+        
+        if fin == "⛽ Fuel & Shed":
+            f1, f2 = st.tabs(["⛽ Log Fuel Bill", "💳 Settle Shed Payments"])
+            with f1:
+                st.subheader("⛽ Log Fuel Bill")
+                with st.form("fuel", clear_on_submit=True):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        d = st.date_input("Date", datetime.now().date())
+                        v = st.selectbox("Vehicle", v_list)
+                    with col2:
+                        l = st.number_input("Liters", min_value=0.0, step=1.0)
+                        c = st.number_input("Cost (LKR)", min_value=0.0, step=100.0)
+                    
+                    if st.form_submit_button("Save Fuel Entry"):
+                        if c > 0:
+                            fuel_data = {
+                                "Date": str(d), "Type": "Expense", "Category": "Fuel Entry",
+                                "Entity": v, "Note": "Shed Bill Entry", "Amount": c,
+                                "Fuel_Ltr": l, "Qty_Cubes": 0, "Hours": 0, "Rate_At_Time": 0, "Status": "Pending"
+                            }
+                            try:
+                                conn.table("master_log").insert(fuel_data).execute()
+                                st.session_state.df = load_data("master_log", cols_master)
+                                st.success("Fuel Saved!"); st.rerun()
+                            except Exception as e: st.error(f"Error: {e}")
+            with f2:
+                st.subheader("💳 Settle Shed Payments")
+                with st.form("shed_pay", clear_on_submit=True):
+                    pay_date = st.date_input("Payment Date", datetime.now().date())
+                    am = st.number_input("Amount Paid (LKR)", min_value=0.0)
+                    ref = st.text_input("Reference (Cheque No/Cash/Slip)")
+                    if st.form_submit_button("Record Payment"):
+                        if am > 0:
+                            pay_data = {
+                                "Date": str(pay_date), "Type": "Expense", "Category": "Shed Payment",
+                                "Entity": "Shed", "Note": ref, "Amount": am,
+                                "Qty_Cubes": 0, "Fuel_Ltr": 0, "Hours": 0, "Rate_At_Time": 0, "Status": "Paid"
+                            }
+                            try:
+                                conn.table("master_log").insert(pay_data).execute()
+                                st.session_state.df = load_data("master_log", cols_master)
+                                st.success("Payment recorded!"); st.rerun()
+                            except Exception as e: st.error(f"Error: {e}")
+
+        elif fin == "🔧 Repairs":
+            st.subheader("🔧 Log Vehicle Repair")
+            with st.form("rep", clear_on_submit=True):
                 col1, col2 = st.columns(2)
                 with col1:
                     d = st.date_input("Date", datetime.now().date())
-                    v = st.selectbox("Vehicle", v_list)
+                    v = st.selectbox("Vehicle / Machine", v_list)
                 with col2:
-                    l = st.number_input("Liters", min_value=0.0, step=1.0)
-                    c = st.number_input("Cost (LKR)", min_value=0.0, step=100.0)
-                
-                if st.form_submit_button("Save Fuel Entry"):
-                    if c <= 0:
-                        st.error("Please enter a valid cost!")
-                    else:
-                        fuel_data = {
-                            "Date": str(d),
-                            "Type": "Expense",
-                            "Category": "Fuel Entry",
-                            "Entity": v,
-                            "Note": "Shed Bill Entry",
-                            "Amount": c,
-                            "Fuel_Ltr": l,
-                            "Status": "Pending" # තවම සල්ලි ගෙවලා නැති නිසා
+                    am = st.number_input("Repair Cost (LKR)", min_value=0.0)
+                    nt = st.text_input("Repair Detail")
+                if st.form_submit_button("Save Repair Record"):
+                    if am > 0:
+                        rep_data = {
+                            "Date": str(d), "Type": "Expense", "Category": "Repair",
+                            "Entity": v, "Note": nt, "Amount": am,
+                            "Qty_Cubes": 0, "Fuel_Ltr": 0, "Hours": 0, "Rate_At_Time": 0, "Status": "Paid"
                         }
-                        # Cloud Insert
                         try:
-                            conn.table("master_log").insert(fuel_data).execute()
+                            conn.table("master_log").insert(rep_data).execute()
                             st.session_state.df = load_data("master_log", cols_master)
-                            st.success(f"Fuel entry for {v} saved!")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Sync error: {e}")
+                            st.success("Saved!"); st.rerun()
+                        except Exception as e: st.error(f"Error: {e}")
 
-        with f2:
-            st.subheader("💳 Settle Shed Payments")
-            with st.form("shed_pay", clear_on_submit=True):
-                pay_date = st.date_input("Payment Date", datetime.now().date())
-                am = st.number_input("Amount Paid (LKR)", min_value=0.0, step=500.0)
-                ref = st.text_input("Reference (Cheque No/Cash/Slip)")
-                
-                if st.form_submit_button("Record Payment"):
-                    if am <= 0:
-                        st.error("Please enter a valid amount!")
-                    else:
-                        pay_data = {
-                            "Date": str(pay_date),
-                            "Time": datetime.now().strftime("%H:%M:%S"),
-                            "Type": "Expense",
-                            "Category": "Shed Payment",
-                            "Entity": "Shed",
-                            "Note": ref,
-                            "Amount": am,
-                            "Status": "Paid"
+        elif fin == "💸 Payroll":
+            st.subheader("💸 Staff Payroll & Advances")
+            dr_names = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else ["N/A"]
+            with st.form("pay", clear_on_submit=True):
+                col1, col2 = st.columns(2)
+                with col1:
+                    dr = st.selectbox("Select Staff", dr_names)
+                    pay_date = st.date_input("Date", datetime.now().date())
+                with col2:
+                    am = st.number_input("Amount (LKR)", min_value=0.0)
+                    ty = st.selectbox("Type", ["Driver Advance", "Salary", "Bonus"])
+                    v_rel = st.selectbox("Related Vehicle", v_list)
+                if st.form_submit_button("Save Payroll Entry"):
+                    if am > 0:
+                        p_data = {
+                            "Date": str(pay_date), "Type": "Expense", "Category": ty,
+                            "Entity": v_rel, "Note": f"Driver: {dr}", "Amount": am,
+                            "Qty_Cubes": 0, "Fuel_Ltr": 0, "Hours": 0, "Rate_At_Time": 0, "Status": "Paid"
                         }
-                        # Cloud Insert
                         try:
-                            conn.table("master_log").insert(pay_data).execute()
+                            conn.table("master_log").insert(p_data).execute()
                             st.session_state.df = load_data("master_log", cols_master)
-                            st.success(f"Payment of Rs. {am:,.2f} recorded!")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"Sync error: {e}")
-                    
-    elif fin == "🔧 Repairs":
-        st.subheader("🔧 Log Vehicle Repair / Maintenance")
-        with st.form("rep", clear_on_submit=True):
-            col1, col2 = st.columns(2)
-            with col1:
-                d = st.date_input("Date", datetime.now().date())
-                v = st.selectbox("Vehicle / Machine", v_list)
-            with col2:
-                am = st.number_input("Repair Cost (LKR)", min_value=0.0, step=500.0)
-                nt = st.text_input("Repair Detail (e.g., Oil change, Tyre replace)")
-            
-            if st.form_submit_button("Save Repair Record"):
-                if am <= 0:
-                    st.error("Please enter a valid repair cost!")
-                else:
-                    # Cloud එකට ගැලපෙන දත්ත Dictionary එක
-                    repair_data = {
-                        "Date": str(d),
-                        "Type": "Expense",
-                        "Category": "Repair",
-                        "Entity": v,
-                        "Note": nt,
-                        "Amount": am,
-                        "Qty_Cubes": 0,
-                        "Fuel_Ltr": 0,
-                        "Hours": 0,
-                        "Rate_At_Time": 0,
-                        "Status": "Paid"
-                    }
-                    
-                    # 1. Cloud එකට සේව් කිරීම (Supabase)
-                    try:
-                        conn.table("master_log").insert(repair_data).execute()
-                        
-                        # 2. සාර්ථක නම් දත්ත Refresh කරමු
-                        st.session_state.df = load_data("master_log", cols_master)
-                        st.success(f"Repair record for {v} saved successfully!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error syncing with Cloud: {e}")
+                            st.success("Paid!"); st.rerun()
+                        except Exception as e: st.error(f"Error: {e}")
 
-    # කලින් තිබුණ if/elif පේළියට කෙලින්ම යටින් මෙය තිබිය යුතුය
-    elif fin == "💸 Payroll":
-        st.subheader("💸 Staff Payroll & Advances")
-        dr_names = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else ["N/A"]
-        
-        with st.form("pay", clear_on_submit=True):
-            col1, col2 = st.columns(2)
-            with col1:
-                dr = st.selectbox("Select Driver / Staff", dr_names)
-                pay_date = st.date_input("Date", datetime.now().date())
-                ty = st.selectbox("Payment Type", ["Driver Advance", "Salary", "Bonus"])
-            
-            with col2:
-                am = st.number_input("Amount (LKR)", min_value=0.0, step=500.0)
-                v_rel = st.selectbox("Related Vehicle", v_list)
-                
-            if st.form_submit_button("Save Payroll Entry"):
-                if am <= 0:
-                    st.error("Please enter a valid amount!")
-                else:
-                    # Cloud එකට යවන දත්ත Dictionary එක
-                    pay_data = {
-                        "Date": str(pay_date),
-                        "Type": "Expense",
-                        "Category": ty,
-                        "Entity": v_rel, # වියදම අදාළ වාහනයට බැර කරනවා
-                        "Note": f"Driver: {dr}",
-                        "Amount": am,
-                        "Qty_Cubes": 0,
-                        "Fuel_Ltr": 0,
-                        "Hours": 0,
-                        "Rate_At_Time": 0,
-                        "Status": "Paid"
-                    }
-                    
-                    # 1. Cloud එකට සේව් කිරීම (Supabase)
-                    try:
-                        conn.table("master_log").insert(pay_data).execute()
-                        
-                        # 2. දත්ත Refresh කරමු
-                        st.session_state.df = load_data("master_log", cols_master)
-                        st.success(f"Payment of Rs. {am:,.2f} recorded for {dr}")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Sync error: {e}")   
-                        
-    elif fin == "🏦 Owner Advances":
-        st.subheader("🏦 Landowner Advances & Payments")
-        # Landownersලාගේ ලිස්ට් එක (Cloud එකෙන් එන දත්ත)
-        l_names = st.session_state.lo_db["Name"].tolist() if not st.session_state.lo_db.empty else ["N/A"]
-        
-        with st.form("own_adv", clear_on_submit=True):
-            col1, col2 = st.columns(2)
-            with col1:
-                d = st.date_input("Date", datetime.now().date())
-                owner = st.selectbox("Select Landowner", l_names)
-            with col2:
-                am = st.number_input("Advance Amount (LKR)", min_value=0.0, step=1000.0)
-                v_rel = st.selectbox("Related Vehicle/Site", v_list)
-            
-            nt = st.text_input("Additional Note (e.g., Cash/Cheque No)")
-            
-            if st.form_submit_button("Save Advance Record"):
-                if am <= 0:
-                    st.error("Please enter a valid amount!")
-                else:
-                    # Cloud එකට යවන දත්ත Dictionary එක
-                    adv_data = {
-                        "Date": str(d),
-                        "Type": "Expense",
-                        "Category": "Owner Advance",
-                        "Entity": v_rel,
-                        "Note": f"Owner: {owner} | {nt}",
-                        "Amount": am,
-                        "Qty_Cubes": 0,
-                        "Fuel_Ltr": 0,
-                        "Hours": 0,
-                        "Rate_At_Time": 0,
-                        "Status": "Paid"
-                    }
-                    
-                    # 1. Cloud එකට සේව් කිරීම (Supabase)
-                    try:
-                        conn.table("master_log").insert(adv_data).execute()
-                        
-                        # 2. දත්ත Refresh කරමු
-                        st.session_state.df = load_data("master_log", cols_master)
-                        st.success(f"Advance of Rs. {am:,.2f} saved for {owner}")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Sync error: {e}")
-                        
-    elif fin == "🧾 Others":
-        st.subheader("🧾 Other Business Expenses")
-        with st.form("oth", clear_on_submit=True):
-            col1, col2 = st.columns(2)
-            with col1:
-                d = st.date_input("Date", datetime.now().date())
-                cat = st.selectbox("Expense Category", ["Food", "Rent", "Utility", "Office", "Misc"])
-            with col2:
-                am = st.number_input("Amount (LKR)", min_value=0.0, step=100.0)
-                nt = st.text_input("Note / Description")
-            
-            if st.form_submit_button("Save Expense"):
-                if am <= 0:
-                    st.error("Please enter a valid amount!")
-                else:
-                    # Cloud Data Dictionary
-                    other_data = {
-                        "Date": str(d),
-                        "Type": "Expense",
-                        "Category": cat,
-                        "Entity": "Admin", # පොදු වියදමක් නිසා
-                        "Note": nt,
-                        "Amount": am,
-                        "Qty_Cubes": 0,
-                        "Fuel_Ltr": 0,
-                        "Hours": 0,
-                        "Rate_At_Time": 0,
-                        "Status": "Paid"
-                    }
-                    
-                    # 1. Supabase එකට Insert කිරීම
-                    try:
-                        conn.table("master_log").insert(other_data).execute()
-                        
-                        # 2. Refresh Application Data
-                        st.session_state.df = load_data("master_log", cols_master)
-                        st.success(f"Expense of Rs. {am:,.2f} for {cat} recorded!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Sync error: {e}")
+        elif fin == "🏦 Owner Advances":
+            st.subheader("🏦 Landowner Advances")
+            l_names = st.session_state.lo_db["Name"].tolist() if not st.session_state.lo_db.empty else ["N/A"]
+            with st.form("own_adv", clear_on_submit=True):
+                col1, col2 = st.columns(2)
+                with col1:
+                    d = st.date_input("Date", datetime.now().date())
+                    owner = st.selectbox("Landowner", l_names)
+                with col2:
+                    am = st.number_input("Amount (LKR)", min_value=0.0)
+                    v_rel = st.selectbox("Related Site/Vehicle", v_list)
+                nt = st.text_input("Note")
+                if st.form_submit_button("Save"):
+                    if am > 0:
+                        adv_data = {
+                            "Date": str(d), "Type": "Expense", "Category": "Owner Advance",
+                            "Entity": v_rel, "Note": f"Owner: {owner} | {nt}", "Amount": am,
+                            "Qty_Cubes": 0, "Fuel_Ltr": 0, "Hours": 0, "Rate_At_Time": 0, "Status": "Paid"
+                        }
+                        try:
+                            conn.table("master_log").insert(adv_data).execute()
+                            st.session_state.df = load_data("master_log", cols_master)
+                            st.success("Saved!"); st.rerun()
+                        except Exception as e: st.error(f"Error: {e}")
 
+        elif fin == "🧾 Others":
+            st.subheader("🧾 Other Expenses")
+            with st.form("oth", clear_on_submit=True):
+                cat = st.selectbox("Category", ["Food", "Rent", "Utility", "Office", "Misc"])
+                am = st.number_input("Amount (LKR)", min_value=0.0)
+                nt = st.text_input("Description")
+                if st.form_submit_button("Save Expense"):
+                    if am > 0:
+                        oth_data = {
+                            "Date": str(datetime.now().date()), "Type": "Expense", "Category": cat,
+                            "Entity": "Admin", "Note": nt, "Amount": am,
+                            "Qty_Cubes": 0, "Fuel_Ltr": 0, "Hours": 0, "Rate_At_Time": 0, "Status": "Paid"
+                        }
+                        try:
+                            conn.table("master_log").insert(oth_data).execute()
+                            st.session_state.df = load_data("master_log", cols_master)
+                            st.success("Saved!"); st.rerun()
+                        except Exception as e: st.error(f"Error: {e}")
+                            
 # --- 9. SYSTEM SETUP ---
 elif menu == "📑 Reports Center":
     st.markdown("<h2 style='color: #8E44AD;'>📑 Business Reports Center</h2>", unsafe_allow_html=True)
