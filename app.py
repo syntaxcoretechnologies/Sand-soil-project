@@ -747,6 +747,7 @@ elif menu == "🏗️ Site Operations":
                     if op == "📥 Stock Inward (To Plant)":
                         final_note = f"{n} | Owner: {src_owner} | Drv: {src_driver}"
                     
+                    # 1. Cloud එකට යවන්න ඕන දත්ත ටික ලෑස්ති කරගන්නවා
                     new_data = {
                         "Date": str(d),
                         "Type": "Income" if op == "💰 Sales Out" else "Process",
@@ -762,11 +763,18 @@ elif menu == "🏗️ Site Operations":
                     }
                     
                     try:
-                        # Cloud එකට සේව් කිරීම
+                        # 2. Cloud (Supabase) එකට සේව් කරනවා
                         conn.table("master_log").insert(new_data).execute()
+                        
+                        # 3. Local එකටත් දත්ත එකතු කරනවා (Refresh වෙනකම් පෙන්වන්න)
+                        st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_data])], ignore_index=True)
+                        
                         st.success(f"Successfully Recorded! Total: Rs.{calculated_amount:,.2f}")
                         st.balloons()
+                        
+                        # 4. වැදගත්ම දේ: පේජ් එක Refresh කරනවා Duplicate නොවී ඉන්න
                         st.rerun() 
+                        
                     except Exception as e:
                         st.error(f"Error syncing with Cloud: {e}")
                     
