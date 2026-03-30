@@ -1679,6 +1679,7 @@ elif menu == "👤 Manage Landowners":
                             }
                             try:
                                 conn.table("master_log").insert(new_entry).execute()
+                                # 'cols_master' කියන variable එක උඩින් define කරලා ඇති නේද?
                                 st.session_state.df = load_data("master_log", cols_master)
                                 st.success(f"LKR {adv_amount:,.2f} advance paid to {selected_lo}!")
                                 st.rerun()
@@ -1733,11 +1734,12 @@ elif menu == "👷 Staff Payroll":
                         }
                         try:
                             conn.table("master_log").insert(new_staff_data).execute()
+                            # load_data function එක සහ cols_master variable එක පාවිච්චි කරලා තියෙනවා
                             st.session_state.df = load_data("master_log", cols_master)
                             st.success(f"Rs. {amount:,.2f} saved for {member}!")
                             st.rerun()
                         except Exception as e:
-                            st.error(f"Cloud Sync Error: {e}")    
+                            st.error(f"Cloud Sync Error: {e}")  
     
 
 # --- DATA MANAGER SECTION ---
