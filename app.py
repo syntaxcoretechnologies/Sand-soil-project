@@ -716,117 +716,101 @@ elif menu == "📊 Dashboard":
 # මේ 'elif' එක පටන් ගන්න ඕනේ උඩ තියෙන 'if menu == "📊 Dashboard":' එකට කෙළින්ම පල්ලෙහායින්
 # --- කලින් තිබුණු Site Operations එක අයින් කරලා මේක දාන්න ---
 elif menu == "🏗️ Site Operations":
-    st.markdown(f"<h2 style='color: #E67E22;'>🏗️ Site Operations & Stock Manager</h2>", unsafe_allow_html=True)
-    
-    op = st.radio("Select Activity Type", ["🚜 Excavator Work Log", "💰 Sales Out", "📥 Stock Inward (To Plant)"], horizontal=True)
-    
-    # 1. වාහන ලිස්ට් එක (Cloud එකෙන් එන දත්ත)
-    v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
-    
-    # 2. ඩ්‍රයිවර්ලාගේ ලිස්ට් එක
-    d_list = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else ["No Drivers Registered"]
-    
-    # 3. Landowners ලිස්ට් එක
-    l_list = st.session_state.lo_db["Name"].tolist() if not st.session_state.lo_db.empty else ["No Owners Registered"]
+        st.markdown(f"<h2 style='color: #E67E22;'>🏗️ Site Operations & Stock Manager</h2>", unsafe_allow_html=True)
+        
+        op = st.radio("Select Activity Type", ["🚜 Excavator Work Log", "💰 Sales Out", "📥 Stock Inward (To Plant)"], horizontal=True)
+        
+        # 1. වාහන ලිස්ට් එක
+        v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
+        # 2. ඩ්‍රයිවර්ලාගේ ලිස්ට් එක
+        d_list = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else ["No Drivers Registered"]
+        # 3. Landowners ලිස්ට් එක
+        l_list = st.session_state.lo_db["Name"].tolist() if not st.session_state.lo_db.empty else ["No Owners Registered"]
 
-    with st.form("site_f", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-        with col1:
-            # Operation එක අනුව වාහනය තෝරන විදිහ
-            v = st.selectbox("Select Vehicle / Machine", v_list if op != "📥 Stock Inward (To Plant)" else ["Internal / Third Party"])
-            d = st.date_input("Date", datetime.now().date())
-            material = st.selectbox("Material Type", ["Sand", "Soil", "Other"]) if (op != "🚜 Excavator Work Log") else ""
-            
-            # Stock Inward එකේදී විතරක් Landowner සහ Driver තෝරන්න දෙනවා
-            if op == "📥 Stock Inward (To Plant)":
-                src_owner = st.selectbox("Source (Landowner)", l_list)
-                src_driver = st.selectbox("Driver/Operator", d_list)
-        
-        with col2:
-            val_label = "Work Hours" if "Excavator" in op else "Qty (Cubes)"
-            unit = "Hrs" if "Excavator" in op else "Cubes"
+        with st.form("site_f", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                v = st.selectbox("Select Vehicle / Machine", v_list if op != "📥 Stock Inward (To Plant)" else ["Internal / Third Party"])
+                d = st.date_input("Date", datetime.now().date())
+                material = st.selectbox("Material Type", ["Sand", "Soil", "Other"]) if (op != "🚜 Excavator Work Log") else ""
                 
-            val = st.number_input(val_label, min_value=0.0, step=0.5, value=0.0)
-            r = st.number_input(f"Enter Rate per {unit} (LKR)", min_value=0.0, step=100.0, value=0.0)
-            
-        n = st.text_input("Additional Note")
-        
-        if st.form_submit_button("📥 Save Record & Sync to Cloud"):
-            if val <= 0 or r <= 0: 
-                st.error("Please enter valid Qty/Hours and Rate!")
-            else:
-                # දත්ත සැකසීම
-                record_type = "Inward" if op == "📥 Stock Inward (To Plant)" else "Process"
-                cat = f"{op} ({material})" if material else op
-                calculated_amount = val * r
-                q = val if "Cubes" in val_label else 0
-                h = val if "Hours" in val_label else 0
-                
-                final_note = n
                 if op == "📥 Stock Inward (To Plant)":
-                    final_note = f"{n} | Owner: {src_owner} | Drv: {src_driver}"
-                
-                # --- Cloud එකට යවන දත්ත Dictionary එක ---
-                new_data = {
-                    "Date": str(d),
-                    "Type": "Income" if op == "💰 Sales Out" else "Process",
-                    "Category": cat,
-                    "Entity": v,
-                    "Note": final_note,
-                    "Amount": calculated_amount,
-                    "Qty_Cubes": q,
-                    "Hours": h,
-                    "Rate_At_Time": r,
-                    "Status": "Done"
-                }
-                
-                # 1. Cloud එකට සේව් කිරීම (Supabase)
-                try:
-                    conn.table("master_log").insert(new_data).execute()
+                    src_owner = st.selectbox("Source (Landowner)", l_list)
+                    src_driver = st.selectbox("Driver/Operator", d_list)
+            
+            with col2:
+                val_label = "Work Hours" if "Excavator" in op else "Qty (Cubes)"
+                unit = "Hrs" if "Excavator" in op else "Cubes"
+                val = st.number_input(val_label, min_value=0.0, step=0.5, value=0.0)
+                r = st.number_input(f"Enter Rate per {unit} (LKR)", min_value=0.0, step=100.0, value=0.0)
+            
+            n = st.text_input("Additional Note")
+            
+            if st.form_submit_button("📥 Save Record & Sync to Cloud"):
+                if val <= 0 or r <= 0: 
+                    st.error("Please enter valid Qty/Hours and Rate!")
+                else:
+                    record_type = "Inward" if op == "📥 Stock Inward (To Plant)" else "Process"
+                    cat = f"{op} ({material})" if material else op
+                    calculated_amount = val * r
+                    q = val if "Cubes" in val_label else 0
+                    h = val if "Hours" in val_label else 0
                     
-                    # 2. සාර්ථක නම් Session State එක Refresh කිරීම
-                    st.session_state.df = load_data("master_log", cols_master)
-                    st.success(f"Successfully Recorded & Synced! Total: Rs.{calculated_amount:,.2f}")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"Error syncing with Cloud: {e}")
-    
-   # --- 12. TODAY'S LOGS DISPLAY (Cloud-Ready) ---
-st.divider()
-st.subheader("📅 Today's Logs Summary")
+                    final_note = n
+                    if op == "📥 Stock Inward (To Plant)":
+                        final_note = f"{n} | Owner: {src_owner} | Drv: {src_driver}"
+                    
+                    new_data = {
+                        "Date": str(d),
+                        "Type": "Income" if op == "💰 Sales Out" else "Process",
+                        "Category": cat,
+                        "Entity": v,
+                        "Note": final_note,
+                        "Amount": calculated_amount,
+                        "Qty_Cubes": q,
+                        "Hours": h,
+                        "Rate_At_Time": r,
+                        "Status": "Done"
+                    }
+                    
+                    try:
+                        conn.table("master_log").insert(new_data).execute()
+                        st.session_state.df = load_data("master_log", cols_master)
+                        st.success(f"Successfully Recorded! Total: Rs.{calculated_amount:,.2f}")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error syncing with Cloud: {e}")
 
-# 1. දත්ත කොපියක් ලබා ගැනීම (Memory එකේ තියෙන අලුත්ම දත්ත)
-temp_df = st.session_state.df.copy()
+        # --- පල්ලෙහා තියෙන Logs Summary කෑල්ල දැන් මෙතනට අයිතියි (Indented) ---
+        st.divider()
+        st.subheader("📅 Today's Logs Summary")
 
-if not temp_df.empty:
-    # 2. Date column එක date format එකට හරවා ගැනීම (Error වැළැක්වීමට)
-    temp_df['Date'] = pd.to_datetime(temp_df['Date'], errors='coerce').dt.date
-    
-    # 3. ලංකාවේ අද දිනට ගැලපෙන දත්ත පෙරීම
-    # (Cloud server එක වෙන රටක තිබුණත් අපේ දිනේට හරියන්න)
-    today_date = datetime.now().date()
-    today_df = temp_df[temp_df["Date"] == today_date].copy()
-    
-    if not today_df.empty:
-        # දත්ත ටික අන්තිමට දාපු එක උඩට එන විදිහට පෙන්වමු
-        st.dataframe(
-            today_df.sort_values(by="id", ascending=False), 
-            use_container_width=True,
-            column_config={
-                "Amount": st.column_config.NumberColumn(format="Rs. %.2f"),
-                "Qty_Cubes": st.column_config.NumberColumn(format="%.2f Cubes"),
-                "Hours": st.column_config.NumberColumn(format="%.2f Hrs")
-            }
-        )
-        
-        # අද දවසේ කෙටි සාරාංශයක් (Quick Stats)
-        t_income = today_df[today_df["Type"] == "Income"]["Amount"].sum()
-        t_cubes = today_df["Qty_Cubes"].sum()
-        st.caption(f"💡 Today's Summary: Total Income Rs. {t_income:,.2f} | Total Volume: {t_cubes:.2f} Cubes")
-    else:
-        st.info("අද දින සඳහා තවමත් දත්ත ඇතුළත් කර නැත.")
-else:
-    st.warning("පද්ධතියේ දත්ත කිසිවක් නැත.")
+        temp_df = st.session_state.df.copy()
+
+        if not temp_df.empty:
+            temp_df['Date'] = pd.to_datetime(temp_df['Date'], errors='coerce').dt.date
+            today_date = datetime.now().date()
+            today_df = temp_df[temp_df["Date"] == today_date].copy()
+            
+            if not today_df.empty:
+                st.dataframe(
+                    today_df.sort_values(by="ID", ascending=False), 
+                    use_container_width=True,
+                    column_config={
+                        "Amount": st.column_config.NumberColumn(format="Rs. %.2f"),
+                        "Qty_Cubes": st.column_config.NumberColumn(format="%.2f Cubes"),
+                        "Hours": st.column_config.NumberColumn(format="%.2f Hrs")
+                    }
+                )
+                t_income = today_df[today_df["Type"] == "Income"]["Amount"].sum()
+                t_cubes = today_df["Qty_Cubes"].sum()
+                st.caption(f"💡 Today's Summary: Total Income Rs. {t_income:,.2f} | Total Volume: {t_cubes:.2f} Cubes")
+            else:
+                st.info("අද දින සඳහා තවමත් දත්ත ඇතුළත් කර නැත.")
+        else:
+            st.warning("පද්ධතියේ දත්ත කිසිවක් නැත.")
+
+    # මෙතනින් පස්සේ ඔයාගේ ඊළඟ elif (Finance & Shed) එක පටන් ගන්න.
     
 # --- 8. FINANCE & SHED (v56 FULL) ---
 elif menu == "💰 Finance & Shed":
