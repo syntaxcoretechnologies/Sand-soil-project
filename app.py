@@ -441,56 +441,62 @@ def create_landowner_pdf(title, data_df, summary_dict):
     total_paid = 0
     
     for _, row in data_df.iterrows():
-        # Cloud Table එකේ Column names වලට ගැලපෙන්න දත්ත ලබා ගැනීම
+        # Column names වලට ගැලපෙන්න දත්ත ලබා ගැනීම
         date_val = safe_text(str(row.get('Date', row.get('date', '-'))))
-        cat_val = safe_text(str(row.get('Category', row.get('category', 'N/A'))))
+        cat_val = safe_text(str(row.get('Category', row.get('category', 'General'))))
         note_val = safe_text(str(row.get('Note', row.get('note', ''))))[:30]
-        
-        pdf.cell(w[0], 7, date_val, 1)
-        pdf.cell(w[1], 7, cat_val, 1)
-        pdf.cell(w[2], 7, note_val, 1)
         
         try:
             cubes = float(row.get('Qty_Cubes', row.get('qty_cubes', 0)))
             rate = float(row.get('Rate_At_Time', row.get('rate_at_time', 0)))
             amt = float(row.get('Amount', row.get('amount', 0)))
+            
+            # පරණ Report එකේ වගේ Amount එක 0 නම් calculate කරමු
+            if amt == 0 and cubes > 0 and rate > 0:
+                amt = cubes * rate
         except:
             cubes = 0; rate = 0; amt = 0
 
+        pdf.cell(w[0], 7, date_val, 1)
+        pdf.cell(w[1], 7, cat_val, 1)
+        pdf.cell(w[2], 7, note_val, 1)
         pdf.cell(w[3], 7, f"{cubes:,.2f}" if cubes > 0 else "-", 1, 0, 'C')
         pdf.cell(w[4], 7, f"{rate:,.2f}" if rate > 0 else "-", 1, 0, 'R')
         
-        category_str = str(cat_val)
+        category_str = str(cat_val).lower()
         
-        # ඉඩම් හිමියාට ලැබිය යුතු මුදල් (වැලි ගොඩ දැමීම)
-        if "Inward" in category_str:
+        # --- FIXED LOGIC: 'Sales Out' තිබුණත් ඒක Earnings එකක් විදිහට ගමු ---
+        if "inward" in category_str or "sales out" in category_str:
             total_payable += amt
             pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 1, 'R')
-        # ඉඩම් හිමියාට ගෙවූ මුදල් (Advance / Payment)
-        elif any(x in category_str for x in ["Advance", "Payment"]):
+        
+        # Advances පෙන්වීම
+        elif any(x in category_str for x in ["advance", "payment", "paid"]):
             total_paid += amt
             pdf.set_text_color(200, 0, 0)
             pdf.cell(w[5], 7, f"({amt:,.2f})", 1, 1, 'R')
             pdf.set_text_color(0, 0, 0)
         else:
-            pdf.cell(w[5], 7, "-", 1, 1, 'R')
+            pdf.cell(w[5], 7, f"{amt:,.2f}" if amt != 0 else "-", 1, 1, 'R')
     
-    # Final Summary Calculation Section
+    # Final Summary
     if pdf.get_y() > 240: pdf.add_page()
-    pdf.ln(2); pdf.set_font("Arial", 'B', 9)
+    pdf.ln(5)
+    pdf.set_font("Arial", 'B', 10)
     
-    pdf.cell(sum(w[:5]), 8, "TOTAL PAYABLE FOR CUBES (LKR)", 1, 0, 'R')
-    pdf.cell(w[5], 8, f"{total_payable:,.2f}", 1, 1, 'R')
+    pdf.cell(sum(w[:5]), 9, "TOTAL EARNINGS FROM SALES (LKR)", 1, 0, 'R')
+    pdf.cell(w[5], 9, f"{total_payable:,.2f}", 1, 1, 'R')
     
-    pdf.cell(sum(w[:5]), 8, "TOTAL ADVANCES PAID (LKR)", 1, 0, 'R')
-    pdf.cell(w[5], 8, f"{total_paid:,.2f}", 1, 1, 'R')
+    pdf.cell(sum(w[:5]), 9, "TOTAL ADVANCES PAID (LKR)", 1, 0, 'R')
+    pdf.cell(w[5], 9, f"{total_paid:,.2f}", 1, 1, 'R')
     
-    # Net Balance - කොළ පාටින් පෙන්වමු
+    # Final Net Balance
     pdf.set_fill_color(39, 174, 96); pdf.set_text_color(255, 255, 255)
-    pdf.cell(sum(w[:5]), 10, "NET BALANCE TO BE PAID (LKR)", 1, 0, 'R', fill=True)
-    pdf.cell(w[5], 10, f"{(total_payable - total_paid):,.2f}", 1, 1, 'R', fill=True)
+    pdf.cell(sum(w[:5]), 11, "NET PAYABLE TO LANDOWNER (LKR)", 1, 0, 'R', fill=True)
+    pdf.cell(w[5], 11, f"{(total_payable - total_paid):,.2f}", 1, 1, 'R', fill=True)
     
-    fn = f"Landowner_Settlement_{datetime.now().strftime('%H%M%S')}.pdf"
+    from datetime import datetime
+    fn = f"LO_Settlement_{datetime.now().strftime('%H%M%S')}.pdf"
     pdf.output(fn)
     return fn
     
