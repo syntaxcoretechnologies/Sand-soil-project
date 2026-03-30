@@ -17,7 +17,7 @@ USERS = {
 # --- 1. CONFIG & GOOGLE SHEETS SETUP ---
 SHOP_NAME = "K. SIRIWARDHANA SAND CONSTRUCTION PRO"
 # ඔයාගේ Google Sheet URL එක මෙතනට පසුව ඇතුළත් කරන්න
-SHEET_URL = "https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID_HERE/edit?usp=sharing"
+SHEET_ID = "1gfXSjh35SUUWycPxzO-R9LbIaTRYNoJtnIV6mOGdV5A"
 
 # Google Sheets Connection එක හදනවා
 conn = st.connection("gsheets", type=GSheetsConnection)
@@ -27,22 +27,28 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 def save_to_gsheets(dataframe, worksheet_name):
     """ඕනෑම DataFrame එකක් අදාළ Worksheet එකට Save කරයි"""
     try:
-        conn.update(spreadsheet=SHEET_URL, worksheet=worksheet_name, data=dataframe)
+        # SHEET_URL වෙනුවට SHEET_ID පාවිච්චි කරනවා
+        conn.update(spreadsheet=SHEET_ID, worksheet=worksheet_name, data=dataframe)
         st.cache_data.clear() # පරණ Cache දත්ත අයින් කරයි
+        st.success(f"✅ {worksheet_name} සාර්ථකව යාවත්කාලීන වුණා!")
     except Exception as e:
         st.error(f"Error saving to {worksheet_name}: {e}")
 
 def load_from_gsheets(worksheet_name, expected_cols):
     """Google Sheet එකෙන් දත්ත Load කරයි, ටැබ් එක නැත්නම් හිස් DataFrame එකක් දෙයි"""
     try:
-        data = conn.read(spreadsheet=SHEET_URL, worksheet=worksheet_name)
+        # SHEET_URL වෙනුවට SHEET_ID පාවිච්චි කරනවා
+        data = conn.read(spreadsheet=SHEET_ID, worksheet=worksheet_name)
+        
         # දින වකවානු හරියට සකස් කිරීම
-        if 'Date' in data.columns:
+        if not data.empty and 'Date' in data.columns:
             data['Date'] = pd.to_datetime(data['Date']).dt.date
         return data
-    except:
+    except Exception as e:
+        # මොකක් හරි error එකක් ආවොත් ඒක බලන්න පුළුවන් (Debug වලට හොඳයි)
+        # st.sidebar.warning(f"Note: {worksheet_name} loading issue.") 
         return pd.DataFrame(columns=expected_cols)
-
+        
 # පරණ save_all() එක වෙනුවට අපි දැන් save_to_gsheets() එක තැනින් තැන පාවිච්චි කරනවා.
 # නමුත් පරණ කෝඩ් වලට හානියක් නොවෙන්න හිස් function එකක් මෙලෙස තියමු.
 def save_all():
