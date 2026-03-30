@@ -1124,56 +1124,50 @@ elif menu == "📑 Reports Center":
     with r_staff:
         st.subheader("👷 Staff Payment & Settlement Report")
         
-        # 1. Staff ලිස්ට් එක ගන්නවා
-        # dr_db සහ staff_db දෙකේම අයව එකට ගන්න එක වඩා හොඳයි
+        # 1. Clean columns (හිස්තැන් අයින් කරලා අකුරු හරියට ගන්න)
+        df_f.columns = [str(c).strip() for c in df_f.columns]
+        
+        # 2. Column එක තියෙනවාද කියලා check කරමු (KeyError වැළැක්වීමට)
+        available_cols = df_f.columns.tolist()
+        
+        # 'Entity' කියන එක 'entity' ලෙසත් තිබිය හැකි නිසා දෙකම බලමු
+        entity_col = "Entity" if "Entity" in available_cols else ("entity" if "entity" in available_cols else None)
+        note_col = "Note" if "Note" in available_cols else ("note" if "note" in available_cols else None)
+
+        # Staff list එක හදාගන්න කොටස (ඔයාගේ පරණ එකමයි)
         all_staff = []
         if not st.session_state.dr_db.empty:
             all_staff.extend(st.session_state.dr_db["Name"].tolist())
         if 'staff_db' in st.session_state and not st.session_state.staff_db.empty:
             all_staff.extend(st.session_state.staff_db["Name"].tolist())
-        
-        # නම් double නොවෙන්න set එකක් කරමු
         all_staff = sorted(list(set(all_staff)))
 
         if all_staff:
             sel_staff = st.selectbox("Select Staff Member / Driver", all_staff, key="staff_rep_sel")
             
             if st.button("Generate Staff Report 📄", key="gen_staff_btn"):
-                # --- වැදගත්ම වෙනස මෙන්න මෙතන ---
-                # Entity එකේ නම තියෙන හෝ Note එකේ නම තියෙන හැම record එකක්ම ගන්නවා
-                staff_mask = (df_f['Entity'].str.contains(str(sel_staff), case=False, na=False)) | \
-                             (df_f['Note'].str.contains(str(sel_staff), case=False, na=False))
-                
-                staff_rep_data = df_f[staff_mask].copy()
-                
-                if not staff_rep_data.empty:
-                    try:
-                        # PDF එක generate කිරීම
-                        fn = create_staff_pdf(sel_staff, staff_rep_data)
-                        with open(fn, "rb") as f:
-                            st.download_button("Download Staff Report 📥", f, file_name=f"Staff_Report_{sel_staff}.pdf")
-                        
-                        st.success(f"Report generated for {sel_staff}")
-                        
-                        # Table එක පෙන්වීම
-                        disp_cols = ["Date", "Category", "Entity", "Note", "Hours", "Amount"]
-                        actual_cols = [c for c in disp_cols if c in staff_rep_data.columns]
-                        
-                        st.dataframe(
-                            staff_rep_data[actual_cols].sort_values(by="Date", ascending=False), 
-                            use_container_width=True,
-                            hide_index=True
-                        )
-                        
-                        total_pay = pd.to_numeric(staff_rep_data['Amount'], errors='coerce').sum()
-                        st.info(f"Total Transactions for {sel_staff}: **LKR {total_pay:,.2f}**")
-                        
-                    except Exception as e:
-                        st.error(f"PDF Generation Error: {e}")
+                # --- Safe Filtering (KeyError නොවී ඉන්න) ---
+                if entity_col and note_col:
+                    staff_mask = (df_f[entity_col].str.contains(str(sel_staff), case=False, na=False)) | \
+                                 (df_f[note_col].str.contains(str(sel_staff), case=False, na=False))
+                    
+                    staff_rep_data = df_f[staff_mask].copy()
+                    
+                    if not staff_rep_data.empty:
+                        try:
+                            fn = create_staff_pdf(sel_staff, staff_rep_data)
+                            with open(fn, "rb") as f:
+                                st.download_button("Download Staff Report 📥", f, file_name=f"Staff_Report_{sel_staff}.pdf")
+                            st.success(f"Report generated for {sel_staff}")
+                            
+                            # Table එක පෙන්වීම
+                            st.dataframe(staff_rep_data, use_container_width=True)
+                        except Exception as e:
+                            st.error(f"PDF Error: {e}")
+                    else:
+                        st.warning("දත්ත කිසිවක් හමු නොවීය.")
                 else:
-                    st.warning(f"No transactions found for {sel_staff} in the selected period.")
-        else:
-            st.info("Please register staff members/drivers in System Setup first.")
+                    st.error(f"Database columns missing! (Found: {available_cols})")
 
     # --- TAB 1: VEHICLE SETTLEMENT ---
    # 1. වාහන ලැයිස්තුව ලබා ගනිමු
