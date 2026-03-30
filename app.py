@@ -636,7 +636,7 @@ if st.sidebar.button("Logout 🔓", use_container_width=True, type="secondary"):
 
 # --- 1. DASHBOARD SECTION (සම්පූර්ණ එකම මෙතන තියෙනවා) ---
 # --- 6. DASHBOARD ---
-    elif menu == "📊 Dashboard":
+ elif menu == "📊 Dashboard":
         st.markdown("<h2 style='color: #2E86C1;'>📊 Business Overview</h2>", unsafe_allow_html=True)
         
         df = st.session_state.df.copy()
@@ -699,13 +699,13 @@ if st.sidebar.button("Logout 🔓", use_container_width=True, type="secondary"):
         # මෙන්න මෙතන තිබුණු else: එක මම අයින් කළා. 
         # දත්ත නැතිනම් පෙන්වන්න ඕන message එක මෙතනට දැම්මා.
         elif df.empty:
-            st.info("පද්ධතියේ දත්ත කිසිවක් නැත. කරුණාකර දත්ත ඇතුළත් කරන්න.")
+            st.info("පද්ධතියේ දත්ත කිසිවක් නැත. කරුණාකර දත්ත ඇතුළත් කරන්න.")   
 
 # --- 2. SITE OPERATIONS SECTION ---
 # මේ 'elif' එක පටන් ගන්න ඕනේ උඩ තියෙන 'if menu == "📊 Dashboard":' එකට කෙළින්ම පල්ලෙහායින්
 # --- කලින් තිබුණු Site Operations එක අයින් කරලා මේක දාන්න ---
 # --- 7. SITE OPERATIONS ---
-    elif menu == "🏗️ Site Operations":
+elif menu == "🏗️ Site Operations":
         st.markdown(f"<h2 style='color: #E67E22;'>🏗️ Site Operations & Stock Manager</h2>", unsafe_allow_html=True)
         
         op = st.radio("Select Activity Type", ["🚜 Excavator Work Log", "💰 Sales Out", "📥 Stock Inward (To Plant)"], horizontal=True)
@@ -778,9 +778,9 @@ if st.sidebar.button("Logout 🔓", use_container_width=True, type="secondary"):
             today_df = temp_df[temp_df["Date"] == datetime.now().date()].copy()
             if not today_df.empty:
                 st.dataframe(today_df.sort_values(by="ID", ascending=False), use_container_width=True)
-
+    
     # --- 8. FINANCE & SHED ---
-    elif menu == "💰 Finance & Shed":
+elif menu == "💰 Finance & Shed":
         st.markdown(f"<h2 style='color: #2E86C1;'>💰 Finance & Shed Management</h2>", unsafe_allow_html=True)
         fin = st.radio("Finance Category", ["⛽ Fuel & Shed", "🔧 Repairs", "💸 Payroll", "🏦 Owner Advances", "🧾 Others"], horizontal=True)
         
