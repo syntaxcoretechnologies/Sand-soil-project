@@ -961,43 +961,41 @@ elif menu == "📑 Reports Center":
     df_raw['Date'] = pd.to_datetime(df_raw['Date'], errors='coerce').dt.date
     df_f = df_raw[(df_raw["Date"] >= f_d) & (df_raw["Date"] <= t_d)].copy()
     
-    # --- TAB: DAILY INCOME REPORT (FIXED) ---
     with r_inc:
         st.subheader("Daily Sales & Income Statement")
         
-        # 1. Column names වල තියෙන හිස්තැන් අයින් කරලා Clean කරමු
+        # 1. Clean columns
         df_f.columns = [str(c).strip() for c in df_f.columns]
         
-        # 2. Sales Out records විතරක් පෙරමු (case-insensitive search)
+        # 2. Sales Out records විතරක් පෙරමු
         daily_sales = df_f[df_f["Category"].str.contains("Sales Out", case=False, na=False)].copy()
         
         if not daily_sales.empty:
-            # 3. Column check - KeyError වැළැක්වීමට (ඔයාගේ logic එකමයි)
-            available_cols = daily_sales.columns.tolist()
-            required_cols = ['Date', 'Category', 'Entity', 'Qty_Cubes', 'Rate_At_Time', 'Amount']
+            # --- මෙතන තමයි වැදගත්ම කොටස ---
+            # PDF එකට යවන්න original column names සහිත DataFrame එකක් තියාගමු
+            pdf_ready_df = daily_sales.copy()
             
-            # පද්ධතියේ තියෙන column ටික විතරක් තෝරා ගමු
-            final_cols = [c for c in required_cols if c in available_cols]
-            display_sales = daily_sales[final_cols].copy()
+            # පෙන්වන ටේබල් එක සඳහා rename කරමු
+            display_sales = daily_sales.copy()
             
-            # 4. දත්ත වල අගයන් (Numbers) බව තහවුරු කරගමු
-            if 'Amount' in display_sales.columns:
-                display_sales['Amount'] = pd.to_numeric(display_sales['Amount'], errors='coerce').fillna(0)
-            if 'Qty_Cubes' in display_sales.columns:
-                display_sales['Qty_Cubes'] = pd.to_numeric(display_sales['Qty_Cubes'], errors='coerce').fillna(0)
+            # දත්ත Numbers බව තහවුරු කරගමු
+            for col in ['Amount', 'Qty_Cubes', 'Rate_At_Time']:
+                if col in display_sales.columns:
+                    display_sales[col] = pd.to_numeric(display_sales[col], errors='coerce').fillna(0)
+                    pdf_ready_df[col] = pd.to_numeric(pdf_ready_df[col], errors='coerce').fillna(0)
 
-            # 5. ටේබල් එකේ Column names ලස්සන කරමු
+            # Table එක පෙන්වීමට පෙර Rename කිරීම
             rename_dict = {
                 'Date': 'Date', 'Category': 'Material', 'Entity': 'Vehicle/Client', 
                 'Qty_Cubes': 'Qty', 'Rate_At_Time': 'Rate', 'Amount': 'Total Amount'
             }
             display_sales.rename(columns=rename_dict, inplace=True)
             
-            # Table එක පෙන්වීම
+            # UI එකේ Table එක පෙන්වීම
             st.dataframe(display_sales, use_container_width=True)
             
-            # 6. මුළු මුදල පෙන්වීම
-            total_daily_inc = display_sales['Total Amount'].sum()
+            # මුළු මුදල
+            total_daily_inc = pdf_ready_df['Amount'].sum()
             st.success(f"Selected Period Total Income: **LKR {total_daily_inc:,.2f}**")
             
             # 7. PDF Button එක
@@ -1005,11 +1003,14 @@ elif menu == "📑 Reports Center":
                 inc_summary = {
                     "Report Type": "Daily Income Statement",
                     "Period": f"{f_d} to {t_d}",
-                    "Total Items": len(display_sales),
+                    "Total Items": len(pdf_ready_df),
                     "Total Gross Income": f"LKR {total_daily_inc:,.2f}"
                 }
-                # PDF එක generate කරලා Download ලින්ක් එක දෙනවා
-                pdf_fn = create_pdf(f"Daily_Income", display_sales, inc_summary)
+                
+                # වැදගත්: මෙතනදී අපි යවන්නේ rename නොකළ pdf_ready_df එක
+                # එතකොට create_pdf function එකේ තියෙන logic එකට දත්ත ටික හරියට අහුවෙනවා
+                pdf_fn = create_pdf(f"Daily Income", pdf_ready_df, inc_summary)
+                
                 with open(pdf_fn, "rb") as f:
                     st.download_button("📩 Click to Download PDF", f, file_name=f"Income_Report_{f_d}.pdf")
         else:
