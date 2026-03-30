@@ -635,82 +635,71 @@ if st.sidebar.button("Logout 🔓", use_container_width=True, type="secondary"):
 # --- මෙතනින් පස්සේ ඔයාගේ පරණ කෝඩ් එකේ 'if menu == ...' කොටස් ආරම්භ කරන්න ---
 
 # --- 1. DASHBOARD SECTION (සම්පූර්ණ එකම මෙතන තියෙනවා) ---
-elif menu == "📊 Dashboard":
-    st.markdown("<h2 style='color: #2E86C1;'>📊 Business Overview</h2>", unsafe_allow_html=True)
-    
-    # 1. දත්ත කොපියක් ලබා ගැනීම
-    df = st.session_state.df.copy()
-    
-    if not df.empty:
-        # --- DATE FILTER ---
-        st.subheader("📅 Filter Transactions")
-        col_f1, col_f2 = st.columns(2)
-        with col_f1:
-            # timedelta පාවිච්චි කරන්න නම් උඩින්ම import කරලා තියෙන්න ඕනේ
-            from datetime import timedelta
-            start_date = st.date_input("From Date", datetime.now().date() - timedelta(days=7))
-        with col_f2:
-            end_date = st.date_input("To Date", datetime.now().date())
+# --- 6. DASHBOARD ---
+    elif menu == "📊 Dashboard":
+        st.markdown("<h2 style='color: #2E86C1;'>📊 Business Overview</h2>", unsafe_allow_html=True)
         
-        # Date column එක date format එකට හරවා ගැනීම
-        df['Date'] = pd.to_datetime(df['Date']).dt.date
-        mask = (df['Date'] >= start_date) & (df['Date'] <= end_date)
-        filtered_df = df.loc[mask].copy()
+        df = st.session_state.df.copy()
+        
+        if not df.empty:
+            st.subheader("📅 Filter Transactions")
+            col_f1, col_f2 = st.columns(2)
+            with col_f1:
+                from datetime import timedelta
+                start_date = st.date_input("From Date", datetime.now().date() - timedelta(days=7))
+            with col_f2:
+                end_date = st.date_input("To Date", datetime.now().date())
+            
+            df['Date'] = pd.to_datetime(df['Date']).dt.date
+            mask = (df['Date'] >= start_date) & (df['Date'] <= end_date)
+            filtered_df = df.loc[mask].copy()
 
-        if not filtered_df.empty:
-            # --- FINANCIAL METRICS ---
-            # Category එකේ "Sales Out" තියෙන ඒවා විතරක් පෙරීම
-            sales_df = filtered_df[filtered_df["Category"].str.contains("Sales Out", case=False, na=False)].copy()
-            
-            # Amount එක හෝ (Qty * Rate) ගණනය කිරීම
-            sales_df['Income'] = pd.to_numeric(sales_df['Amount'], errors='coerce').fillna(0)
-            
-            real_income = sales_df['Income'].sum()
-            total_expenses = pd.to_numeric(filtered_df[filtered_df["Type"] == "Expense"]["Amount"], errors='coerce').sum()
+            if not filtered_df.empty:
+                # Financial Metrics
+                sales_df = filtered_df[filtered_df["Category"].str.contains("Sales Out", case=False, na=False)].copy()
+                sales_df['Income'] = pd.to_numeric(sales_df['Amount'], errors='coerce').fillna(0)
+                
+                real_income = sales_df['Income'].sum()
+                total_expenses = pd.to_numeric(filtered_df[filtered_df["Type"] == "Expense"]["Amount"], errors='coerce').sum()
 
-            m1, m2, m3 = st.columns(3)
-            m1.metric("Net Sales Income", f"Rs. {real_income:,.2f}")
-            m2.metric("Total Expenses", f"Rs. {total_expenses:,.2f}")
-            m3.metric("Net Cashflow", f"Rs. {real_income - total_expenses:,.2f}", 
-                      delta=f"{((real_income - total_expenses)/real_income*100):.1f}% Margin" if real_income > 0 else None)
+                m1, m2, m3 = st.columns(3)
+                m1.metric("Net Sales Income", f"Rs. {real_income:,.2f}")
+                m2.metric("Total Expenses", f"Rs. {total_expenses:,.2f}")
+                m3.metric("Net Cashflow", f"Rs. {real_income - total_expenses:,.2f}", 
+                          delta=f"{((real_income - total_expenses)/real_income*100):.1f}% Margin" if real_income > 0 else None)
 
-            st.divider()
+                st.divider()
 
-            # ==========================================
-            # 📦 STOCK BALANCE (Current Stock)
-            # ==========================================
-            st.subheader("📦 Plant Stock Balance (Current)")
-            s_col1, s_col2 = st.columns(2)
-            
-            # Stock එක බලන්න මුළු ඉතිහාසයම ඕනේ (Filter එක අදාළ නැහැ)
-            full_df = st.session_state.df.copy()
-            
-            # Helper function එකක් වැලි සහ පස් වෙනුවට Stock ගණනය කරන්න
-            def get_stock(material_name):
-                in_q = pd.to_numeric(full_df[full_df["Category"].str.contains("Inward", case=False, na=False) & 
-                                             full_df["Category"].str.contains(material_name, case=False, na=False)]["Qty_Cubes"], errors='coerce').sum()
-                out_q = pd.to_numeric(full_df[full_df["Category"].str.contains("Sales Out", case=False, na=False) & 
-                                              full_df["Category"].str.contains(material_name, case=False, na=False)]["Qty_Cubes"], errors='coerce').sum()
-                return in_q, out_q
+                # Stock Balance
+                st.subheader("📦 Plant Stock Balance (Current)")
+                s_col1, s_col2 = st.columns(2)
+                full_df = st.session_state.df.copy()
+                
+                def get_stock(material_name):
+                    in_q = pd.to_numeric(full_df[full_df["Category"].str.contains("Inward", case=False, na=False) & 
+                                         full_df["Category"].str.contains(material_name, case=False, na=False)]["Qty_Cubes"], errors='coerce').sum()
+                    out_q = pd.to_numeric(full_df[full_df["Category"].str.contains("Sales Out", case=False, na=False) & 
+                                          full_df["Category"].str.contains(material_name, case=False, na=False)]["Qty_Cubes"], errors='coerce').sum()
+                    return in_q, out_q
 
-            # Sand & Soil Calculation
-            s_in, s_out = get_stock("Sand")
-            so_in, so_out = get_stock("Soil")
+                s_in, s_out = get_stock("Sand")
+                so_in, so_out = get_stock("Soil")
 
-            s_col1.metric("Sand Remaining", f"{s_in - s_out:.2f} Cubes", delta=f"In: {s_in} | Out: {s_out}")
-            s_col2.metric("Soil Remaining", f"{so_in - so_out:.2f} Cubes", delta=f"In: {so_in} | Out: {so_out}")
-            
-            st.divider()
-            
-            # Daily Trend Chart
-            st.subheader("Daily Income Trend")
-            trend_data = sales_df.groupby('Date')['Income'].sum()
-            st.line_chart(trend_data)
-            
-        else:
-            st.warning("තෝරාගත් දින පරාසය තුළ දත්ත නැත.")
-    else:
-        st.info("පද්ධතියේ දත්ත කිසිවක් නැත. කරුණාකර දත්ත ඇතුළත් කරන්න.")
+                s_col1.metric("Sand Remaining", f"{s_in - s_out:.2f} Cubes", delta=f"In: {s_in} | Out: {s_out}")
+                s_col2.metric("Soil Remaining", f"{so_in - so_out:.2f} Cubes", delta=f"In: {so_in} | Out: {so_out}")
+                
+                st.divider()
+                st.subheader("Daily Income Trend")
+                trend_data = sales_df.groupby('Date')['Income'].sum()
+                st.line_chart(trend_data)
+                
+            else:
+                st.warning("තෝරාගත් දින පරාසය තුළ දත්ත නැත.")
+        
+        # මෙන්න මෙතන තිබුණු else: එක මම අයින් කළා. 
+        # දත්ත නැතිනම් පෙන්වන්න ඕන message එක මෙතනට දැම්මා.
+        elif df.empty:
+            st.info("පද්ධතියේ දත්ත කිසිවක් නැත. කරුණාකර දත්ත ඇතුළත් කරන්න.")
 
 # --- 2. SITE OPERATIONS SECTION ---
 # මේ 'elif' එක පටන් ගන්න ඕනේ උඩ තියෙන 'if menu == "📊 Dashboard":' එකට කෙළින්ම පල්ලෙහායින්
