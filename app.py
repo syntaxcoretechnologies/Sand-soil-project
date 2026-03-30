@@ -1761,116 +1761,100 @@ elif menu == "⚙️ System Setup":
                     
 # --- මේක වෙනම Menu එකක් විදිහට පල්ලෙහායින් දාන්න ---
 elif menu == "👤 Manage Landowners":
-    st.markdown("<h2 style='color: #1E8449;'>👤 Landowner Management</h2>", unsafe_allow_html=True)
-    
-    # Tabs තුනක් හදමු - Register, Advance සහ View
-    l_tab1, l_tab2, l_tab3 = st.tabs(["🆕 Register Landowner", "💰 Give Advance", "📋 View All"])
+        st.markdown("<h2 style='color: #1E8449;'>👤 Landowner Management</h2>", unsafe_allow_html=True)
+        
+        # Tabs තුනක් හදමු - Register, Advance සහ View
+        l_tab1, l_tab2, l_tab3 = st.tabs(["🆕 Register Landowner", "💰 Give Advance", "📋 View All"])
 
-    # --- TAB 1: Register New Landowner ---
-    with l_tab1:
-        st.subheader("🆕 Add a New Landowner to System")
-        with st.form("landowner_reg_form", clear_on_submit=True):
-            col1, col2 = st.columns(2)
-            with col1:
-                l_name = st.text_input("Full Name")
-                l_addr = st.text_input("Land Location / Address")
-            with col2:
-                l_cont = st.text_input("Contact Number")
-                # කියුබ් එකක ගාණ ඇඩ් කරන තැන
-                l_rate = st.number_input("Rate Per Cube (LKR)", min_value=0.0, step=100.0)
-            
-            if st.form_submit_button("✅ Register Landowner"):
-                if l_name:
-                    # ඩියුප්ලිකේට් චෙක් එකක් (නම අනුව)
-                    if l_name not in st.session_state.lo_db["Name"].values:
-                        new_lo = pd.DataFrame([{
-                            "Name": l_name, 
-                            "Address": l_addr, 
-                            "Contact": l_cont, 
-                            "Rate_Per_Cube": l_rate
-                        }])
-                        
-                        st.session_state.lo_db = pd.concat([st.session_state.lo_db, new_lo], ignore_index=True)
-                        # CSV එකට සේව් කිරීම
-                        st.session_state.lo_db.to_csv(LANDOWNER_FILE, index=False)
-                        
-                        st.success(f"Registered {l_name} with Rate: Rs. {l_rate:,.2f}")
-                        st.rerun()
+        # --- TAB 1: Register New Landowner ---
+        with l_tab1:
+            st.subheader("🆕 Add a New Landowner to System")
+            with st.form("landowner_reg_form", clear_on_submit=True):
+                col1, col2 = st.columns(2)
+                with col1:
+                    l_name = st.text_input("Full Name")
+                    l_addr = st.text_input("Land Location / Address")
+                with col2:
+                    l_cont = st.text_input("Contact Number")
+                    l_rate = st.number_input("Rate Per Cube (LKR)", min_value=0.0, step=100.0)
+                
+                if st.form_submit_button("✅ Register Landowner"):
+                    if l_name:
+                        if l_name not in st.session_state.lo_db["Name"].values:
+                            new_lo = pd.DataFrame([{
+                                "Name": l_name, 
+                                "Address": l_addr, 
+                                "Contact": l_cont, 
+                                "Rate_Per_Cube": l_rate
+                            }])
+                            st.session_state.lo_db = pd.concat([st.session_state.lo_db, new_lo], ignore_index=True)
+                            save_all() # Cloud එකට සේව් කිරීම
+                            st.success(f"Registered {l_name} with Rate: Rs. {l_rate:,.2f}")
+                            st.rerun()
+                        else:
+                            st.error("This landowner is already registered.")
                     else:
-                        st.error("This landowner is already registered.")
-                else:
-                    st.error("Landowner Name is required!")
+                        st.error("Landowner Name is required!")
 
-    # --- TAB 2: Give Advance ---
-    with l_tab2:
-        st.subheader("💰 Record Advance Payment")
-        if not st.session_state.lo_db.empty:
-            with st.form("lo_advance_form", clear_on_submit=True):
-                lo_names = st.session_state.lo_db["Name"].tolist()
-                selected_lo = st.selectbox("Select Landowner", lo_names)
-                adv_date = st.date_input("Date", datetime.now().date())
-                adv_amount = st.number_input("Advance Amount (LKR)", min_value=0.0, step=1000.0)
-                adv_note = st.text_input("Reference Note (Ex: Cheque No, Bank)")
+        # --- TAB 2: Give Advance ---
+        with l_tab2:
+            st.subheader("💰 Record Advance Payment")
+            if not st.session_state.lo_db.empty:
+                with st.form("lo_advance_form", clear_on_submit=True):
+                    lo_names = st.session_state.lo_db["Name"].tolist()
+                    selected_lo = st.selectbox("Select Landowner", lo_names)
+                    adv_date = st.date_input("Date", datetime.now().date())
+                    adv_amount = st.number_input("Advance Amount (LKR)", min_value=0.0, step=1000.0)
+                    adv_note = st.text_input("Reference Note")
 
-                if st.form_submit_button("✅ Save Advance Payment"):
-                    if adv_amount > 0:
-                        # ප්‍රධාන සටහනට (Master DF) ඇතුළත් කිරීම
-                        # මෙතන Category එක 'Landowner Advance' නිසා Reports වලට auto අහු වෙනවා
-                        new_entry = {
-                            "ID": len(st.session_state.df) + 1,
-                            "Date": adv_date.strftime("%Y-%m-%d"),
-                            "Time": datetime.now().strftime("%H:%M:%S"),
-                            "Type": "Expense",
-                            "Category": "Landowner Advance", # මෙන්න මේ වචනය වැදගත්
-                            "Entity": selected_lo,
-                            "Note": adv_note,
-                            "Amount": adv_amount,
-                            "Qty_Cubes": 0, "Fuel_Ltr": 0, "Hours": 0, "Rate_At_Time": 0,
-                            "Status": "Paid"
-                        }
-                        st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_entry])], ignore_index=True)
-                        save_all() # Master data save කිරීම
-                        st.success(f"LKR {adv_amount:,.2f} advance paid to {selected_lo}!")
-                        st.rerun()
-        else:
-            st.info("No landowners registered yet. Use the first tab to add someone.")
+                    if st.form_submit_button("✅ Save Advance Payment"):
+                        if adv_amount > 0:
+                            new_entry = {
+                                "Date": str(adv_date),
+                                "Type": "Expense",
+                                "Category": "Landowner Advance",
+                                "Entity": selected_lo,
+                                "Note": adv_note,
+                                "Amount": adv_amount,
+                                "Qty_Cubes": 0, "Hours": 0, "Rate_At_Time": 0, "Status": "Paid"
+                            }
+                            try:
+                                conn.table("master_log").insert(new_entry).execute()
+                                st.session_state.df = load_data("master_log", cols_master)
+                                st.success(f"LKR {adv_amount:,.2f} advance paid to {selected_lo}!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error: {e}")
+            else:
+                st.info("No landowners registered yet.")
 
-    # --- TAB 3: View & Manage (Landowners) ---
+        # --- TAB 3: View & Manage (Landowners) ---
         with l_tab3:
             st.subheader("📋 Registered Landowners List")
             if not st.session_state.lo_db.empty:
                 st.dataframe(st.session_state.lo_db, use_container_width=True, hide_index=True)
-                
                 st.divider()
-                col_d1, col_d2 = st.columns([2, 1])
-                with col_d1:
-                    lo_to_del = st.selectbox("Select Landowner to Remove", st.session_state.lo_db["Name"].tolist(), key="del_lo_box")
-                with col_d2:
-                    st.write("") 
-                    st.write("") 
-                    if st.button("Delete Landowner ❌", use_container_width=True):
-                        st.session_state.lo_db = st.session_state.lo_db[st.session_state.lo_db["Name"] != lo_to_del]
-                        # CSV එක වෙනුවට save_all() කෝල් කරන්න පුළුවන් දැන්
-                        save_all() 
-                        st.warning(f"{lo_to_del} removed from database.")
-                        st.rerun()
+                lo_to_del = st.selectbox("Select Landowner to Remove", st.session_state.lo_db["Name"].tolist(), key="del_lo_box")
+                if st.button("Delete Landowner ❌"):
+                    st.session_state.lo_db = st.session_state.lo_db[st.session_state.lo_db["Name"] != lo_to_del]
+                    save_all()
+                    st.warning(f"{lo_to_del} removed.")
+                    st.rerun()
 
-    # --- 12. STAFF PAYROLL SECTION (දැන් මේකේ Indentation එක හරි) ---
+    # --- 12. STAFF PAYROLL SECTION (දැන් මේක හරියටම Align වෙලා තියෙන්නේ) ---
     elif menu == "👷 Staff Payroll":
         st.subheader("💳 Staff Salary & Advance Management")
         
-        # සේවකයන්ගේ නම් ටික ලිස්ට් එකකට ගැනීම
         if "staff_db" not in st.session_state or st.session_state.staff_db.empty:
-            st.warning("Please register staff members first in the 'System Setup' section.")
+            st.warning("Please register staff members first.")
         else:
             s_names = st.session_state.staff_db["Name"].tolist()
-            
             with st.form("staff_pay", clear_on_submit=True):
                 col1, col2 = st.columns(2)
                 with col1:
                     member = st.selectbox("Select Staff Member", s_names)
                     pay_date = st.date_input("Date", datetime.now().date())
-                    days = st.number_input("Work Days / Shift Count", min_value=0.0, step=0.5)
+                    days = st.number_input("Work Days / Shift", min_value=0.0, step=0.5)
                 with col2:
                     pay_type = st.selectbox("Payment Type", ["Salary", "Advance", "Food/Other"])
                     amount = st.number_input("Amount (LKR)", min_value=0.0, step=500.0)
@@ -1889,7 +1873,6 @@ elif menu == "👤 Manage Landowners":
                             "Qty_Cubes": 0, "Hours": days, "Rate_At_Time": 0, "Status": "Paid"
                         }
                         try:
-                            # Supabase එකට කෙලින්ම යැවීම
                             conn.table("master_log").insert(new_staff_data).execute()
                             st.session_state.df = load_data("master_log", cols_master)
                             st.success(f"Rs. {amount:,.2f} saved for {member}!")
