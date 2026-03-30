@@ -1703,7 +1703,7 @@ elif menu == "👤 Manage Landowners":
                     st.warning(f"{lo_to_del} removed.")
                     st.rerun()
 
-    # --- 12. STAFF PAYROLL SECTION (දැන් මේක හරියටම Align වෙලා තියෙන්නේ) ---
+# --- 12. STAFF PAYROLL SECTION (දැන් මේක හරියටම Align වෙලා තියෙන්නේ) ---
     elif menu == "👷 Staff Payroll":
         st.subheader("💳 Staff Salary & Advance Management")
         
@@ -1741,9 +1741,8 @@ elif menu == "👤 Manage Landowners":
                             st.rerun()
                         except Exception as e:
                             st.error(f"Cloud Sync Error: {e}")
+    
 
-
-# --- 11. DATA MANAGER (EDIT / DELETE) ---
 # --- DATA MANAGER SECTION ---
     elif menu == "⚙️ Data Manager":
         st.markdown(f"<h2 style='color: #E67E22;'>⚙️ Data Manager</h2>", unsafe_allow_html=True)
