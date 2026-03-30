@@ -967,54 +967,60 @@ elif menu == "📑 Reports Center":
         # 1. Clean columns
         df_f.columns = [str(c).strip() for c in df_f.columns]
         
-        # 2. Sales Out records විතරක් පෙරමු
-        daily_sales = df_f[df_f["Category"].str.contains("Sales Out", case=False, na=False)].copy()
+        # 2. වැදගත්ම වෙනස: Sales Out හෝ Expense (වියදම්) තියෙන ඔක්කොම ගන්නවා
+        # Category එකේ 'Sales Out' තියෙන ඒවා සහ Type එක 'Expense' තියෙන ඒවා පෙරමු
+        daily_report_data = df_f[
+            (df_f["Category"].str.contains("Sales Out", case=False, na=False)) | 
+            (df_f["Type"] == "Expense")
+        ].copy()
         
-        if not daily_sales.empty:
-            # --- මෙතන තමයි වැදගත්ම කොටස ---
-            # PDF එකට යවන්න original column names සහිත DataFrame එකක් තියාගමු
-            pdf_ready_df = daily_sales.copy()
+        if not daily_report_data.empty:
+            # PDF එකට යවන්න original column names සහිත DataFrame එකක්
+            pdf_ready_df = daily_report_data.copy()
             
-            # පෙන්වන ටේබල් එක සඳහා rename කරමු
-            display_sales = daily_sales.copy()
+            # පෙන්වන ටේබල් එක (User ට පෙන්වද්දී විකුණුම් විතරක් පෙන්නන්න ඕනේ නම් මේක තියන්න)
+            display_sales = daily_report_data[daily_report_data["Category"].str.contains("Sales Out", case=False, na=False)].copy()
             
             # දත්ත Numbers බව තහවුරු කරගමු
             for col in ['Amount', 'Qty_Cubes', 'Rate_At_Time']:
-                if col in display_sales.columns:
-                    display_sales[col] = pd.to_numeric(display_sales[col], errors='coerce').fillna(0)
+                if col in daily_report_data.columns:
                     pdf_ready_df[col] = pd.to_numeric(pdf_ready_df[col], errors='coerce').fillna(0)
 
-            # Table එක පෙන්වීමට පෙර Rename කිරීම
+            # --- UI එකේ Summary එක පෙන්වීම ---
+            total_sales = pdf_ready_df[pdf_ready_df["Category"].str.contains("Sales Out", na=False)]['Amount'].sum()
+            total_expenses = pdf_ready_df[pdf_ready_df["Type"] == "Expense"]['Amount'].sum()
+            net_bal = total_sales - total_expenses
+
+            col_s1, col_s2, col_s3 = st.columns(3)
+            col_s1.metric("Gross Sales", f"LKR {total_sales:,.2f}")
+            col_s2.metric("Total Expenses", f"LKR {total_expenses:,.2f}", delta_color="inverse")
+            col_s3.metric("Net Settlement", f"LKR {net_bal:,.2f}")
+
+            # UI Table (Sales පමණක් පෙන්වමු ලස්සනට)
             rename_dict = {
                 'Date': 'Date', 'Category': 'Material', 'Entity': 'Vehicle/Client', 
                 'Qty_Cubes': 'Qty', 'Rate_At_Time': 'Rate', 'Amount': 'Total Amount'
             }
-            display_sales.rename(columns=rename_dict, inplace=True)
-            
-            # UI එකේ Table එක පෙන්වීම
-            st.dataframe(display_sales, use_container_width=True)
-            
-            # මුළු මුදල
-            total_daily_inc = pdf_ready_df['Amount'].sum()
-            st.success(f"Selected Period Total Income: **LKR {total_daily_inc:,.2f}**")
+            st.dataframe(display_sales.rename(columns=rename_dict), use_container_width=True)
             
             # 7. PDF Button එක
-            if st.button("📥 Download Daily Income PDF"):
+            if st.button("📥 Download Daily Settlement PDF"):
                 inc_summary = {
-                    "Report Type": "Daily Income Statement",
+                    "Report Type": "Daily Settlement Statement",
                     "Period": f"{f_d} to {t_d}",
-                    "Total Items": len(pdf_ready_df),
-                    "Total Gross Income": f"LKR {total_daily_inc:,.2f}"
+                    "Total Records": len(pdf_ready_df),
+                    "Gross Earnings": f"LKR {total_sales:,.2f}",
+                    "Total Expenses": f"LKR {total_expenses:,.2f}",
+                    "Net Balance": f"LKR {net_bal:,.2f}"
                 }
                 
-                # වැදගත්: මෙතනදී අපි යවන්නේ rename නොකළ pdf_ready_df එක
-                # එතකොට create_pdf function එකේ තියෙන logic එකට දත්ත ටික හරියට අහුවෙනවා
-                pdf_fn = create_pdf(f"Daily Income", pdf_ready_df, inc_summary)
+                # මෙතනදී pdf_ready_df එකේ දැන් Sales සහ Expenses දෙකම තියෙනවා
+                pdf_fn = create_pdf(f"Daily_Settlement", pdf_ready_df, inc_summary)
                 
                 with open(pdf_fn, "rb") as f:
-                    st.download_button("📩 Click to Download PDF", f, file_name=f"Income_Report_{f_d}.pdf")
+                    st.download_button("📩 Click to Download PDF", f, file_name=f"Settlement_Report_{f_d}.pdf")
         else:
-            st.warning("තෝරාගත් දින පරාසය තුළ Sales records කිසිවක් නැත.")
+            st.warning("තෝරාගත් දින පරාසය තුළ දත්ත කිසිවක් නැත.")
             
     # --- TAB: PROFIT/LOSS ANALYSIS ---
     with r_prof:
