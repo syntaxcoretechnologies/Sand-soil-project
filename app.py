@@ -777,7 +777,7 @@ elif menu == "🏗️ Site Operations":
             temp_df['Date'] = pd.to_datetime(temp_df['Date'], errors='coerce').dt.date
             today_df = temp_df[temp_df["Date"] == datetime.now().date()].copy()
             if not today_df.empty:
-                st.dataframe(today_df.sort_values(by="ID", ascending=False), use_container_width=True)
+                st.dataframe(today_df.sort_values(by="id", ascending=False), use_container_width=True)
     
     # --- 8. FINANCE & SHED ---
 elif menu == "💰 Finance & Shed":
