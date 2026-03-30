@@ -1835,37 +1835,36 @@ elif menu == "👤 Manage Landowners":
         else:
             st.info("No landowners registered yet. Use the first tab to add someone.")
 
-    # --- TAB 3: View & Manage ---
-    with l_tab3:
-        st.subheader("📋 Registered Landowners List")
-        if not st.session_state.lo_db.empty:
-            st.dataframe(st.session_state.lo_db, use_container_width=True, hide_index=True)
-            
-            st.divider()
-            col_d1, col_d2 = st.columns([2, 1])
-            with col_d1:
-                lo_to_del = st.selectbox("Select Landowner to Remove", st.session_state.lo_db["Name"].tolist(), key="del_lo_box")
-            with col_d2:
-                st.write("") # Padding
-                st.write("") 
-                if st.button("Delete Landowner ❌", use_container_width=True):
-                    st.session_state.lo_db = st.session_state.lo_db[st.session_state.lo_db["Name"] != lo_to_del]
-                    st.session_state.lo_db.to_csv(LANDOWNER_FILE, index=False)
-                    st.warning(f"{lo_to_del} removed from database.")
-                    st.rerun()
+    # --- TAB 3: View & Manage (Landowners) ---
+        with l_tab3:
+            st.subheader("📋 Registered Landowners List")
+            if not st.session_state.lo_db.empty:
+                st.dataframe(st.session_state.lo_db, use_container_width=True, hide_index=True)
                 
-# --- 12. STAFF PAYROLL SECTION ---
+                st.divider()
+                col_d1, col_d2 = st.columns([2, 1])
+                with col_d1:
+                    lo_to_del = st.selectbox("Select Landowner to Remove", st.session_state.lo_db["Name"].tolist(), key="del_lo_box")
+                with col_d2:
+                    st.write("") 
+                    st.write("") 
+                    if st.button("Delete Landowner ❌", use_container_width=True):
+                        st.session_state.lo_db = st.session_state.lo_db[st.session_state.lo_db["Name"] != lo_to_del]
+                        # CSV එක වෙනුවට save_all() කෝල් කරන්න පුළුවන් දැන්
+                        save_all() 
+                        st.warning(f"{lo_to_del} removed from database.")
+                        st.rerun()
+
+    # --- 12. STAFF PAYROLL SECTION (දැන් මේකේ Indentation එක හරි) ---
     elif menu == "👷 Staff Payroll":
         st.subheader("💳 Staff Salary & Advance Management")
         
-        # 1. සේවකයන්ගේ නම් ටික ලිස්ට් එකකට ගැනීම
-        # (ඔයාගේ staff_db එකේ 'Name' column එක තියෙනවා නේද කියලා බලන්න)
+        # සේවකයන්ගේ නම් ටික ලිස්ට් එකකට ගැනීම
         if "staff_db" not in st.session_state or st.session_state.staff_db.empty:
             st.warning("Please register staff members first in the 'System Setup' section.")
         else:
             s_names = st.session_state.staff_db["Name"].tolist()
             
-            # 2. Payment Form එක
             with st.form("staff_pay", clear_on_submit=True):
                 col1, col2 = st.columns(2)
                 with col1:
@@ -1876,11 +1875,10 @@ elif menu == "👤 Manage Landowners":
                     pay_type = st.selectbox("Payment Type", ["Salary", "Advance", "Food/Other"])
                     amount = st.number_input("Amount (LKR)", min_value=0.0, step=500.0)
                 
-                note = st.text_input("Additional Note (Ex: OT, Bonus, Deduction)")
+                note = st.text_input("Additional Note")
                 
-                if st.form_submit_button("✅ Save Staff Payment & Sync"):
+                if st.form_submit_button("✅ Save Staff Payment"):
                     if amount > 0:
-                        # Cloud එකට යවන අලුත් දත්ත පෙළ
                         new_staff_data = {
                             "Date": str(pay_date), 
                             "Type": "Expense",
@@ -1888,25 +1886,16 @@ elif menu == "👤 Manage Landowners":
                             "Entity": member, 
                             "Note": f"Days: {days} | {note}", 
                             "Amount": amount,
-                            "Qty_Cubes": 0, 
-                            "Hours": days, 
-                            "Rate_At_Time": 0, 
-                            "Status": "Paid"
+                            "Qty_Cubes": 0, "Hours": days, "Rate_At_Time": 0, "Status": "Paid"
                         }
-                        
                         try:
-                            # 1. Supabase එකට දත්ත යැවීම
+                            # Supabase එකට කෙලින්ම යැවීම
                             conn.table("master_log").insert(new_staff_data).execute()
-                            
-                            # 2. සාර්ථක නම් දත්ත ආපහු Load කරගැනීම
                             st.session_state.df = load_data("master_log", cols_master)
-                            
-                            st.success(f"Rs. {amount:,.2f} {pay_type} saved for {member}!")
+                            st.success(f"Rs. {amount:,.2f} saved for {member}!")
                             st.rerun()
                         except Exception as e:
                             st.error(f"Cloud Sync Error: {e}")
-                    else:
-                        st.error("Amount must be greater than 0.")
 
 
 # --- 11. DATA MANAGER (EDIT / DELETE) ---
