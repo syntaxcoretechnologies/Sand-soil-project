@@ -1854,53 +1854,57 @@ elif menu == "👤 Manage Landowners":
                     st.warning(f"{lo_to_del} removed from database.")
                     st.rerun()
                 
-# --- 12. staff payroll (මේ කොටස අලුතින් ඇතුළත් කරන්න) ---
-# --- STAFF PAYROLL SECTION ---
+# --- 12. STAFF PAYROLL SECTION ---
     elif menu == "👷 Staff Payroll":
         st.subheader("💳 Staff Salary & Advance Management")
         
-        # 1. සේවකයන්ගේ නම් ටික ලිස්ට් එකකට ගැනීම (Variable names ඔයාගේ ඒවාමයි)
-        s_names = st.session_state.staff_db["Name"].tolist() if not st.session_state.staff_db.empty else []
-        
-        if not s_names:
+        # 1. සේවකයන්ගේ නම් ටික ලිස්ට් එකකට ගැනීම
+        # (ඔයාගේ staff_db එකේ 'Name' column එක තියෙනවා නේද කියලා බලන්න)
+        if "staff_db" not in st.session_state or st.session_state.staff_db.empty:
             st.warning("Please register staff members first in the 'System Setup' section.")
         else:
+            s_names = st.session_state.staff_db["Name"].tolist()
+            
             # 2. Payment Form එක
             with st.form("staff_pay", clear_on_submit=True):
                 col1, col2 = st.columns(2)
                 with col1:
                     member = st.selectbox("Select Staff Member", s_names)
                     pay_date = st.date_input("Date", datetime.now().date())
-                    days = st.number_input("Work Days / Shift Count", min_value=0, step=1)
+                    days = st.number_input("Work Days / Shift Count", min_value=0.0, step=0.5)
                 with col2:
                     pay_type = st.selectbox("Payment Type", ["Salary", "Advance", "Food/Other"])
                     amount = st.number_input("Amount (LKR)", min_value=0.0, step=500.0)
                 
                 note = st.text_input("Additional Note (Ex: OT, Bonus, Deduction)")
                 
-                if st.form_submit_button("✅ Save Staff Payment"):
+                if st.form_submit_button("✅ Save Staff Payment & Sync"):
                     if amount > 0:
-                        # Main Database (st.session_state.df) එකට දත්ත එකතු කිරීම
+                        # Cloud එකට යවන අලුත් දත්ත පෙළ
                         new_staff_data = {
-                            "ID": len(st.session_state.df) + 1, 
-                            "Date": pay_date.strftime("%Y-%m-%d"), 
-                            "Time": datetime.now().strftime("%H:%M:%S"), 
+                            "Date": str(pay_date), 
                             "Type": "Expense",
-                            "Category": f"Staff {pay_type}", # Staff Salary / Staff Advance විදිහට වැටේ
-                            "Entity": member, # මෙතනට නම දැම්මම Report එකට ලේසියි
+                            "Category": f"Staff {pay_type}", 
+                            "Entity": member, 
                             "Note": f"Days: {days} | {note}", 
                             "Amount": amount,
                             "Qty_Cubes": 0, 
-                            "Fuel_Ltr": 0, 
-                            "Hours": days, # වැඩ කරපු දවස් ගණන
+                            "Hours": days, 
                             "Rate_At_Time": 0, 
                             "Status": "Paid"
                         }
                         
-                        st.session_state.df = pd.concat([st.session_state.df, pd.DataFrame([new_staff_data])], ignore_index=True)
-                        save_all() # Cloud එකට සේව් කිරීම
-                        st.success(f"Rs. {amount:,.2f} {pay_type} saved for {member}!")
-                        st.rerun()
+                        try:
+                            # 1. Supabase එකට දත්ත යැවීම
+                            conn.table("master_log").insert(new_staff_data).execute()
+                            
+                            # 2. සාර්ථක නම් දත්ත ආපහු Load කරගැනීම
+                            st.session_state.df = load_data("master_log", cols_master)
+                            
+                            st.success(f"Rs. {amount:,.2f} {pay_type} saved for {member}!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Cloud Sync Error: {e}")
                     else:
                         st.error("Amount must be greater than 0.")
 
