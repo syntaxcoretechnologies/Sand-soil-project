@@ -928,7 +928,7 @@ elif menu == "💰 Finance & Shed":
                         st.error(f"Error syncing with Cloud: {e}")
 
     # කලින් තිබුණ if/elif පේළියට කෙලින්ම යටින් මෙය තිබිය යුතුය
-   elif fin == "💸 Payroll":
+     elif fin == "💸 Payroll":
         st.subheader("💸 Staff Payroll & Advances")
         dr_names = st.session_state.dr_db["Name"].tolist() if not st.session_state.dr_db.empty else ["N/A"]
         
@@ -971,7 +971,7 @@ elif menu == "💰 Finance & Shed":
                         st.success(f"Payment of Rs. {am:,.2f} recorded for {dr}")
                         st.rerun()
                     except Exception as e:
-                        st.error(f"Sync error: {e}")
+                        st.error(f"Sync error: {e}")   
                         
     elif fin == "🏦 Owner Advances":
         st.subheader("🏦 Landowner Advances & Payments")
