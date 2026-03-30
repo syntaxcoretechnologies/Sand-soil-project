@@ -53,42 +53,30 @@ def load_data(table_name, cols):
         return pd.DataFrame(columns=cols)
         
 # --- 3. SAVE ENGINE (Cloud Updated) ---
-def save_all():
-    """CSV වලට සේව් කරනවා වෙනුවට Cloud Tables වලට දත්ත යවයි"""
+# --- පරණ save_all වෙනුවට මේක දාන්න ---
+def save_master_record(record_dict):
+    """අලුත් Master Log Record එකක් පමණක් සේව් කරයි"""
     try:
-        # 1. Master Log එක සේව් කිරීම (අන්තිමට එකතු කරපු Row එක විතරක්)
-        if not st.session_state.df.empty:
-            last_row = st.session_state.df.iloc[-1].to_dict()
-            # Date එක string එකක් කළ යුතුයි JSON සඳහා
-            if 'Date' in last_row: last_row['Date'] = str(last_row['Date'])
-            # ID එක Supabase එකෙන්ම හැදෙන නිසා අයින් කරන්න
-            if 'id' in last_row: del last_row['id']
-            conn.table("master_log").insert(last_row).execute()
-
-        # 2. Vehicles සේව් කිරීම
-        if not st.session_state.ve_db.empty:
-            last_v = st.session_state.ve_db.iloc[-1].to_dict()
-            if 'id' in last_v: del last_v['id']
-            conn.table("vehicles").insert(last_v).execute()
-
-        # 3. Drivers සේව් කිරීම
-        if not st.session_state.dr_db.empty:
-            last_d = st.session_state.dr_db.iloc[-1].to_dict()
-            if 'id' in last_d: del last_d['id']
-            conn.table("drivers").insert(last_d).execute()
-
-        # 4. Landowners සේව් කිරීම
-        if 'landowners' in st.session_state and st.session_state.landowners:
-            # මේක list එකක් නම් DataFrame එකක් කරලා අන්තිම එක ගන්නවා
-            lo_df = pd.DataFrame(st.session_state.landowners)
-            last_lo = lo_df.iloc[-1].to_dict()
-            if 'id' in last_lo: del last_lo['id']
-            conn.table("landowners").insert(last_lo).execute()
-
-        st.success("✅ Cloud Synced Successfully!")
+        data_to_save = record_dict.copy()
+        if 'id' in data_to_save: del data_to_save['id']
+        if 'Date' in data_to_save: data_to_save['Date'] = str(data_to_save['Date'])
         
+        conn.table("master_log").insert(data_to_save).execute()
+        st.success("✅ Cloud Synced Successfully!")
+        st.rerun() # මේක අනිවාර්යයි duplicate නොවී ඉන්න
     except Exception as e:
         st.error(f"❌ Cloud Save Error: {e}")
+
+def save_setup_item(table_name, item_dict):
+    """Setup (Vehicles/Drivers/Landowners) දත්ත සේව් කිරීමට"""
+    try:
+        data_to_save = item_dict.copy()
+        if 'id' in data_to_save: del data_to_save['id']
+        conn.table(table_name).insert(data_to_save).execute()
+        st.success(f"✅ {table_name} Added!")
+        st.rerun()
+    except Exception as e:
+        st.error(f"❌ Setup Save Error: {e}")
 
 # --- 4. SESSION STATE (Cloud Initialization) ---
 
@@ -747,50 +735,47 @@ elif menu == "🏗️ Site Operations":
             n = st.text_input("Additional Note")
             
             if st.form_submit_button("📥 Save Record & Sync to Cloud"):
-                if val <= 0 or r <= 0: 
-                    st.error("Please enter valid Qty/Hours and Rate!")
-                else:
-                    cat = f"{op} ({material})" if material else op
-                    calculated_amount = val * r
-                    q = val if "Cubes" in val_label else 0
-                    h = val if "Hours" in val_label else 0
+            if val <= 0 or r <= 0: 
+                st.error("Please enter valid Qty/Hours and Rate!")
+            else:
+                cat = f"{op} ({material})" if material else op
+                calculated_amount = val * r
+                q = val if "Cubes" in val_label else 0
+                h = val if "Hours" in val_label else 0
+                
+                final_note = n
+                if op == "📥 Stock Inward (To Plant)":
+                    final_note = f"{n} | Owner: {src_owner} | Drv: {src_driver}"
+                
+                new_data = {
+                    "Date": str(d),
+                    "Type": "Income" if op == "💰 Sales Out" else "Process",
+                    "Category": cat,
+                    "Entity": v,
+                    "Note": final_note,
+                    "Amount": calculated_amount,
+                    "Qty_Cubes": q,
+                    "Hours": h,
+                    "Fuel_Ltr": 0,
+                    "Rate_At_Time": r,
+                    "Status": "Done"
+                }
+                
+                try:
+                    # 1. Cloud එකට දත්ත යැවීම
+                    conn.table("master_log").insert(new_data).execute()
                     
-                    final_note = n
-                    if op == "📥 Stock Inward (To Plant)":
-                        final_note = f"{n} | Owner: {src_owner} | Drv: {src_driver}"
+                    # 2. සාර්ථක පණිවිඩය පෙන්වීම
+                    st.success(f"Successfully Recorded! Total: Rs.{calculated_amount:,.2f}")
                     
-                    new_data = {
-                        "Date": str(d),
-                        "Type": "Income" if op == "💰 Sales Out" else "Process",
-                        "Category": cat,
-                        "Entity": v,
-                        "Note": final_note,
-                        "Amount": calculated_amount,
-                        "Qty_Cubes": q,
-                        "Hours": h,
-                        "Fuel_Ltr": 0,
-                        "Rate_At_Time": r,
-                        "Status": "Done"
-                    }
+                    # 3. වැදගත්ම දේ: App එක Rerun කරලා Form එක Clear කිරීම
+                    # මම මේකට st.balloons() එකකුත් දැම්මා ලස්සනට පේන්න
+                    st.balloons()
+                    st.rerun() 
                     
-                    try:
-                        conn.table("master_log").insert(new_data).execute()
-                        st.session_state.df = load_data("master_log", cols_master)
-                        st.success(f"Successfully Recorded! Total: Rs.{calculated_amount:,.2f}")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Error syncing with Cloud: {e}")
-
-        # Summary Table
-        st.divider()
-        st.subheader("📅 Today's Logs Summary")
-        temp_df = st.session_state.df.copy()
-        if not temp_df.empty:
-            temp_df['Date'] = pd.to_datetime(temp_df['Date'], errors='coerce').dt.date
-            today_df = temp_df[temp_df["Date"] == datetime.now().date()].copy()
-            if not today_df.empty:
-                st.dataframe(today_df.sort_values(by="id", ascending=False), use_container_width=True)
-    
+                except Exception as e:
+                    st.error(f"Error syncing with Cloud: {e}")
+                    
     # --- 8. FINANCE & SHED ---
 elif menu == "💰 Finance & Shed":
         st.markdown(f"<h2 style='color: #2E86C1;'>💰 Finance & Shed Management</h2>", unsafe_allow_html=True)
@@ -1400,28 +1385,27 @@ elif menu == "📑 Reports Center":
                 
     # --- TAB 3: DAILY LOG (FULL AUDIT TRAIL) ---
     with r3:
-        st.subheader("📋 Master Daily Transaction Log")
+    st.subheader("📋 Master Daily Transaction Log")
+    
+    if not df_f.empty:
+        # 1. Column ටික ඔයාගේ database එකේ හැටියට හදමු
+        log_cols = ['Date', 'Type', 'Category', 'Vehicle', 'Qty_Cubes', 'Hours', 'Amount', 'Note']
+        available_log_cols = [c for c in log_cols if c in df_f.columns]
         
-        if not df_f.empty:
-            # 1. පෙන්වන්න ඕනේ Column ටික සහ ඒවායේ පිළිවෙළ හදමු
-            # මේකෙන් අනවශ්‍ය internal ID columns වගේ ඒවා අයින් වෙනවා
-            log_cols = ['Date', 'Type', 'Category', 'Entity', 'Qty_Cubes', 'Work_Hours', 'Amount', 'Note']
-            available_log_cols = [c for c in log_cols if c in df_f.columns]
-            
-            # 2. අලුත්ම දත්ත ටික උඩට එන විදිහට Sort කරමු (Latest First)
-            display_log = df_f[available_log_cols].sort_values(by='Date', ascending=False)
-            
-            # 3. Table එක ලස්සනට පෙන්වීම
-            st.dataframe(
-                display_log.style.format({
-                    "Amount": "{:,.2f}", 
-                    "Qty_Cubes": "{:,.2f}",
-                    "Work_Hours": "{:,.2f}"
-                }), 
-                use_container_width=True,
-                height=500 # Table එකේ උස පාලනය කිරීම (ගොඩක් data තිබුණොත් ලේසියි)
-            )
-            
+        display_log = df_f[available_log_cols].sort_values(by='Date', ascending=False)
+        
+        st.dataframe(
+            display_log.style.format({
+                "Amount": "{:,.2f}", 
+                "Qty_Cubes": "{:,.2f}",
+                "Hours": "{:,.2f}"
+            }), 
+            use_container_width=True,
+            height=500,
+            hide_index=True # Index එක අයින් කළාම ලස්සනයි
+        )
+        
+        # summary & download buttons... (ඔයාගේ ඉතිරි කෝඩ් එක එහෙම්මම තියන්න)
             # 4. පොඩි Summary එකක් පහළින් පෙන්වමු
             total_entries = len(display_log)
             st.caption(f"Showing {total_entries} transactions for the selected period.")
