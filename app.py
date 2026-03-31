@@ -878,29 +878,50 @@ elif menu == "💰 Finance & Shed":
                         except Exception as e: st.error(f"Error: {e}")
 
         elif fin == "🏦 Owner Advances":
-            st.subheader("🏦 Landowner Advances")
-            l_names = st.session_state.lo_db["Name"].tolist() if not st.session_state.lo_db.empty else ["N/A"]
+            st.subheader("🚛 Vehicle Owner Advances")
+            
+            # 1. Landowner වෙනුවට Vehicle Owner ලිස්ට් එක මෙතනින් ගන්නවා
+            # සාමාන්‍යයෙන් ඔයාගේ වාහන අයිතිකාරයෝ ඉන්නේ 'vo_db' එකේ නම් ඒක පාවිච්චි කරන්න
+            vo_names = st.session_state.vo_db["Name"].tolist() if "vo_db" in st.session_state and not st.session_state.vo_db.empty else ["N/A"]
+            
             with st.form("own_adv", clear_on_submit=True):
                 col1, col2 = st.columns(2)
                 with col1:
                     d = st.date_input("Date", datetime.now().date())
-                    owner = st.selectbox("Landowner", l_names)
+                    # 2. මෙතන 'Landowner' කියන එක 'Vehicle Owner' ලෙස වෙනස් කළා
+                    owner = st.selectbox("Vehicle Owner", vo_names)
                 with col2:
                     am = st.number_input("Amount (LKR)", min_value=0.0)
-                    v_rel = st.selectbox("Related Site/Vehicle", v_list)
+                    v_rel = st.selectbox("Related Vehicle", v_list)
+                
                 nt = st.text_input("Note")
-                if st.form_submit_button("Save"):
+                
+                if st.form_submit_button("Save Advance"):
                     if am > 0:
                         adv_data = {
-                            "Date": str(d), "Type": "Expense", "Category": "Owner Advance",
-                            "Entity": v_rel, "Note": f"Owner: {owner} | {nt}", "Amount": am,
-                            "Qty_Cubes": 0, "Fuel_Ltr": 0, "Hours": 0, "Rate_At_Time": 0, "Status": "Paid"
+                            "Date": str(d), 
+                            "Type": "Expense", 
+                            "Category": "Vehicle Owner Advance", # Category එකත් පැහැදිලිව වෙනස් කළා
+                            "Entity": v_rel, 
+                            "Note": f"Owner: {owner} | {nt}", 
+                            "Amount": am,
+                            "Qty_Cubes": 0, 
+                            "Fuel_Ltr": 0, 
+                            "Hours": 0, 
+                            "Rate_At_Time": 0, 
+                            "Status": "Paid"
                         }
                         try:
+                            # Cloud සේව් කිරීම
                             conn.table("master_log").insert(adv_data).execute()
+                            
+                            # Local State එක Refresh කිරීම
                             st.session_state.df = load_data("master_log", cols_master)
-                            st.success("Saved!"); st.rerun()
-                        except Exception as e: st.error(f"Error: {e}")
+                            
+                            st.success(f"✅ Advance of Rs.{am:,.2f} recorded for {owner}")
+                            st.rerun()
+                        except Exception as e: 
+                            st.error(f"Error: {e}")
 
         elif fin == "🧾 Others":
             st.subheader("🧾 Other Expenses")
