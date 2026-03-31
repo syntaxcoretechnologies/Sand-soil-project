@@ -1611,6 +1611,7 @@ elif menu == "⚙️ System Setup":
         with setup_tab3:
             st.subheader("👷 Add New Staff Member")
             
+            # --- අලුත් Staff කෙනෙක්ව ඇතුළත් කරන Form එක ---
             with st.form("staff_reg_form", clear_on_submit=True):
                 col1, col2 = st.columns(2)
                 with col1:
@@ -1621,17 +1622,18 @@ elif menu == "⚙️ System Setup":
                     
                 if st.form_submit_button("✅ Register Staff"):
                     if s_name:
+                        # දැනට ඉන්නවද කියලා Check කිරීම
                         if s_name not in st.session_state.staff_db["Name"].values:
                             try:
-                                # --- SUPABASE එකට DIRECT INSERT කිරීම ---
                                 new_staff = {
                                     "Name": s_name,
                                     "Position": s_pos,
                                     "Daily_Rate": s_rate
                                 }
+                                # Supabase එකට Insert කිරීම
                                 conn.table("staff").insert(new_staff).execute()
                                 
-                                # Local Session එක Update කිරීම
+                                # Local List එක Update කිරීම
                                 new_s_df = pd.DataFrame([new_staff])
                                 st.session_state.staff_db = pd.concat([st.session_state.staff_db, new_s_df], ignore_index=True)
                                 
@@ -1643,10 +1645,58 @@ elif menu == "⚙️ System Setup":
                             st.error("This member is already registered!")
                     else:
                         st.warning("Please enter the Staff Name.")
-        
-            # ලියාපදිංචි අයගේ ලැයිස්තුව පෙන්නන්න
+            
+            # --- ලියාපදිංචි අයගේ ලැයිස්තුව සහ Edit/Delete පහසුකම ---
             if not st.session_state.staff_db.empty:
                 st.divider()
+                st.subheader("📝 Manage Registered Staff")
+                
+                # Manage කරන්න ඕන කෙනාව තෝරගන්න Dropdown එක
+                staff_names = st.session_state.staff_db["Name"].tolist()
+                selected_staff = st.selectbox("Select Member to Edit or Delete", ["-- Select Member --"] + staff_names)
+                
+                if selected_staff != "-- Select Member --":
+                    # තෝරාගත් කෙනාගේ දත්ත වෙනම පෙන්වීම
+                    staff_info = st.session_state.staff_db[st.session_state.staff_db["Name"] == selected_staff].iloc[0]
+                    
+                    with st.expander(f"⚙️ Edit Details: {selected_staff}", expanded=True):
+                        e_col1, e_col2 = st.columns(2)
+                        with e_col1:
+                            edit_name = st.text_input("Full Name", staff_info["Name"])
+                            edit_pos = st.text_input("Position", staff_info["Position"])
+                        with e_col2:
+                            edit_rate = st.number_input("Daily Rate (Rs.)", value=float(staff_info["Daily_Rate"]))
+                        
+                        btn_col1, btn_col2, _ = st.columns([1, 1, 2])
+                        
+                        # --- UPDATE කොටස ---
+                        if btn_col1.button("💾 Update Details"):
+                            try:
+                                updated_data = {
+                                    "Name": edit_name,
+                                    "Position": edit_pos,
+                                    "Daily_Rate": edit_rate
+                                }
+                                # Cloud Update (පරණ නම පාවිච්චි කරමින්)
+                                conn.table("staff").update(updated_data).eq("Name", selected_staff).execute()
+                                st.success(f"✅ {selected_staff} updated successfully!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Update Error: {e}")
+
+                        # --- DELETE කොටස ---
+                        if btn_col2.button("🗑️ Delete Staff"):
+                            try:
+                                # Cloud Delete
+                                conn.table("staff").delete().eq("Name", selected_staff).execute()
+                                st.warning(f"🚫 {selected_staff} removed from system.")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Delete Error: {e}")
+                
+                # සම්පූර්ණ ලිස්ට් එක Table එකක් විදිහට පහළින් පෙන්වීම
+                st.divider()
+                st.caption("Current Staff Registry")
                 st.dataframe(st.session_state.staff_db, use_container_width=True, hide_index=True)
                     
 # --- මේක වෙනම Menu එකක් විදිහට පල්ලෙහායින් දාන්න ---
