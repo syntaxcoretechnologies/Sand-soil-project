@@ -1763,6 +1763,7 @@ elif menu == "⚙️ System Setup":
                         btn_col1, btn_col2, _ = st.columns([1, 1, 2])
                         
                         # --- UPDATE කොටස ---
+                        # --- UPDATE කොටස ---
                         if btn_col1.button("💾 Update Details"):
                             try:
                                 updated_data = {
@@ -1770,8 +1771,14 @@ elif menu == "⚙️ System Setup":
                                     "Position": edit_pos,
                                     "Daily_Rate": edit_rate
                                 }
-                                # Cloud Update (පරණ නම පාවිච්චි කරමින්)
+                                # 1. Cloud Update
                                 conn.table("staff").update(updated_data).eq("Name", selected_staff).execute()
+                                
+                                # 2. Local List එකත් එසැණින් Update කිරීම (මේකයි වැදගත්)
+                                idx = st.session_state.staff_db[st.session_state.staff_db["Name"] == selected_staff].index[0]
+                                for key, value in updated_data.items():
+                                    st.session_state.staff_db.at[idx, key] = value
+
                                 st.success(f"✅ {selected_staff} updated successfully!")
                                 st.rerun()
                             except Exception as e:
@@ -1780,8 +1787,12 @@ elif menu == "⚙️ System Setup":
                         # --- DELETE කොටස ---
                         if btn_col2.button("🗑️ Delete Staff"):
                             try:
-                                # Cloud Delete
+                                # 1. Cloud Delete
                                 conn.table("staff").delete().eq("Name", selected_staff).execute()
+                                
+                                # 2. Local List එකෙන් අයින් කිරීම
+                                st.session_state.staff_db = st.session_state.staff_db[st.session_state.staff_db["Name"] != selected_staff]
+                                
                                 st.warning(f"🚫 {selected_staff} removed from system.")
                                 st.rerun()
                             except Exception as e:
