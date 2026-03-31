@@ -2002,14 +2002,19 @@ elif menu == "⚙️ Data Manager":
                     st.subheader("🗑️ Delete Record")
                     st.error("❗ Warning: This action cannot be undone.")
                     if st.button("🔥 Confirm Permanent Delete", use_container_width=True):
-                        # Row එක අයින් කරලා Index එක Reset කරනවා (ඔයාගේ logic එක)
-                        st.session_state.df = st.session_state.df.drop(idx).reset_index(drop=True)
-                        save_all()
-                        st.success(f"Record {search_id} deleted forever!")
-                        st.rerun()
-            else:
-                st.warning(f"No record found with ID: {search_id}. Please check the Master Log below.")
-
+                        try:
+                            # 1. Supabase එකෙන් අදාල ID එක තියෙන Row එක Delete කිරීම
+                            # මෙතන "master_log" වෙනුවට ඔයාගේ table එකේ නම දාන්න (උදා: sales, records)
+                            conn.table("master_log").delete().eq("id", search_id).execute()
+                            
+                            # 2. Local session state එකත් update කරනවා (UI එකේ පේන්න)
+                            st.session_state.df = st.session_state.df[st.session_state.df["id"] != search_id].reset_index(drop=True)
+                            
+                            st.success(f"Record {search_id} deleted forever from Database!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error deleting from Supabase: {e}")
+                            
             # 3. සම්පූර්ණ Log එක පහළින් පෙන්වීම (Latest First)
             st.divider()
             st.write("#### 📋 Full Transaction Log (Use ID to Edit/Delete)")
