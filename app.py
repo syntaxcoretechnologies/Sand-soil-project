@@ -100,13 +100,27 @@ if 'dr_db' not in st.session_state:
 
 # 4. Staff දත්ත ලෝඩ් කිරීම
 if 'staff_db' not in st.session_state:
-    st.session_state.staff_db = load_data("staff", ["Name", "Position", "Daily_Rate"])
+    # "*" පාවිච්චි කිරීමෙන් table එකේ තියෙන ඔක්කොම columns ටික load වෙනවා
+    st.session_state.staff_db = load_data("staff", ["*"])
+    # පෙන්වන්න කලින් columns තියෙනවාද කියලා check කරනවා
+    if st.session_state.staff_db.empty:
+        st.session_state.staff_db = pd.DataFrame(columns=["Name", "Position", "Daily_Rate"])
 
-# 5. Landowners දත්ත ලෝඩ් කිරීම
+# 5. Landowners දත්ත ලෝඩ් කිරීම (Site Owners)
 if 'lo_db' not in st.session_state:
-    st.session_state.lo_db = load_data("landowners", ["Name", "Address", "Contact", "Rate_Per_Cube"])
+    st.session_state.lo_db = load_data("landowners", ["*"])
 
-# 6. පරණ landowners ලිස්ට් එක (Dictionary එකක් ලෙස තියාගැනීම - පරණ Logic එකට අනුව)
+# 5.5 Vehicle Owners දත්ත ලෝඩ් කිරීම (🚛 Owner Advance වැඩ කරන්න මේක ඕනේ)
+if 'vo_db' not in st.session_state:
+    # ඔයාගේ Supabase එකේ vehicle owners ඉන්න table එකේ නම 'vehicle_owners' නම් ඒක දෙන්න
+    # නැතිනම් 'vo_db' එක 've_db' එකෙන්ම filter කරලත් ගන්න පුළුවන්
+    try:
+        st.session_state.vo_db = load_data("vehicle_owners", ["*"])
+    except:
+        # Table එක නැතිනම් හිස් එකක් හදනවා error නොවී ඉන්න
+        st.session_state.vo_db = pd.DataFrame(columns=["Name", "Phone"])
+
+# 6. පරණ landowners ලිස්ට් එක (Dictionary එකක් ලෙස තියාගැනීම)
 if 'landowners' not in st.session_state:
     if not st.session_state.lo_db.empty:
         st.session_state.landowners = st.session_state.lo_db.to_dict('records')
