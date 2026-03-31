@@ -1573,18 +1573,31 @@ elif menu == "⚙️ System Setup":
                 
                 if st.form_submit_button("✅ Register Vehicle"):
                     if v_no:
-                        if v_no not in st.session_state.ve_db["No"].values:
-                            new_v = pd.DataFrame([[v_no, v_type, v_owner, v_rate]], 
-                                                 columns=["No", "Type", "Owner", "Rate_Per_Unit"])
-                            st.session_state.ve_db = pd.concat([st.session_state.ve_db, new_v], ignore_index=True)
-                            save_all()
+                        # පරණ දත්ත එක්ක check කිරීම
+                        is_duplicate = False
+                        if not st.session_state.ve_db.empty:
+                            if v_no in st.session_state.ve_db["No"].values:
+                                is_duplicate = True
+                        
+                        if not is_duplicate:
+                            # Supabase එකට යන දත්ත dictionary එක
+                            new_v_data = {
+                                "No": v_no,
+                                "Type": v_type,
+                                "Owner": v_owner,
+                                "Rate_Per_Unit": v_rate
+                            }
+                            
+                            # අර ඔයා ලියපු Supabase function එක call කරනවා
+                            # Table නම 'vehicles' ලෙස මම දාලා තියෙන්නේ
+                            save_setup_item("vehicles", new_v_data)
+                            
                             st.success(f"Vehicle {v_no} registered successfully!")
-                            st.rerun()
                         else:
-                            st.error(f"Vehicle {v_no} is already registered in the system!")
+                            st.error(f"Vehicle {v_no} is already registered!")
                     else:
-                        st.warning("Please enter a Vehicle Number to continue.")
-        
+                        st.warning("Please enter a Vehicle Number.")
+                        
             # 2. ලියාපදිංචි වාහන ලැයිස්තුව සහ කළමනාකරණය
             # මේ පේළියට උඩින් තියෙන Block එකට සමානව ඉස්සරහට ගන්න (උදා: column එකක් ඇතුළේ නම්)
             if not st.session_state.ve_db.empty:
