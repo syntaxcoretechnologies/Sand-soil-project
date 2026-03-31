@@ -55,24 +55,48 @@ def load_data(table_name, cols):
 # --- 3. SAVE ENGINE (Cloud Updated) ---
 # --- පරණ save_all වෙනුවට මේක දාන්න ---
 def save_master_record(record_dict):
-    """අලුත් Master Log Record එකක් පමණක් සේව් කරයි"""
+    """අලුත් Master Log Record එකක් සේව් කරලා Local List එකටත් එකතු කරයි"""
     try:
         data_to_save = record_dict.copy()
         if 'id' in data_to_save: del data_to_save['id']
-        if 'Date' in data_to_save: data_to_save['Date'] = str(data_to_save['Date'])
         
+        # Date එක string එකක් කරන එක වඩාත් ආරක්ෂිතයි
+        if 'Date' in data_to_save: 
+            data_to_save['Date'] = str(data_to_save['Date'])
+        
+        # 1. Supabase එකට දත්ත යවනවා
         conn.table("master_log").insert(data_to_save).execute()
+        
+        # 2. Local DataFrame එකටත් අලුත් පේළිය එකතු කරනවා (එතකොටයි එසැණින් පේන්නේ)
+        new_row = pd.DataFrame([data_to_save])
+        st.session_state.df = pd.concat([st.session_state.df, new_row], ignore_index=True)
+        
         st.success("✅ Cloud Synced Successfully!")
-        st.rerun() # මේක අනිවාර්යයි duplicate නොවී ඉන්න
+        st.rerun() 
     except Exception as e:
         st.error(f"❌ Cloud Save Error: {e}")
 
 def save_setup_item(table_name, item_dict):
-    """Setup (Vehicles/Drivers/Landowners) දත්ත සේව් කිරීමට"""
+    """Setup (Vehicles/Drivers/Landowners) දත්ත සේව් කරලා Local DB එකත් අප්ඩේට් කරයි"""
     try:
         data_to_save = item_dict.copy()
         if 'id' in data_to_save: del data_to_save['id']
+        
+        # 1. Supabase එකට දත්ත යැවීම
         conn.table(table_name).insert(data_to_save).execute()
+        
+        # 2. අදාළ Local Database එක අප්ඩේට් කිරීම
+        new_row = pd.DataFrame([data_to_save])
+        
+        if table_name == "vehicles":
+            st.session_state.ve_db = pd.concat([st.session_state.ve_db, new_row], ignore_index=True)
+        elif table_name == "drivers":
+            st.session_state.dr_db = pd.concat([st.session_state.dr_db, new_row], ignore_index=True)
+        elif table_name == "landowners":
+            st.session_state.lo_db = pd.concat([st.session_state.lo_db, new_row], ignore_index=True)
+        elif table_name == "staff":
+            st.session_state.staff_db = pd.concat([st.session_state.staff_db, new_row], ignore_index=True)
+
         st.success(f"✅ {table_name} Added!")
         st.rerun()
     except Exception as e:
