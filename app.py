@@ -917,49 +917,54 @@ elif menu == "💰 Finance & Shed":
 
         elif fin == "🏦 Owner Advances":
             st.subheader("🚛 Vehicle Owner Advances")
+        
+            # 1. වාහන අයිතිකරුවන්ගේ ලැයිස්තුව (ve_db එකෙන් ගන්නවා)
+            vo_names = []
+            if not st.session_state.ve_db.empty:
+                # 'Owner' column එකේ තියෙන unique නම් ටික ගන්නවා
+                vo_names = st.session_state.ve_db["Owner"].dropna().unique().tolist()
             
-            # 1. Landowner වෙනුවට Vehicle Owner ලිස්ට් එක මෙතනින් ගන්නවා
-            # සාමාන්‍යයෙන් ඔයාගේ වාහන අයිතිකාරයෝ ඉන්නේ 'vo_db' එකේ නම් ඒක පාවිච්චි කරන්න
-            vo_names = st.session_state.vo_db["Name"].tolist() if "vo_db" in st.session_state and not st.session_state.vo_db.empty else ["N/A"]
-            
+            vo_names = sorted([str(x) for x in vo_names if x])
+            if not vo_names: vo_names = ["N/A"]
+    
             with st.form("own_adv", clear_on_submit=True):
                 col1, col2 = st.columns(2)
                 with col1:
                     d = st.date_input("Date", datetime.now().date())
-                    # 2. මෙතන 'Landowner' කියන එක 'Vehicle Owner' ලෙස වෙනස් කළා
                     owner = st.selectbox("Vehicle Owner", vo_names)
                 with col2:
                     am = st.number_input("Amount (LKR)", min_value=0.0)
-                    v_rel = st.selectbox("Related Vehicle", v_list)
+                    # v_list කියන්නේ වාහන අංක ටික තියෙන list එක විය යුතුයි
+                    v_rel = st.selectbox("Related Vehicle", v_list if 'v_list' in locals() else ["N/A"])
                 
                 nt = st.text_input("Note")
                 
                 if st.form_submit_button("Save Advance"):
-                    if am > 0:
+                    if am > 0 and owner != "N/A":
                         adv_data = {
                             "Date": str(d), 
                             "Type": "Expense", 
-                            "Category": "Vehicle Owner Advance", # Category එකත් පැහැදිලිව වෙනස් කළා
+                            "Category": "Vehicle Owner Advance",
                             "Entity": v_rel, 
                             "Note": f"Owner: {owner} | {nt}", 
                             "Amount": am,
-                            "Qty_Cubes": 0, 
-                            "Fuel_Ltr": 0, 
-                            "Hours": 0, 
-                            "Rate_At_Time": 0, 
+                            "Qty_Cubes": 0, "Fuel_Ltr": 0, "Hours": 0, "Rate_At_Time": 0, 
                             "Status": "Paid"
                         }
                         try:
-                            # Cloud සේව් කිරීම
+                            # Cloud Save
                             conn.table("master_log").insert(adv_data).execute()
                             
-                            # Local State එක Refresh කිරීම
-                            st.session_state.df = load_data("master_log", cols_master)
+                            # Local State Update (Refresh කරන්න ඕන වෙන්නේ නැහැ එතකොට)
+                            new_row = pd.DataFrame([adv_data])
+                            st.session_state.df = pd.concat([st.session_state.df, new_row], ignore_index=True)
                             
                             st.success(f"✅ Advance of Rs.{am:,.2f} recorded for {owner}")
                             st.rerun()
                         except Exception as e: 
                             st.error(f"Error: {e}")
+                    else:
+                        st.warning("කරුණාකර අයිතිකරුවෙකු තෝරා මුදල ඇතුළත් කරන්න.")
 
         elif fin == "🧾 Others":
             st.subheader("🧾 Other Expenses")
