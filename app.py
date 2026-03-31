@@ -1815,10 +1815,15 @@ elif menu == "👤 Manage Landowners":
                 
                 if st.form_submit_button("✅ Register Landowner"):
                     if l_name:
-                        # ඩියුප්ලිකේට් චෙක් එක
-                        if l_name not in st.session_state.lo_db["Name"].values:
+                        # 1. ඩියුප්ලිකේට් චෙක් එක වඩාත් ආරක්ෂිතව කරනවා
+                        is_duplicate = False
+                        if not st.session_state.lo_db.empty and "Name" in st.session_state.lo_db.columns:
+                            if l_name in st.session_state.lo_db["Name"].values:
+                                is_duplicate = True
+                        
+                        if not is_duplicate:
                             try:
-                                # 1. Supabase එකට කෙලින්ම දත්ත යවනවා (මේක තමයි විශ්වාසවන්තම ක්‍රමය)
+                                # 2. Supabase එකට දත්ත යවනවා
                                 new_entry = {
                                     "Name": l_name, 
                                     "Address": l_addr, 
@@ -1827,7 +1832,7 @@ elif menu == "👤 Manage Landowners":
                                 }
                                 conn.table("landowners").insert(new_entry).execute()
                                 
-                                # 2. Local Session එකත් Update කරනවා
+                                # 3. Local Session එකත් Update කරනවා
                                 new_lo = pd.DataFrame([new_entry])
                                 st.session_state.lo_db = pd.concat([st.session_state.lo_db, new_lo], ignore_index=True)
                                 
