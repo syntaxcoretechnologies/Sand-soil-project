@@ -1150,60 +1150,74 @@ elif menu == "📑 Reports Center":
 
     # --- TAB: STAFF SETTLEMENT (FIXED) ---
     with r_staff:
-        st.subheader("👷 Staff Payment & Settlement Report")
+    st.subheader("👷 Staff Salary & Advance Settlement")
+    
+    ent_col = "Vehicle" 
+    note_col = "Note"
+
+    # 1. Staff සහ Drivers ලැයිස්තුව එකතු කර ගැනීම
+    all_staff = []
+    if not st.session_state.dr_db.empty:
+        all_staff.extend(st.session_state.dr_db["Name"].tolist())
+    if 'staff_db' in st.session_state and not st.session_state.staff_db.empty:
+        all_staff.extend(st.session_state.staff_db["Name"].tolist())
+    all_staff = sorted(list(set(all_staff)))
+
+    if all_staff:
+        sel_staff = st.selectbox("Select Staff Member / Driver", all_staff, key="staff_rep_sel")
         
-        # 1. Column names ටික හරියටම ගමු (ඔයා දුන්න ලිස්ට් එක අනුව)
-        # මෙතන 'Vehicle' කියන එක තමයි Entity එක විදිහට වැඩ කරන්නේ
-        ent_col = "Vehicle" 
-        note_col = "Note"
+        # 2. Filtering Logic - Salary සහ Advance විතරක් පෙරා ගැනීම
+        staff_mask = (df_f[ent_col].str.contains(str(sel_staff), case=False, na=False)) | \
+                     (df_f[note_col].str.contains(str(sel_staff), case=False, na=False))
+        
+        # නම තියෙන දත්ත මුලින්ම ගන්නවා
+        staff_rep_raw = df_f[staff_mask].copy()
+        
+        # ඒකෙන් Salary සහ Advance වැනි මූල්‍ය දත්ත විතරක් වෙන් කරනවා
+        staff_rep_data = staff_rep_raw[
+            staff_rep_raw['Category'].str.contains('Salary|Advance|Payment|Payroll|D.Advance', case=False, na=False)
+        ].copy()
+        
+        if not staff_rep_data.empty:
+            # Date එක sort කරන්න කලින් datetime වලට හරවනවා (Error එක වැලැක්වීමට)
+            staff_rep_data['Date'] = pd.to_datetime(staff_rep_data['Date'], errors='coerce')
+            staff_rep_data['Amount'] = pd.to_numeric(staff_rep_data['Amount'], errors='coerce').fillna(0)
 
-        # Staff list එක හදාගන්න කොටස
-        all_staff = []
-        if not st.session_state.dr_db.empty:
-            all_staff.extend(st.session_state.dr_db["Name"].tolist())
-        if 'staff_db' in st.session_state and not st.session_state.staff_db.empty:
-            all_staff.extend(st.session_state.staff_db["Name"].tolist())
-        all_staff = sorted(list(set(all_staff)))
+            # 3. ගණනය කිරීම්
+            total_salary = staff_rep_data[staff_rep_data['Category'].str.contains('Salary', case=False)]['Amount'].sum()
+            total_advances = staff_rep_data[staff_rep_data['Category'].str.contains('Advance|Payment|D.Advance', case=False)]['Amount'].sum()
+            balance_due = total_salary - total_advances
 
-        if all_staff:
-            sel_staff = st.selectbox("Select Staff Member / Driver", all_staff, key="staff_rep_sel")
+            # Metrics පෙන්වීම
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Total Salary", f"LKR {total_salary:,.2f}")
+            m2.metric("Total Advances", f"LKR {total_advances:,.2f}")
+            m3.metric("Balance to Pay", f"LKR {balance_due:,.2f}", delta=f"{-balance_due:,.2f}")
+
+            # 4. Table එක පෙන්වීම
+            disp_cols = ["Date", "Category", "Vehicle", "Amount", "Note"]
+            actual_show = [c for c in disp_cols if c in staff_rep_data.columns]
             
+            st.dataframe(
+                staff_rep_data[actual_show].sort_values(by="Date", ascending=False), 
+                use_container_width=True,
+                hide_index=True
+            )
+
+            # 5. PDF Button
             if st.button("Generate Staff Report 📄", key="gen_staff_btn"):
-                # 2. 'Vehicle' column එකේ නම තියෙන හෝ 'Note' එකේ නම තියෙන ඒවා පෙරමු
-                staff_mask = (df_f[ent_col].str.contains(str(sel_staff), case=False, na=False)) | \
-                             (df_f[note_col].str.contains(str(sel_staff), case=False, na=False))
-                
-                staff_rep_data = df_f[staff_mask].copy()
-                
-                if not staff_rep_data.empty:
-                    try:
-                        # PDF එක generate කිරීම
-                        fn = create_staff_pdf(sel_staff, staff_rep_data)
-                        with open(fn, "rb") as f:
-                            st.download_button("Download Staff Report 📥", f, file_name=f"Staff_Report_{sel_staff}.pdf")
-                        
-                        st.success(f"Report generated for {sel_staff}")
-                        
-                        # 3. Table එක පෙන්වීම (ඔයාගේ තියෙන Column names වලට ගැලපෙන්න)
-                        disp_cols = ["Date", "Category", "Vehicle", "Note", "Hours", "Amount"]
-                        # ඇත්තටම තියෙන ඒවා විතරක් තෝරමු
-                        actual_show = [c for c in disp_cols if c in staff_rep_data.columns]
-                        
-                        st.dataframe(
-                            staff_rep_data[actual_show].sort_values(by="Date", ascending=False), 
-                            use_container_width=True,
-                            hide_index=True
-                        )
-                        
-                        total_pay = pd.to_numeric(staff_rep_data['Amount'], errors='coerce').sum()
-                        st.info(f"Total Transactions for {sel_staff}: **LKR {total_pay:,.2f}**")
-                        
-                    except Exception as e:
-                        st.error(f"PDF Generation Error: {e}")
-                else:
-                    st.warning(f"No transactions found for {sel_staff}")
+                try:
+                    # PDF එකට යවන summary එක (මෙය create_staff_pdf එකේ format එක අනුව වෙනස් විය හැක)
+                    fn = create_staff_pdf(sel_staff, staff_rep_data)
+                    with open(fn, "rb") as f:
+                        st.download_button("Download Staff Report 📥", f, file_name=f"Staff_Report_{sel_staff}.pdf")
+                    st.success(f"Report ready for {sel_staff}")
+                except Exception as e:
+                    st.error(f"PDF Generation Error: {e}")
         else:
-            st.info("Please register staff members/drivers first.")
+            st.warning(f"No Salary or Advance records found for {sel_staff}")
+    else:
+        st.info("Please register staff members/drivers first.")
 
     # --- TAB 1: VEHICLE SETTLEMENT ---
    # 1. වාහන ලැයිස්තුව ලබා ගනිමු
@@ -1389,48 +1403,61 @@ elif menu == "📑 Reports Center":
         sel_dr = st.selectbox("Select Driver", dr_list, key="dr_sum_select")
         
         if sel_dr:
-            # 2. Driver filter කිරීම (Note එක ඇතුළේ නම තියෙනවාද බලනවා)
-            # case=False නිසා නම ලියපු විදිහ (Capital/Simple) ප්‍රශ්නයක් වෙන්නේ නැහැ
+            # 2. Driver filter කිරීම (Note එකේ නම තිබේදැයි බැලීම)
             dr_rep = df_f[df_f["Note"].fillna("").astype(str).str.contains(str(sel_dr), case=False)].copy()
             
             if not dr_rep.empty:
-                # 3. Category එකෙන් වැදගත් දේවල් විතරක් පෙරීම (Salary/Advance/Payroll)
-                dr_rep = dr_rep[dr_rep['Category'].str.contains('Salary|Advance|Payroll|D.Advance', case=False, na=False)].copy()
+                # 3. වැදගත්ම කොටස: Salary සහ Advance විතරක් පෙරීම (Trips/Hours මෙතනට එන්නේ නැහැ)
+                dr_rep = dr_rep[dr_rep['Category'].str.contains('Salary|Advance|Payroll|D.Advance|Payment', case=False, na=False)].copy()
             
             if not dr_rep.empty:
-                # 4. Amount එක numeric කරලා sum එක ගැනීම
+                # 4. දත්ත පිරිසිදු කිරීම (Amount සහ Date)
                 dr_rep['Clean_Amount'] = pd.to_numeric(
                     dr_rep['Amount'].astype(str).str.replace(',', '').str.replace('Rs.', '').str.strip(), 
                     errors='coerce'
                 ).fillna(0)
                 
-                total_paid = dr_rep['Clean_Amount'].sum()
+                # Date එක sort කරන්න කලින් datetime වලට හරවනවා (Error එක වැලැක්වීමට)
+                dr_rep['Date'] = pd.to_datetime(dr_rep['Date'], errors='coerce')
                 
-                # Metric එක පෙන්වීම
-                st.metric(f"Total Paid to {sel_dr}", f"Rs. {total_paid:,.2f}")
+                # ගණනය කිරීම්
+                total_earned = dr_rep[dr_rep['Category'].str.contains('Salary', case=False)]['Clean_Amount'].sum()
+                total_advances = dr_rep[dr_rep['Category'].str.contains('Advance|Payment|D.Advance', case=False)]['Clean_Amount'].sum()
+                net_balance = total_earned - total_advances
                 
-                # 5. DataFrame එක පෙන්වීම (Sorting එකක් එක්ක)
-                cols_to_show = ['Date', 'Category', 'Note', 'Amount']
+                # Metrics පෙන්වීම
+                m1, m2, m3 = st.columns(3)
+                m1.metric("Total Salary", f"Rs. {total_earned:,.2f}")
+                m2.metric("Total Advances", f"Rs. {total_advances:,.2f}")
+                m3.metric("Net Balance", f"Rs. {net_balance:,.2f}", delta=f"{-net_balance:,.2f}")
+                
+                # 5. Table එක පෙන්වීම
+                cols_to_show = ['Date', 'Category', 'Amount', 'Note']
                 existing_cols = [c for c in cols_to_show if c in dr_rep.columns]
-                st.dataframe(dr_rep[existing_cols].sort_values(by='Date', ascending=False), use_container_width=True)
                 
-                # 6. PDF Report එක හදන බටන් එක
+                st.dataframe(
+                    dr_rep[existing_cols].sort_values(by='Date', ascending=False), 
+                    use_container_width=True,
+                    hide_index=True
+                )
+                
+                # 6. PDF Report Button
                 if st.button("📄 Download Driver Settlement PDF", key="btn_dr_pdf"):
                     summary_data = {
                         "Driver Name": str(sel_dr),
-                        "Total Paid": f"Rs. {total_paid:,.2f}",
-                        "Description": "Salary & Advance Statement",
+                        "Total Salary": f"Rs. {total_earned:,.2f}",
+                        "Total Advances": f"Rs. {total_advances:,.2f}",
+                        "Net Balance": f"Rs. {net_balance:,.2f}",
                         "Report Period": f"{f_d} to {t_d}"
                     }
                     try:
-                        # ඔයා හදපු create_driver_pdf function එක මෙතන call කරනවා
                         pdf_fn = create_driver_pdf(f"Settlement_{sel_dr}", dr_rep, summary_data)
                         with open(pdf_fn, "rb") as f:
                             st.download_button("⬇️ Click to Download PDF", f, file_name=f"Driver_Report_{sel_dr}.pdf")
                     except Exception as e:
                         st.error(f"Error generating PDF: {e}")
             else:
-                st.info(f"No Salary or Advance records found for {sel_dr} in the selected period.")
+                st.info(f"No Salary or Advance records found for {sel_dr}.")
                 
     # --- TAB 3: DAILY LOG (FULL AUDIT TRAIL) ---
     with r3:
