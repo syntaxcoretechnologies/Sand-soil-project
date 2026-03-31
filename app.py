@@ -1586,30 +1586,26 @@ elif menu == "⚙️ System Setup":
                         st.warning("Please enter a Vehicle Number to continue.")
         
             # 2. ලියාපදිංචි වාහන ලැයිස්තුව සහ කළමනාකරණය
-             if not st.session_state.ve_db.empty:
+            # මේ පේළියට උඩින් තියෙන Block එකට සමානව ඉස්සරහට ගන්න (උදා: column එකක් ඇතුළේ නම්)
+            if not st.session_state.ve_db.empty:
                 st.divider()
                 st.subheader("📋 Registered Vehicles List")
                 st.dataframe(st.session_state.ve_db, use_container_width=True, hide_index=True)
                 
                 col_m1, col_m2 = st.columns([2, 1])
                 with col_m1:
-                    ve_to_manage = st.selectbox("Select Vehicle to Manage/Delete", 
-                                                st.session_state.ve_db["No"].tolist(), key="manage_ve_sel")
+                    ve_to_manage = st.selectbox("Select Vehicle", st.session_state.ve_db["No"].tolist(), key="manage_ve_sel")
+                
                 with col_m2:
                     st.write(" ") 
                     if st.button("Delete Vehicle ❌", key="del_ve", use_container_width=True):
                         try:
-                            # 1. Supabase එකෙන් Delete කිරීම (Table නම 'vehicles' ලෙස උපකල්පනය කෙරේ)
                             conn.table("vehicles").delete().eq("No", ve_to_manage).execute()
-                            
-                            # 2. Local Session එකෙන් අයින් කිරීම
                             st.session_state.ve_db = st.session_state.ve_db[st.session_state.ve_db["No"] != ve_to_manage]
-                            
-                            st.warning(f"Vehicle {ve_to_manage} removed Successfully.")
+                            st.warning(f"Vehicle {ve_to_manage} removed.")
                             st.rerun()
                         except Exception as e:
-                            st.error(f"Error: {e}")
-        
+                            st.error(f"Error: {e}") 
 
         # --- TAB 2: DRIVERS / OPERATORS ---
         with setup_tab2:
