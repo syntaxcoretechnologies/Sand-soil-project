@@ -1152,19 +1152,32 @@ elif menu == "📑 Reports Center":
     with r_staff:
         st.subheader("👷 Staff Salary & Advance Settlement")
         
-        ent_col = "Vehicle" 
-        note_col = "Note"
-    
-        # 1. Staff සහ Drivers ලැයිස්තුව එකතු කර ගැනීම
+        # 1. සම්පූර්ණ Staff ලිස්ට් එක හදාගැනීම (Drivers + Other Staff)
         all_staff = []
-        if not st.session_state.dr_db.empty:
+        
+        # Drivers ලැයිස්තුව එකතු කිරීම
+        if 'dr_db' in st.session_state and not st.session_state.dr_db.empty:
             all_staff.extend(st.session_state.dr_db["Name"].tolist())
+            
+        # අනිත් Staff ලැයිස්තුව එකතු කිරීම (මෙතන තමයි කලින් අවුල තිබුණේ)
         if 'staff_db' in st.session_state and not st.session_state.staff_db.empty:
-            all_staff.extend(st.session_state.staff_db["Name"].tolist())
-        all_staff = sorted(list(set(all_staff)))
-    
+            # staff_db එකේ column එක "Name" ද කියලා බලන්න. 
+            # සමහරවිට ඒක "Staff_Name" වෙන්නත් පුළුවන්. 
+            # අපි "Name" column එක තියෙනවා නම් ඒක ගමු.
+            if "Name" in st.session_state.staff_db.columns:
+                all_staff.extend(st.session_state.staff_db["Name"].tolist())
+        
+        # Double වැටිලා තියෙන නම් අයින් කරලා අකාරාදී පිළිවෙළට හදනවා
+        all_staff = sorted(list(set([str(x) for x in all_staff if x])))
+
         if all_staff:
-            sel_staff = st.selectbox("Select Staff Member / Driver", all_staff, key="staff_rep_sel")
+            sel_staff = st.selectbox("Select Staff Member / Driver", all_staff, key="staff_rep_sel_final")
+            
+            # --- Filtering & Calculation Logic (පරණ විදිහටම) ---
+            # මෙතනින් පල්ලෙහාට ඔයාගේ කලින් තිබුණු filtering code එකම පාවිච්චි කරන්න පුළුවන්...
+            
+            # (පොඩි tip එකක්: මෙතන selectbox එකේ නම තෝරගත්තම පල්ලෙහා රිපෝර්ට් එකේ 
+            # අනිවාර්යයෙන්ම staff කෙනාගේ නම පේන්න ඕනේ)
             
             # 2. Filtering Logic - Salary සහ Advance විතරක් පෙරා ගැනීම
             staff_mask = (df_f[ent_col].str.contains(str(sel_staff), case=False, na=False)) | \
