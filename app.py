@@ -1152,30 +1152,30 @@ elif menu == "📑 Reports Center":
     with r_staff:
         st.subheader("👷 Staff Salary & Advance Settlement")
         
-        # 1. Column names define කරගැනීම
-        ent_col = "Vehicle"  # හෝ ඔයා පාවිච්චි කරන Entity column එක
+        # --- Variables කලින්ම Define කරනවා (NameError එක නොවෙන්න) ---
+        ent_col = "Vehicle"  # ඔයාගේ Master Table එකේ Entity/Vehicle column එක
         note_col = "Note"
-    
-        # 2. Staff ලැයිස්තුව විතරක් හදාගැනීම (Drivers ලා නැතුව)
+
+        # 1. Staff ලැයිස්තුව විතරක් හදාගැනීම (Drivers නැතුව)
         only_staff = []
         if 'staff_db' in st.session_state and not st.session_state.staff_db.empty:
             if "Name" in st.session_state.staff_db.columns:
                 only_staff = st.session_state.staff_db["Name"].tolist()
         
-        # පිරිසිදු කරලා අකාරාදී පිළිවෙළට හදනවා
+        # නම් පිරිසිදු කිරීම (Unique & Sorted)
         only_staff = sorted(list(set([str(x).strip() for x in only_staff if x and str(x).lower() != 'nan'])))
-    
+
         if only_staff:
             sel_staff = st.selectbox("Select Staff Member", ["-- Select --"] + only_staff, key="staff_only_settle_sel")
             
             if sel_staff != "-- Select --":
-                # 3. Filtering Logic - මේ ස්ටාෆ් කෙනාට අදාළ දත්ත විතරක් ගැනීම
+                # 2. Filtering - මේ ස්ටාෆ් කෙනාට අදාළ Salary & Advance විතරක් ගැනීම
                 staff_mask = (df_f[ent_col].astype(str).str.contains(str(sel_staff), case=False, na=False)) | \
                              (df_f[note_col].astype(str).str.contains(str(sel_staff), case=False, na=False))
                 
                 staff_rep_raw = df_f[staff_mask].copy()
                 
-                # පඩිය සහ ඇඩ්වාන්ස් විතරක් වෙන් කිරීම
+                # Category එකෙන් මූල්‍ය දත්ත විතරක් වෙන් කිරීම
                 staff_rep_data = staff_rep_raw[
                     staff_rep_raw['Category'].str.contains('Salary|Advance|Payment|Payroll', case=False, na=False)
                 ].copy()
@@ -1188,7 +1188,7 @@ elif menu == "📑 Reports Center":
                         errors='coerce'
                     ).fillna(0)
         
-                    # 4. ගණනය කිරීම්
+                    # 3. පඩිය සහ ඇඩ්වාන්ස් ගණනය කිරීම
                     total_salary = staff_rep_data[staff_rep_data['Category'].str.contains('Salary', case=False)]['Amount'].sum()
                     total_advances = staff_rep_data[staff_rep_data['Category'].str.contains('Advance|Payment', case=False)]['Amount'].sum()
                     balance_due = total_salary - total_advances
@@ -1199,29 +1199,26 @@ elif menu == "📑 Reports Center":
                     m2.metric("Total Advances", f"LKR {total_advances:,.2f}")
                     m3.metric("Balance to Pay", f"LKR {balance_due:,.2f}", delta=f"{-balance_due:,.2f}")
         
-                    # 5. Table එක පෙන්වීම
-                    disp_cols = ["Date", "Category", "Amount", "Note"]
-                    actual_show = [c for c in disp_cols if c in staff_rep_data.columns]
-                    
+                    # 4. Table එක පෙන්වීම
                     st.dataframe(
-                        staff_rep_data[actual_show].sort_values(by="Date", ascending=False), 
+                        staff_rep_data[['Date', 'Category', 'Amount', 'Note']].sort_values(by="Date", ascending=False), 
                         use_container_width=True,
                         hide_index=True
                     )
         
-                    # 6. PDF Button
+                    # 5. PDF Button
                     if st.button("Generate Staff Report 📄", key="gen_staff_only_btn"):
                         try:
                             fn = create_staff_pdf(sel_staff, staff_rep_data)
                             with open(fn, "rb") as f:
                                 st.download_button("Download Report 📥", f, file_name=f"Staff_Report_{sel_staff}.pdf")
-                            st.success(f"Report ready for {sel_staff}")
                         except Exception as e:
                             st.error(f"PDF Error: {e}")
                 else:
-                    st.warning(f"No financial records found for {sel_staff}")
+                    st.warning(f"No Salary or Advance records found for {sel_staff}")
         else:
-            st.info("Staff database එකේ කිසිම කෙනෙක්ව register කරලා නැහැ.")
+            st.info("Staff database එකේ කිසිම කෙනෙක්ව register කරලා නැහැ.")    
+
             
     # --- TAB 1: VEHICLE SETTLEMENT ---
    # 1. වාහන ලැයිස්තුව ලබා ගනිමු
@@ -1589,7 +1586,7 @@ elif menu == "⚙️ System Setup":
                         st.warning("Please enter a Vehicle Number to continue.")
         
             # 2. ලියාපදිංචි වාහන ලැයිස්තුව සහ කළමනාකරණය
-            if not st.session_state.ve_db.empty:
+             if not st.session_state.ve_db.empty:
                 st.divider()
                 st.subheader("📋 Registered Vehicles List")
                 st.dataframe(st.session_state.ve_db, use_container_width=True, hide_index=True)
@@ -1601,10 +1598,18 @@ elif menu == "⚙️ System Setup":
                 with col_m2:
                     st.write(" ") 
                     if st.button("Delete Vehicle ❌", key="del_ve", use_container_width=True):
-                        st.session_state.ve_db = st.session_state.ve_db[st.session_state.ve_db["No"] != ve_to_manage]
-                        save_all()
-                        st.warning(f"Vehicle {ve_to_manage} removed.")
-                        st.rerun()
+                        try:
+                            # 1. Supabase එකෙන් Delete කිරීම (Table නම 'vehicles' ලෙස උපකල්පනය කෙරේ)
+                            conn.table("vehicles").delete().eq("No", ve_to_manage).execute()
+                            
+                            # 2. Local Session එකෙන් අයින් කිරීම
+                            st.session_state.ve_db = st.session_state.ve_db[st.session_state.ve_db["No"] != ve_to_manage]
+                            
+                            st.warning(f"Vehicle {ve_to_manage} removed Successfully.")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Error: {e}")
+        
 
         # --- TAB 2: DRIVERS / OPERATORS ---
         with setup_tab2:
