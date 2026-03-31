@@ -1363,7 +1363,19 @@ elif menu == "📑 Reports Center":
                 st.write(f"**Detailed History for {search_name}:**")
                 display_cols = ['Date', 'Category', 'Entity', 'Qty_Cubes', 'Amount', 'Note']
                 existing_cols = [c for c in display_cols if c in lo_records.columns]
-                st.dataframe(lo_records[existing_cols].sort_values(by='Date', ascending=False), use_container_width=True)
+                
+                # --- මෙන්න මෙතන තමයි Fix එක තියෙන්නේ ---
+                if not lo_records.empty:
+                    # 1. Date එක හරියටම දින වකවානු බවට හරවනවා (Sort කරන්න කලින්)
+                    lo_records['Date'] = pd.to_datetime(lo_records['Date'], errors='coerce')
+                    
+                    # 2. Sort කරලා DataFrame එක පෙන්වනවා
+                    st.dataframe(
+                        lo_records[existing_cols].sort_values(by='Date', ascending=False), 
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                # ---------------------------------------
                 
             else:
                 st.warning(f"No records linked to '{search_name}' found.")
