@@ -1602,33 +1602,26 @@ elif menu == "⚙️ System Setup":
                 
                 if st.form_submit_button("✅ Register Vehicle"):
                     if v_no:
-                        # පරණ දත්ත එක්ක check කිරීම
                         is_duplicate = False
                         if not st.session_state.ve_db.empty:
                             if v_no in st.session_state.ve_db["No"].values:
                                 is_duplicate = True
                         
                         if not is_duplicate:
-                            # Supabase එකට යන දත්ත dictionary එක
                             new_v_data = {
                                 "No": v_no,
                                 "Type": v_type,
                                 "Owner": v_owner,
                                 "Rate_Per_Unit": v_rate
                             }
-                            
-                            # අර ඔයා ලියපු Supabase function එක call කරනවා
-                            # Table නම 'vehicles' ලෙස මම දාලා තියෙන්නේ
                             save_setup_item("vehicles", new_v_data)
-                            
                             st.success(f"Vehicle {v_no} registered successfully!")
                         else:
                             st.error(f"Vehicle {v_no} is already registered!")
                     else:
                         st.warning("Please enter a Vehicle Number.")
-                        
-            # 2. ලියාපදිංචි වාහන ලැයිස්තුව සහ කළමනාකරණය
-            # මේ පේළියට උඩින් තියෙන Block එකට සමානව ඉස්සරහට ගන්න (උදා: column එකක් ඇතුළේ නම්)
+            
+            # 2. ලියාපදිංචි වාහන ලැයිස්තුව (මේ පේළිය line 1589 විය යුතුයි)
             if not st.session_state.ve_db.empty:
                 st.divider()
                 st.subheader("📋 Registered Vehicles List")
@@ -1647,7 +1640,7 @@ elif menu == "⚙️ System Setup":
                             st.warning(f"Vehicle {ve_to_manage} removed.")
                             st.rerun()
                         except Exception as e:
-                            st.error(f"Error: {e}") 
+                            st.error(f"Error: {e}")
 
         # --- TAB 2: DRIVERS / OPERATORS ---
         with setup_tab2:
