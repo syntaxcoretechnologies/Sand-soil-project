@@ -758,42 +758,42 @@ elif menu == "📊 Dashboard":
                 st.divider()
 
                 # --- Stock Balance Section (Ultra Safe Version) ---
+                # --- Stock Balance Section (Final Fixed) ---
                 st.subheader("📦 Plant Stock Balance")
                 s_col1, s_col2 = st.columns(2)
                 
-                # sales_df එක තියෙනවා නම් ඒක ගන්න, නැත්නම් session_state එක ගන්න
-                full_df = sales_df.copy() if 'sales_df' in locals() else st.session_state.df.copy()
+                # 1. දත්ත ලබා ගැනීම (sales_df නැතිනම් session_state පාවිච්චි කරයි)
+                if 'sales_df' in locals():
+                    full_df = sales_df.copy()
+                else:
+                    full_df = st.session_state.df.copy()
 
                 def get_stock(material_name):
-                    # 1. Inward සහ Outward filter කරගන්නා ආකාරය
+                    # Inward සහ Outward filter කිරීම
                     in_mask = (full_df["Category"].str.contains("Inward|Stock In", case=False, na=False)) & \
                               (full_df["Category"].str.contains(material_name, case=False, na=False))
                     
                     out_mask = (full_df["Category"].str.contains("Sales Out|Issue|Outward", case=False, na=False)) & \
                                (full_df["Category"].str.contains(material_name, case=False, na=False))
 
-                    # 2. අගයන් එකතු කරන ආරක්ෂිත ක්‍රමය (Column එක නැතත් Error එන්නේ නැත)
+                    # ඕනෑම column එකක් (Qty_Cubes හෝ Qty/Hr) තිබුණොත් ගණන් කරන safe function එක
                     def safe_sum(temp_df):
-                        total = 0.0
-                        # දැනට තියෙන්න පුළුවන් හැම column name එකක්ම මෙතන චෙක් කරනවා
+                        val = 0.0
                         for col in ["Qty_Cubes", "Qty/Hr", "qty", "Qty"]:
                             if col in temp_df.columns:
-                                total += pd.to_numeric(temp_df[col], errors='coerce').fillna(0).sum()
-                        return total
+                                val += pd.to_numeric(temp_df[col], errors='coerce').fillna(0).sum()
+                        return val
 
-                    in_q = safe_sum(full_df[in_mask])
-                    out_q = safe_sum(full_df[out_mask])
-                    
-                    return in_q, out_q
+                    return safe_sum(full_df[in_mask]), safe_sum(full_df[out_mask])
 
-                # Sand සහ Soil සඳහා දත්ත ලබා ගැනීම
+                # ගණනය කිරීම්
                 s_in, s_out = get_stock("Sand")
                 so_in, so_out = get_stock("Soil")
 
-                # UI එකේ පෙන්වීම
+                # Metric පෙන්වීම
                 s_col1.metric("Sand Remaining", f"{s_in - s_out:.2f} Cubes", delta=f"In: {s_in} | Out: {s_out}")
                 s_col2.metric("Soil Remaining", f"{so_in - so_out:.2f} Cubes", delta=f"In: {so_in} | Out: {so_out}")
-                
+
                 st.divider()
                 st.subheader("Daily Income Trend")
                 trend_data = sales_df.groupby('Date')['Income'].sum()
