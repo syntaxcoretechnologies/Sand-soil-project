@@ -972,21 +972,39 @@ elif menu == "💰 Finance & Shed":
         elif fin == "🧾 Others":
             st.subheader("🧾 Other Expenses")
             with st.form("oth", clear_on_submit=True):
+                # --- මචං, මෙන්න මේ පේළිය අලුතින් එක් කළා ---
+                ex_date = st.date_input("Date", value=datetime.now().date())
+                
                 cat = st.selectbox("Category", ["Food", "Rent", "Utility", "Office", "Misc"])
                 am = st.number_input("Amount (LKR)", min_value=0.0)
                 nt = st.text_input("Description")
+                
                 if st.form_submit_button("Save Expense"):
                     if am > 0:
                         oth_data = {
-                            "Date": str(datetime.now().date()), "Type": "Expense", "Category": cat,
-                            "Entity": "Admin", "Note": nt, "Amount": am,
-                            "Qty_Cubes": 0, "Fuel_Ltr": 0, "Hours": 0, "Rate_At_Time": 0, "Status": "Paid"
+                            # දැන් මෙතනට වැටෙන්නේ ඔයා උඩින් තෝරන දවස (ex_date)
+                            "Date": str(ex_date), 
+                            "Type": "Expense", 
+                            "Category": cat,
+                            "Entity": "Admin", 
+                            "Note": nt, 
+                            "Amount": am,
+                            "Qty_Cubes": 0, 
+                            "Fuel_Ltr": 0, 
+                            "Hours": 0, 
+                            "Rate_At_Time": 0, 
+                            "Status": "Paid"
                         }
                         try:
+                            # Supabase එකට දත්ත යැවීම
                             conn.table("master_log").insert(oth_data).execute()
+                            
+                            # Session State එක Update කරලා Refresh කිරීම
                             st.session_state.df = load_data("master_log", cols_master)
-                            st.success("Saved!"); st.rerun()
-                        except Exception as e: st.error(f"Error: {e}")
+                            st.success(f"Saved! Record added for {ex_date}")
+                            st.rerun()
+                        except Exception as e: 
+                            st.error(f"Error: {e}")
                             
 # --- 9. SYSTEM SETUP ---
 elif menu == "📑 Reports Center":
