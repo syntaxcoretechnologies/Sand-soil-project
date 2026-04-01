@@ -781,10 +781,14 @@ elif menu == "📊 Dashboard":
                         # Test calculation
                         test_in = temp_df[temp_df["Category"].str.contains("Inward", case=False, na=False)]
                         st.write(f"Test Filter Row Count (Inward): {len(test_in)}")
+
+                # දැනට Database එකේ තියෙන ඔක්කොම Category නම් ටික මෙතනින් පේනවා
+                all_cats = temp_df["Category"].unique().tolist()
+                st.write("📌 Current Categories in DB:", all_cats)
                 
                 except Exception as e:
                     st.error("❌ මෙන්න ලෙඩේ අහුවුණා!")
-                    st.exception(e) # මෙතනින් තමයි රතු පාටින් ලොකු විස්තරයක් එන්නේ
+                    st.exception(e)
                 # --------------------------------
                 st.subheader("Daily Income Trend")
                 trend_data = sales_df.groupby('Date')['Income'].sum()
