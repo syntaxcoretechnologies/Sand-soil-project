@@ -449,25 +449,21 @@ def create_landowner_pdf(title, data_df, summary_dict):
         if text is None or str(text) == "nan": return ""
         return str(text).encode("latin-1", "ignore").decode("latin-1")
 
-    # --- මචං, මේ පේළි ටික තමයි වැදගත්ම ---
-    # PDF එකේ උඩ Summary එක ලියන්න කලින් අපිම ගණන් කරමු
-    actual_total_cubes = 0.0
+    # --- 1. සාරාංශයට කලින් Cube ගණන හරියටම ගණන් කරමු ---
+    actual_total_units = 0.0
     for _, row in data_df.iterrows():
-        # Column names වලට අනුව දත්ත ගමු
-        q_cubes = float(row.get('Qty_Cubes', row.get('qty_cubes', 0)))
-        q_qty = float(row.get('Qty', row.get('qty', row.get('Qty/Hr', 0))))
-        row_qty = q_cubes if q_cubes > 0 else q_qty
+        # ඔයාගේ PDF එකේ තියෙන විදිහට Qty/Hr, Qty_Cubes හෝ qty කියන ඕනෑම නමකින් data ගන්නවා
+        q_val = float(row.get('Qty/Hr', row.get('Qty_Cubes', row.get('qty', 0))))
         
-        cat_str = str(row.get('Category', row.get('category', ''))).lower()
-        # Earnings වලට අදාළ ඒවා විතරක් එකතු කරමු
-        if "inward" in cat_str or "sales out" in cat_str:
-            actual_total_cubes += row_qty
+        cat_str = str(row.get('Category', '')).lower()
+        # Inward හෝ Stock In තියෙන ඒවා විතරක් එකතු කරනවා
+        if "inward" in cat_str or "stock in" in cat_str:
+            actual_total_units += q_val
 
-    # 0.00 තිබුණත් නැතත් අපි ගණන් කරපු ඇත්තම අගය මෙතනට දානවා
-    summary_dict["Total Units/Hours"] = f"{actual_total_cubes:,.2f}"
-    # ------------------------------------
+    # සාරාංශයේ 'Total Units/Hours' එකට අපි හොයාගත්ත අගය බලෙන්ම දානවා
+    summary_dict["Total Units/Hours"] = f"{actual_total_units:,.2f}"
 
-    # දැන් සාමාන්‍ය විදිහට Summary එක Print කරන්න...
+    # --- 2. Header & Summary Section ---
     pdf.set_font("Arial", 'B', 12)
     pdf.set_fill_color(240, 240, 240)
     pdf.cell(0, 10, safe_text(f"LANDOWNER STATEMENT: {title.upper()}"), 1, 1, 'L', fill=True)
@@ -480,34 +476,29 @@ def create_landowner_pdf(title, data_df, summary_dict):
         pdf.cell(0, 8, " " + safe_text(v), 1, 1)
         pdf.set_font("Arial", 'B', 10)
 
-    # Table Header
+    # --- 3. Table Header ---
     pdf.ln(8)
-    pdf.set_font("Arial", 'B', 9)
-    headers = ["Date", "Category", "Note", "Cubes", "Rate", "Amount"]
+    headers = ["Date", "Category", "Note", "Qty/Hr", "Rate", "Amount"]
     w = [22, 35, 50, 15, 25, 43]
     pdf.set_fill_color(220, 220, 220)
     for i, h in enumerate(headers):
         pdf.cell(w[i], 8, safe_text(h), 1, 0, 'C', fill=True)
     pdf.ln()
-    
+
+    # --- 4. Table Body ---
     pdf.set_font("Arial", '', 8)
     total_payable = 0
     total_paid = 0
     
     for _, row in data_df.iterrows():
-        date_val = safe_text(str(row.get('Date', row.get('date', '-'))))
-        cat_val = safe_text(str(row.get('Category', row.get('category', 'General'))))
-        note_val = safe_text(str(row.get('Note', row.get('note', ''))))[:30]
+        date_val = safe_text(str(row.get('Date', '-')))
+        cat_val = safe_text(str(row.get('Category', 'General')))
+        note_val = safe_text(str(row.get('Note', ''))[:30])
         
-        try:
-            cubes = float(row.get('Qty_Cubes', row.get('qty_cubes', 0)))
-            rate = float(row.get('Rate_At_Time', row.get('rate_at_time', 0)))
-            amt = float(row.get('Amount', row.get('amount', 0)))
-            
-            if amt == 0 and cubes > 0 and rate > 0:
-                amt = cubes * rate
-        except:
-            cubes = 0; rate = 0; amt = 0
+        # Table එක ඇතුළත දත්ත පෙන්වීම
+        cubes = float(row.get('Qty/Hr', row.get('Qty_Cubes', 0)))
+        rate = float(row.get('Rate_At_Time', row.get('Rate', 0)))
+        amt = float(row.get('Amount', 0))
 
         pdf.cell(w[0], 7, date_val, 1)
         pdf.cell(w[1], 7, cat_val, 1)
@@ -515,9 +506,8 @@ def create_landowner_pdf(title, data_df, summary_dict):
         pdf.cell(w[3], 7, f"{cubes:,.2f}" if cubes > 0 else "-", 1, 0, 'C')
         pdf.cell(w[4], 7, f"{rate:,.2f}" if rate > 0 else "-", 1, 0, 'R')
         
-        category_str = str(cat_val).lower()
-        
-        if "inward" in category_str or "sales out" in category_str:
+        category_str = cat_val.lower()
+        if "inward" in category_str or "stock in" in category_str:
             total_payable += amt
             pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 1, 'R')
         elif any(x in category_str for x in ["advance", "payment", "paid"]):
@@ -528,13 +518,12 @@ def create_landowner_pdf(title, data_df, summary_dict):
         else:
             pdf.cell(w[5], 7, f"{amt:,.2f}" if amt != 0 else "-", 1, 1, 'R')
 
-    # ... (ඉතිරි Net Balance පෙන්වන කොටස ඔයාගේ පරණ එකම තියාගන්න)
-    
-    # Final Net Balance
-    pdf.set_fill_color(39, 174, 96); pdf.set_text_color(255, 255, 255)
-    pdf.cell(sum(w[:5]), 11, "NET PAYABLE TO LANDOWNER (LKR)", 1, 0, 'R', fill=True)
-    pdf.cell(w[5], 11, f"{(total_payable - total_paid):,.2f}", 1, 1, 'R', fill=True)
-    
+    # --- 5. Table Bottom (අවසාන එකතුව) ---
+    pdf.set_font("Arial", 'B', 9)
+    pdf.cell(sum(w[:3]), 8, "TOTAL QUANTITY / HOURS", 1, 0, 'R')
+    pdf.cell(w[3], 8, f"{actual_total_units:,.2f}", 1, 0, 'C') # මෙතන දැන් 25.00 හරියට වැටෙනවා
+    pdf.cell(w[4]+w[5], 8, "", 1, 1)
+
     from datetime import datetime
     fn = f"LO_Settlement_{datetime.now().strftime('%H%M%S')}.pdf"
     pdf.output(fn)
