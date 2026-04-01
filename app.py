@@ -167,7 +167,6 @@ def create_pdf(title, data_df, summary_dict):
         if text is None or str(text) == "nan": return ""
         return str(text).encode("latin-1", "ignore").decode("latin-1")
 
-    # --- මචං, මෙන්න මේ කොටස තමයි වැදගත්ම (FIX) ---
     def clean_val(v):
         try:
             if v is None or str(v).lower() == 'nan' or str(v).strip() == '': return 0.0
@@ -176,19 +175,26 @@ def create_pdf(title, data_df, summary_dict):
             return float(v_str) if v_str else 0.0
         except: return 0.0
 
-    # Summary එක PDF එකේ ලියන්න කලින් මුළු පැය ගණන ගණනය කරමු
-    calculated_total_units = 0.0
-    # ඔයාගේ PDF එකේ තියෙන Column නම 'Qty/Hr' [cite: 14, 58]
-    unit_col = next((c for c in ['Qty/Hr', 'Work_Hours', 'Qty_Cubes', 'Qty'] if c in data_df.columns), None)
-    
-    if unit_col:
-        # Income හෝ Work Log වලට අදාළ පේළි විතරක් එකතු කරමු [cite: 4, 9]
-        u_filter = (data_df["Category"].str.contains("Work Log", case=False, na=False))
-        calculated_total_units = data_df[u_filter][unit_col].apply(clean_val).sum()
+    # --- මචං, මෙතන තමයි සිරාම FIX එක ---
+    # පල්ලෙහා Table එකේ වැටෙන අගයන්ම උඩ Summary එකටත් කලින්ම ගණන් කරමු
+    actual_total_units = 0.0
+    for _, row in data_df.iterrows():
+        # පල්ලෙහා table එකේ පාවිච්චි කරන logic එකම මෙතනත් දානවා
+        q_cubes = clean_val(row.get('Qty_Cubes', row.get('qty_cubes', 0)))
+        w_hrs = clean_val(row.get('Work_Hours', row.get('hours', row.get('Work_Hours', 0))))
+        q_qty = clean_val(row.get('Qty', row.get('qty', row.get('Qty/Hr', 0))))
+        
+        # පේළියේ අගය තීරණය කිරීම
+        row_qty = q_cubes if q_cubes > 0 else (w_hrs if w_hrs > 0 else q_qty)
+        
+        # Income/Work Log ඒවා විතරක් එකතු කරමු
+        category = str(row.get('Category', row.get('category', ''))).lower()
+        if "work log" in category or "income" in str(row.get('Type', '')).lower():
+            actual_total_units += row_qty
 
-    # දැන් summary_dict එකේ තියෙන 0.00 අගය අලුත් අගයෙන් override කරනවා
-    summary_dict["Total Units/Hours"] = f"{calculated_total_units:,.2f}"
-    # ----------------------------------------------
+    # දැන් 0.00 වෙනුවට ඇත්තම එකතුව summary එකට දානවා
+    summary_dict["Total Units/Hours"] = f"{actual_total_units:,.2f}"
+    # ------------------------------------
 
     # Title Section
     pdf.set_font("Arial", 'B', 12)
@@ -196,7 +202,7 @@ def create_pdf(title, data_df, summary_dict):
     pdf.cell(0, 10, safe_text(f"STATEMENT: {title.upper()}"), 1, 1, 'L', fill=True)
     pdf.ln(2)
     
-    # Summary Table Section (දැන් මෙතනට එන්නේ උඩදී ගණන් කරපු නිවැරදි අගයයි)
+    # Summary Table Section
     pdf.set_font("Arial", 'B', 10)
     for k, v in summary_dict.items():
         if k != "Rate_Breakdown":
