@@ -761,6 +761,15 @@ elif menu == "📊 Dashboard":
                 # --- Stock Balance Section (Final Fixed) ---
                 st.subheader("📦 Plant Stock Balance")
                 s_col1, s_col2 = st.columns(2)
+                # --- Debugging Section (මේක දාලා බලන්න data පේනවද කියලා) ---
+                st.write("Debug: Table Columns:", full_df.columns.tolist())
+                st.write("Debug: Sample Data:", full_df[['Date', 'Category', 'Qty_Cubes']].head())
+                
+                # 'Sand' inward records තියෙනවද කියලා බලමු
+                debug_in = full_df[full_df["Category"].str.contains("Inward|Stock In", case=False, na=False) & 
+                                   full_df["Category"].str.contains("Sand", case=False, na=False)]
+                st.write(f"Debug: Sand Inward Records Found: {len(debug_in)}")
+                # -------------------------------------------------------
                 
                 # 1. දත්ත ලබා ගැනීම (sales_df නැතිනම් session_state පාවිච්චි කරයි)
                 if 'sales_df' in locals():
