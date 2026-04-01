@@ -777,8 +777,16 @@ elif menu == "📊 Dashboard":
                 
                     # Qty_Cubes සහ Qty/Hr දෙකම එකතු වන සේ හදමු (මගහැරීමක් නොවෙන්න)
                     def calc_total(temp_df):
-                        q1 = pd.to_numeric(temp_df["Qty_Cubes"], errors='coerce').fillna(0).sum()
-                        q2 = pd.to_numeric(temp_df["Qty/Hr"], errors='coerce').fillna(0).sum()
+                        # Qty_Cubes තියෙනවා නම් ඒක ගන්න, නැත්නම් 0 ගන්න
+                        q1 = 0
+                        if "Qty_Cubes" in temp_df.columns:
+                            q1 = pd.to_numeric(temp_df["Qty_Cubes"], errors='coerce').fillna(0).sum()
+                        
+                        # Qty/Hr තියෙනවා නම් විතරක් ඒක ගන්න (KeyError එක එන්නේ මෙතනදී)
+                        q2 = 0
+                        if "Qty/Hr" in temp_df.columns:
+                            q2 = pd.to_numeric(temp_df["Qty/Hr"], errors='coerce').fillna(0).sum()
+                            
                         return q1 + q2
                 
                     in_q = calc_total(full_df[inward_mask])
