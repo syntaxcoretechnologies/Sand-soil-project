@@ -1313,17 +1313,31 @@ elif menu == "📑 Reports Center":
                     st.divider()
 
                     # 6. PDF එකට දත්ත යවන තැන (මෙහිදී අගයන් string වලට හරවා යවමු)
+                    # --- PDF Download Button එක තියෙන කොටස මෙන්න මේ විදිහට update කරන්න ---
+
                     if st.button("📥 Download Settlement PDF"):
+                        # 1. පල්ලෙහා table එකේ පෙන්වන අගයම මෙතනදීත් ගණනය කරගන්නවා
+                        unit_col = next((c for c in ['Qty/Hr', 'Work_Hours', 'Qty_Cubes', 'Qty'] if c in ve_records.columns), None)
+                        
+                        # පල්ලෙහා table එකේ එකතුව ගන්න පාවිච්චි කරන logic එකමයි
+                        if unit_col:
+                            u_filter = (ve_records["Type"] == "Income") | (ve_records["Category"].str.contains("Work Log", case=False, na=False))
+                            calc_units = float(pd.to_numeric(ve_records[u_filter][unit_col], errors='coerce').fillna(0).sum())
+                        else:
+                            calc_units = 0.0
+                    
+                        # 2. දැන් මේ දත්ත ටික summary_data එකට දානවා
                         summary_data = {
                             "Vehicle/Machine": str(selected_ve),
                             "Type": "Excavator/Own" if is_excavator else "Lorry/Rented",
-                            "Total Units/Hours": f"{final_units:,.2f}",  # <-- මෙන්න මෙතනින් තමයි PDF එකට යන්නේ
+                            "Total Units/Hours": f"{calc_units:,.2f}",  # <-- මෙතන තමයි 0.00 වෙන එක නවත්තන්නේ
                             "Gross Earnings": f"Rs. {final_gross:,.2f}",
                             "Total Expenses": f"Rs. {final_exp:,.2f}",
                             "Net Balance": f"Rs. {final_net:,.2f}",
                             "Period": f"{f_d} to {t_d}"
                         }
-                        # PDF Function එක call කිරීම
+                    
+                        # 3. PDF එක generate කරනවා
                         pdf_path = create_pdf("Settlement_Report", ve_records, summary_data)
                         with open(pdf_path, "rb") as f:
                             st.download_button("📩 Download PDF Now", f, file_name=f"{selected_ve}_Settlement.pdf")
