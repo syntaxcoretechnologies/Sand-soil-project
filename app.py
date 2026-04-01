@@ -1253,6 +1253,7 @@ elif menu == "📑 Reports Center":
     v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
     
     # --- TAB: VEHICLE / MACHINE SETTLEMENT (STRICT FIX) ---
+    # --- TAB: VEHICLE / MACHINE SETTLEMENT (STRICT FIX) ---
     with r1:
         st.subheader("🚜 Vehicle / Machine Settlement & Profitability")
         
