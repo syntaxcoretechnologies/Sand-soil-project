@@ -758,20 +758,39 @@ elif menu == "📊 Dashboard":
                 st.divider()
 
                 # Stock Balance
-                st.subheader("📦 Plant Stock Balance (Current)")
+                # --- Stock Balance Section (Fixed) ---
+                st.subheader("📦 Plant Stock Balance (Selected Period)")
                 s_col1, s_col2 = st.columns(2)
-                full_df = st.session_state.df.copy()
+                
+                # 1. වැදගත්ම දේ: තෝරාගත් දින පරාසය (Selected Range) අනුව විතරක් data filter කරගන්න
+                # මෙතන sales_df පාවිච්චි කරන්න, මොකද ඒක දැනටමත් filter වෙලා තියෙන්නේ
+                full_df = sales_df.copy() 
                 
                 def get_stock(material_name):
-                    in_q = pd.to_numeric(full_df[full_df["Category"].str.contains("Inward", case=False, na=False) & 
-                                         full_df["Category"].str.contains(material_name, case=False, na=False)]["Qty_Cubes"], errors='coerce').sum()
-                    out_q = pd.to_numeric(full_df[full_df["Category"].str.contains("Sales Out", case=False, na=False) & 
-                                          full_df["Category"].str.contains(material_name, case=False, na=False)]["Qty_Cubes"], errors='coerce').sum()
+                    # Inward records filter කිරීම
+                    inward_mask = (full_df["Category"].str.contains("Inward|Stock In", case=False, na=False)) & \
+                                  (full_df["Category"].str.contains(material_name, case=False, na=False))
+                    
+                    # Outward/Sales records filter කිරීම
+                    outward_mask = (full_df["Category"].str.contains("Sales Out|Issue|Outward", case=False, na=False)) & \
+                                   (full_df["Category"].str.contains(material_name, case=False, na=False))
+                
+                    # Qty_Cubes සහ Qty/Hr දෙකම එකතු වන සේ හදමු (මගහැරීමක් නොවෙන්න)
+                    def calc_total(temp_df):
+                        q1 = pd.to_numeric(temp_df["Qty_Cubes"], errors='coerce').fillna(0).sum()
+                        q2 = pd.to_numeric(temp_df["Qty/Hr"], errors='coerce').fillna(0).sum()
+                        return q1 + q2
+                
+                    in_q = calc_total(full_df[inward_mask])
+                    out_q = calc_total(full_df[outward_mask])
+                    
                     return in_q, out_q
-
+                
+                # Sand සහ Soil සඳහා ගණනය කිරීම
                 s_in, s_out = get_stock("Sand")
                 so_in, so_out = get_stock("Soil")
-
+                
+                # UI එකට පෙන්වීම
                 s_col1.metric("Sand Remaining", f"{s_in - s_out:.2f} Cubes", delta=f"In: {s_in} | Out: {s_out}")
                 s_col2.metric("Soil Remaining", f"{so_in - so_out:.2f} Cubes", delta=f"In: {so_in} | Out: {so_out}")
                 
