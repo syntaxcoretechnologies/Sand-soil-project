@@ -726,13 +726,13 @@ if st.sidebar.button("Logout 🔓", use_container_width=True, type="secondary"):
 elif menu == "📊 Dashboard":
         st.markdown("<h2 style='color: #2E86C1;'>📊 Business Overview</h2>", unsafe_allow_html=True)
         
-        df = st.session_state.df.copy()
-        
-        if not df.empty:
+        if not st.session_state.df.empty:
+            df = st.session_state.df.copy()
             st.subheader("📅 Filter Transactions")
             col_f1, col_f2 = st.columns(2)
+            
             with col_f1:
-                from datetime import timedelta
+                from datetime import timedelta, datetime
                 start_date = st.date_input("From Date", datetime.now().date() - timedelta(days=7))
             with col_f2:
                 end_date = st.date_input("To Date", datetime.now().date())
@@ -742,94 +742,82 @@ elif menu == "📊 Dashboard":
             filtered_df = df.loc[mask].copy()
 
             if not filtered_df.empty:
-                # Financial Metrics
-                sales_df = filtered_df[filtered_df["Category"].str.contains("Sales Out", case=False, na=False)].copy()
-                sales_df['Income'] = pd.to_numeric(sales_df['Amount'], errors='coerce').fillna(0)
+                # --- Financial Metrics ---
+                # Income එක ගන්නේ Sales Out records වලින් පමණි
+                s_mask = filtered_df["Category"].str.contains("Sales Out", case=False, na=False)
+                temp_sales_df = filtered_df[s_mask].copy()
+                temp_sales_df['Income'] = pd.to_numeric(temp_sales_df['Amount'], errors='coerce').fillna(0)
                 
-                real_income = sales_df['Income'].sum()
+                real_income = temp_sales_df['Income'].sum()
                 total_expenses = pd.to_numeric(filtered_df[filtered_df["Type"] == "Expense"]["Amount"], errors='coerce').sum()
 
                 m1, m2, m3 = st.columns(3)
                 m1.metric("Net Sales Income", f"Rs. {real_income:,.2f}")
                 m2.metric("Total Expenses", f"Rs. {total_expenses:,.2f}")
-                m3.metric("Net Cashflow", f"Rs. {real_income - total_expenses:,.2f}", 
-                          delta=f"{((real_income - total_expenses)/real_income*100):.1f}% Margin" if real_income > 0 else None)
+                
+                cashflow = real_income - total_expenses
+                margin = (cashflow / real_income * 100) if real_income > 0 else 0
+                m3.metric("Net Cashflow", f"Rs. {cashflow:,.2f}", delta=f"{margin:.1f}% Margin")
 
                 st.divider()
 
-                # --- Stock Balance Section ---
-                # --- Stock Balance Section (FIXED & CLEAN) ---
                 # --- Stock Balance Section (Raw Material Logic) ---
                 st.subheader("📦 Plant Stock Balance (Main Stock)")
                 
                 try:
-                    # 1. දත්ත මූලාශ්‍රය තෝරාගැනීම
-                    if 'sales_df' in locals() and not sales_df.empty:
-                        full_df = sales_df.copy()
-                    elif 'df' in st.session_state and not st.session_state.df.empty:
-                        full_df = st.session_state.df.copy()
-                    else:
-                        full_df = pd.DataFrame()
-        
-                    if not full_df.empty:
-                        # --- අගයන් ගණනය කිරීමේ Function එක ---
-                        def get_totals():
-                            # 1. මුළු ඇතුළත් කිරීම් (Inward) - පස් විදිහට පමණක් එන නිසා
-                            in_mask = (full_df["Category"].str.contains("Inward|Stock In", case=False, na=False))
-                            total_in = pd.to_numeric(full_df[in_mask]["Qty_Cubes"], errors='coerce').fillna(0).sum()
-        
-                            # 2. වැලි විකුණුම් (Sand Out)
-                            sand_out_mask = (full_df["Category"].str.contains("Sales Out|Outward", case=False, na=False)) & \
-                                            (full_df["Category"].str.contains("Sand", case=False, na=False))
-                            sand_out = pd.to_numeric(full_df[sand_out_mask]["Qty_Cubes"], errors='coerce').fillna(0).sum()
-        
-                            # 3. පස් විකුණුම් (Soil Out)
-                            soil_out_mask = (full_df["Category"].str.contains("Sales Out|Outward", case=False, na=False)) & \
-                                            (full_df["Category"].str.contains("Soil", case=False, na=False))
-                            soil_out = pd.to_numeric(full_df[soil_out_mask]["Qty_Cubes"], errors='coerce').fillna(0).sum()
-        
-                            return total_in, sand_out, soil_out
-        
-                        # අගයන් ලබා ගැනීම
-                        total_in, s_out, so_out = get_totals()
-                        
-                        # මුළු ඉතිරිය (Main Stock Balance)
-                        remaining_balance = total_in - (s_out + so_out)
-        
-                        # 3. UI එක පෙන්වීම
-                        s_col1, s_col2 = st.columns(2)
-                        
-                        # Sand Card (පෙන්වන්නේ Sand out එක සහ Main Stock එකේ ඉතිරිය)
-                        s_col1.metric(
-                            "Sand Stats", 
-                            f"{remaining_balance:.2f} Cubes Left", 
-                            delta=f"Sold: {s_out} Cubes", 
-                            delta_color="inverse"
-                        )
-                        
-                        # Soil Card (පෙන්වන්නේ Soil In/Out සහ Main Stock එකේ ඉතිරිය)
-                        s_col2.metric(
-                            "Soil Stats", 
-                            f"{remaining_balance:.2f} Cubes Left", 
-                            delta=f"In: {total_in} | Sold: {so_out}",
-                            delta_color="normal"
-                        )
-        
-                        st.info(f"💡 **සටහන:** මුළු පස් ඇතුළත් කිරීම් වලින් ({total_in}), වැලි ({s_out}) සහ පස් ({so_out}) විකුණුම් අඩු කර ශේෂය ගණනය කර ඇත.")
-        
-                        # --- 4. Income Trend Chart ---
-                        st.divider()
-                        st.subheader("Daily Income Trend")
-                        if 'Income' in full_df.columns:
-                            trend_data = full_df.groupby('Date')['Income'].sum()
-                            st.line_chart(trend_data)
-                    else:
-                        st.info("පද්ධතියේ දත්ත කිසිවක් නැත.")
-        
+                    # වැදගත්: මෙතනදී මුළු filtered_df එකම පාවිච්චි කළ යුතුයි (Inward සහ Outward දෙකම තිබීමට)
+                    
+                    # 1. මුළු ඇතුළත් කිරීම් (Inward) - පස් විදිහට පමණක් එන නිසා
+                    in_mask = (filtered_df["Category"].str.contains("Inward|Stock In", case=False, na=False))
+                    total_in = pd.to_numeric(filtered_df[in_mask]["Qty_Cubes"], errors='coerce').fillna(0).sum()
+
+                    # 2. වැලි විකුණුම් (Sand Out)
+                    sand_out_mask = (filtered_df["Category"].str.contains("Sales Out|Outward", case=False, na=False)) & \
+                                    (filtered_df["Category"].str.contains("Sand", case=False, na=False))
+                    sand_out = pd.to_numeric(filtered_df[sand_out_mask]["Qty_Cubes"], errors='coerce').fillna(0).sum()
+
+                    # 3. පස් විකුණුම් (Soil Out)
+                    soil_out_mask = (filtered_df["Category"].str.contains("Sales Out|Outward", case=False, na=False)) & \
+                                    (filtered_df["Category"].str.contains("Soil", case=False, na=False))
+                    soil_out = pd.to_numeric(filtered_df[soil_out_mask]["Qty_Cubes"], errors='coerce').fillna(0).sum()
+
+                    # මුළු ඉතිරිය (Main Stock Balance)
+                    remaining_balance = total_in - (sand_out + soil_out)
+
+                    # UI Cards පෙන්වීම
+                    s_col1, s_col2 = st.columns(2)
+                    
+                    s_col1.metric(
+                        "Sand Stats", 
+                        f"{remaining_balance:.2f} Cubes Left", 
+                        delta=f"Sold: {sand_out} Cubes", 
+                        delta_color="inverse"
+                    )
+                    
+                    s_col2.metric(
+                        "Soil Stats", 
+                        f"{remaining_balance:.2f} Cubes Left", 
+                        delta=f"In: {total_in} | Sold: {soil_out}",
+                        delta_color="normal"
+                    )
+
+                    st.info(f"💡 **සටහන:** පස් ඇතුළත් කිරීම් වලින් ({total_in}), වැලි ({sand_out}) සහ පස් ({soil_out}) විකුණුම් අඩු කර ශේෂය ගණනය කර ඇත.")
+
+                    # --- Income Trend Chart ---
+                    st.divider()
+                    st.subheader("Daily Income Trend")
+                    if not temp_sales_df.empty:
+                        trend_data = temp_sales_df.groupby('Date')['Income'].sum()
+                        st.line_chart(trend_data)
+
                 except Exception as e:
-                    st.error(f"Dashboard Error: {e}")
-        
-                st.divider()
+                    st.error(f"Stock Logic Error: {e}")
+
+            else:
+                st.warning("තෝරාගත් දින පරාසය තුළ දත්ත නැත.")
+        else:
+            st.info("පද්ධතියේ දත්ත කිසිවක් නැත. කරුණාකර දත්ත ඇතුළත් කරන්න.")
+            
 # --- 2. SITE OPERATIONS SECTION ---
 # මේ 'elif' එක පටන් ගන්න ඕනේ උඩ තියෙන 'if menu == "📊 Dashboard":' එකට කෙළින්ම පල්ලෙහායින්
 # --- කලින් තිබුණු Site Operations එක අයින් කරලා මේක දාන්න ---
