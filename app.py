@@ -440,7 +440,7 @@ def create_driver_pdf(title, data_df, summary_dict):
     pdf.output(fn)
     return fn
     
-# --- 8. LANDOWNER PDF ENGINE (Cloud-Ready) ---
+# --- 8. LANDOWNER PDF ENGINE (Fixed for Total Cubes) ---
 def create_landowner_pdf(title, data_df, summary_dict):
     pdf = PDF() 
     pdf.add_page()
@@ -449,13 +449,32 @@ def create_landowner_pdf(title, data_df, summary_dict):
         if text is None or str(text) == "nan": return ""
         return str(text).encode("latin-1", "ignore").decode("latin-1")
 
+    # --- මචං, මේ කොටස තමයි Summary එකට කලින් Cube ගණන හොයාගන්න දාපු FIX එක ---
+    actual_total_cubes = 0.0
+    for _, row in data_df.iterrows():
+        # Column names (Supabase/Dataframe) වලට අනුව කියුබ් ගණන ගමු
+        q_cubes = float(row.get('Qty_Cubes', row.get('qty_cubes', 0)))
+        q_qty = float(row.get('Qty', row.get('qty', row.get('Qty/Hr', 0))))
+        
+        # කියුබ් ගණන තීරණය කිරීම
+        row_cubes = q_cubes if q_cubes > 0 else q_qty
+        
+        # Landowner report එකේ Earnings වලට අදාළ දේවල් විතරක් එකතු කරමු
+        category_str = str(row.get('Category', row.get('category', ''))).lower()
+        if "inward" in category_str or "sales out" in category_str:
+            actual_total_cubes += row_cubes
+
+    # Summary එකට ඇත්තම කියුබ් ගණන ඇතුළත් කරමු
+    summary_dict["Total Units/Hours"] = f"{actual_total_cubes:,.2f}"
+    # -----------------------------------------------------------------------
+
     # Header Section
     pdf.set_font("Arial", 'B', 12)
     pdf.set_fill_color(240, 240, 240)
     pdf.cell(0, 10, safe_text(f"LANDOWNER STATEMENT: {title.upper()}"), 1, 1, 'L', fill=True)
     pdf.ln(2)
     
-    # Summary Details
+    # Summary Details (දැන් මෙතනට නිවැරදි Total Units වැටෙනවා)
     pdf.set_font("Arial", 'B', 10)
     for k, v in summary_dict.items():
         pdf.cell(50, 8, safe_text(k) + ":", 1)
@@ -478,7 +497,6 @@ def create_landowner_pdf(title, data_df, summary_dict):
     total_paid = 0
     
     for _, row in data_df.iterrows():
-        # Column names වලට ගැලපෙන්න දත්ත ලබා ගැනීම
         date_val = safe_text(str(row.get('Date', row.get('date', '-'))))
         cat_val = safe_text(str(row.get('Category', row.get('category', 'General'))))
         note_val = safe_text(str(row.get('Note', row.get('note', ''))))[:30]
@@ -488,7 +506,6 @@ def create_landowner_pdf(title, data_df, summary_dict):
             rate = float(row.get('Rate_At_Time', row.get('rate_at_time', 0)))
             amt = float(row.get('Amount', row.get('amount', 0)))
             
-            # පරණ Report එකේ වගේ Amount එක 0 නම් calculate කරමු
             if amt == 0 and cubes > 0 and rate > 0:
                 amt = cubes * rate
         except:
@@ -502,12 +519,9 @@ def create_landowner_pdf(title, data_df, summary_dict):
         
         category_str = str(cat_val).lower()
         
-        # --- FIXED LOGIC: 'Sales Out' තිබුණත් ඒක Earnings එකක් විදිහට ගමු ---
         if "inward" in category_str or "sales out" in category_str:
             total_payable += amt
             pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 1, 'R')
-        
-        # Advances පෙන්වීම
         elif any(x in category_str for x in ["advance", "payment", "paid"]):
             total_paid += amt
             pdf.set_text_color(200, 0, 0)
@@ -515,17 +529,8 @@ def create_landowner_pdf(title, data_df, summary_dict):
             pdf.set_text_color(0, 0, 0)
         else:
             pdf.cell(w[5], 7, f"{amt:,.2f}" if amt != 0 else "-", 1, 1, 'R')
-    
-    # Final Summary
-    if pdf.get_y() > 240: pdf.add_page()
-    pdf.ln(5)
-    pdf.set_font("Arial", 'B', 10)
-    
-    pdf.cell(sum(w[:5]), 9, "TOTAL EARNINGS FROM SALES (LKR)", 1, 0, 'R')
-    pdf.cell(w[5], 9, f"{total_payable:,.2f}", 1, 1, 'R')
-    
-    pdf.cell(sum(w[:5]), 9, "TOTAL ADVANCES PAID (LKR)", 1, 0, 'R')
-    pdf.cell(w[5], 9, f"{total_paid:,.2f}", 1, 1, 'R')
+
+    # ... (ඉතිරි Net Balance පෙන්වන කොටස ඔයාගේ පරණ එකම තියාගන්න)
     
     # Final Net Balance
     pdf.set_fill_color(39, 174, 96); pdf.set_text_color(255, 255, 255)
