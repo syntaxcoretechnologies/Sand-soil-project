@@ -1251,9 +1251,8 @@ elif menu == "📑 Reports Center":
             
     # 1. වාහන ලැයිස්තුව ලබා ගනිමු
     v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
-
-    # --- TAB: VEHICLE / MACHINE SETTLEMENT (FIXED) ---
-    # --- TAB: VEHICLE / MACHINE SETTLEMENT (FIXED) ---
+    
+    # --- TAB: VEHICLE / MACHINE SETTLEMENT (STRICT FIX) ---
     with r1:
         st.subheader("🚜 Vehicle / Machine Settlement & Profitability")
         
@@ -1268,66 +1267,62 @@ elif menu == "📑 Reports Center":
                 ve_records = df_f[df_f[target_col] == selected_ve].copy()
                 
                 if not ve_records.empty:
-                    # 1. මැෂින් එක අඳුනා ගැනීම
+                    # 1. මැෂින් වර්ගය හඳුනාගැනීම
                     is_excavator = any(x in str(selected_ve).upper() for x in ["EX", "PC", "SK", "EXCAVATOR", "JCB"])
                     ve_records.columns = [str(c).strip() for c in ve_records.columns]
                     
-                    # 2. පැය ගණන (Units) ගණනය කිරීම - පට්ටම වැදගත් කොටස
-                    # Column එකේ නම පරීක්ෂා කරමු
-                    possible_cols = ['Qty/Hr', 'Work_Hours', 'Qty_Cubes', 'Qty', 'Units']
-                    h_col = next((c for c in possible_cols if c in ve_records.columns), None)
-                    
-                    # මුලින්ම variables ටික default බිංදුව කරමු
-                    total_units = 0.0
-                    gross_earning = 0.0
-                    total_exp = 0.0
+                    # 2. මුලින්ම variables ටික clear කරමු
+                    final_units = 0.0
+                    final_gross = 0.0
+                    final_exp = 0.0
 
-                    if h_col:
-                        # දත්ත numbers වලට හරවමු
-                        ve_records[h_col] = pd.to_numeric(ve_records[h_col], errors='coerce').fillna(0)
-                        
-                        # Income හෝ Work Log වලට අදාළ පැය ගණන විතරක් එකතු කරමු
-                        unit_filter = (ve_records["Type"] == "Income") | (ve_records["Category"].str.contains("Work Log", case=False, na=False))
-                        total_units = ve_records[unit_filter][h_col].sum()
+                    # 3. පැය ගණන (Units) ගණනය කිරීම - Strict Check
+                    unit_col = next((c for c in ['Qty/Hr', 'Work_Hours', 'Qty_Cubes', 'Qty'] if c in ve_records.columns), None)
                     
-                    # 3. මුදල් ගණනය කිරීම්
+                    if unit_col:
+                        ve_records[unit_col] = pd.to_numeric(ve_records[unit_col], errors='coerce').fillna(0)
+                        # Income හෝ Work Log වලට අදාළ දත්ත පමණක් ගමු
+                        unit_filter = (ve_records["Type"] == "Income") | (ve_records["Category"].str.contains("Work Log", case=False, na=False))
+                        final_units = float(ve_records[unit_filter][unit_col].sum())
+                    
+                    # 4. මුදල් ගණනය කිරීම්
                     ve_records['Amount'] = pd.to_numeric(ve_records['Amount'], errors='coerce').fillna(0)
                     
-                    # ආදායම (Gross Earning)
+                    # ආදායම
                     income_filter = (ve_records["Type"] == "Income") | (ve_records["Category"].str.contains("Work Log", case=False, na=False))
-                    gross_earning = ve_records[income_filter]["Amount"].sum()
+                    final_gross = float(ve_records[income_filter]["Amount"].sum())
                     
-                    # වියදම (Total Expenses)
-                    total_exp = ve_records[ve_records["Type"] == "Expense"]["Amount"].sum()
+                    # වියදම
+                    final_exp = float(ve_records[ve_records["Type"] == "Expense"]["Amount"].sum())
                     
                     # ශේෂය
-                    net_balance = gross_earning - total_exp
+                    final_net = final_gross - final_exp
                     
-                    # 4. Metrics Display (Visuals)
+                    # 5. Metrics Display (UI එකේ පෙන්වන කොටස)
                     c1, c2, c3, c4 = st.columns(4)
                     if is_excavator:
-                        c1.metric("Total Work Hours", f"{total_units:,.2f} hrs")
+                        c1.metric("Total Work Hours", f"{final_units:,.2f} hrs")
                     else:
-                        c1.metric("Total Qty", f"{total_units:,.2f} Units")
+                        c1.metric("Total Qty", f"{final_units:,.2f} Units")
                     
-                    c2.metric("Gross Earning", f"Rs. {gross_earning:,.2f}")
-                    c3.metric("Total Expenses", f"Rs. {total_exp:,.2f}")
-                    c4.metric("Net Settlement", f"Rs. {net_balance:,.2f}", delta=f"{net_balance:,.2f}")
+                    c2.metric("Gross Earning", f"Rs. {final_gross:,.2f}")
+                    c3.metric("Total Expenses", f"Rs. {final_exp:,.2f}")
+                    c4.metric("Net Settlement", f"Rs. {final_net:,.2f}", delta=f"{final_net:,.2f}")
                     
                     st.divider()
 
-                    # 5. PDF Download Button (දත්ත ටික හරියටම pass කරමු)
+                    # 6. PDF එකට දත්ත යවන තැන (මෙහිදී අගයන් string වලට හරවා යවමු)
                     if st.button("📥 Download Settlement PDF"):
                         summary_data = {
                             "Vehicle/Machine": str(selected_ve),
                             "Type": "Excavator/Own" if is_excavator else "Lorry/Rented",
-                            "Total Units/Hours": f"{total_units:,.2f}",
-                            "Gross Earnings": f"Rs. {gross_earning:,.2f}",
-                            "Total Expenses": f"Rs. {total_exp:,.2f}",
-                            "Net Balance": f"Rs. {net_balance:,.2f}",
+                            "Total Units/Hours": f"{final_units:,.2f}",  # <-- මෙන්න මෙතනින් තමයි PDF එකට යන්නේ
+                            "Gross Earnings": f"Rs. {final_gross:,.2f}",
+                            "Total Expenses": f"Rs. {final_exp:,.2f}",
+                            "Net Balance": f"Rs. {final_net:,.2f}",
                             "Period": f"{f_d} to {t_d}"
                         }
-                        # create_pdf function එක ඇතුළට summary_data ටික යවනවා
+                        # PDF Function එක call කිරීම
                         pdf_path = create_pdf("Settlement_Report", ve_records, summary_data)
                         with open(pdf_path, "rb") as f:
                             st.download_button("📩 Download PDF Now", f, file_name=f"{selected_ve}_Settlement.pdf")
