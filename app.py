@@ -167,7 +167,7 @@ def create_pdf(title, data_df, summary_dict):
         if text is None or str(text) == "nan": return ""
         return str(text).encode("latin-1", "ignore").decode("latin-1")
 
-    # --- අලුතින් එකතු කළ කොටස: Summary එක ලියන්න කලින් මුළු එකතුව ගණන් කරමු ---
+    # --- මචං, මෙන්න මේ කොටස තමයි වැදගත්ම (FIX) ---
     def clean_val(v):
         try:
             if v is None or str(v).lower() == 'nan' or str(v).strip() == '': return 0.0
@@ -176,18 +176,19 @@ def create_pdf(title, data_df, summary_dict):
             return float(v_str) if v_str else 0.0
         except: return 0.0
 
-    # PDF එකේ පල්ලෙහා පාවිච්චි කරන logic එකම මෙතනදීත් පාවිච්චි කරලා මුළු පැය ගණන ගමු
-    current_total_qty = 0
+    # Summary එක PDF එකේ ලියන්න කලින් මුළු පැය ගණන ගණනය කරමු
+    calculated_total_units = 0.0
+    # ඔයාගේ PDF එකේ තියෙන Column නම 'Qty/Hr' [cite: 14, 58]
     unit_col = next((c for c in ['Qty/Hr', 'Work_Hours', 'Qty_Cubes', 'Qty'] if c in data_df.columns), None)
     
     if unit_col:
-        # Income හෝ Work Log වලට අදාළ පැය ගණන විතරක් ගමු
-        u_filter = (data_df["Type"] == "Income") | (data_df["Category"].str.contains("Work Log", case=False, na=False))
-        current_total_qty = data_df[u_filter][unit_col].apply(clean_val).sum()
+        # Income හෝ Work Log වලට අදාළ පේළි විතරක් එකතු කරමු [cite: 4, 9]
+        u_filter = (data_df["Category"].str.contains("Work Log", case=False, na=False))
+        calculated_total_units = data_df[u_filter][unit_col].apply(clean_val).sum()
 
-    # දැන් summary_dict එකේ තියෙන 0.00 අගය අපි ගණන් කරපු අගයෙන් replace කරනවා
-    summary_dict["Total Units/Hours"] = f"{current_total_qty:,.2f}"
-    # ------------------------------------------------------------------------
+    # දැන් summary_dict එකේ තියෙන 0.00 අගය අලුත් අගයෙන් override කරනවා
+    summary_dict["Total Units/Hours"] = f"{calculated_total_units:,.2f}"
+    # ----------------------------------------------
 
     # Title Section
     pdf.set_font("Arial", 'B', 12)
@@ -195,7 +196,7 @@ def create_pdf(title, data_df, summary_dict):
     pdf.cell(0, 10, safe_text(f"STATEMENT: {title.upper()}"), 1, 1, 'L', fill=True)
     pdf.ln(2)
     
-    # Summary Table එක පෙන්වන කොටස (දැන් මෙතනට එන්නේ අර උඩදී හදපු නිවැරදි අගයයි)
+    # Summary Table Section (දැන් මෙතනට එන්නේ උඩදී ගණන් කරපු නිවැරදි අගයයි)
     pdf.set_font("Arial", 'B', 10)
     for k, v in summary_dict.items():
         if k != "Rate_Breakdown":
@@ -204,7 +205,8 @@ def create_pdf(title, data_df, summary_dict):
             pdf.set_font("Arial", '', 10)
             pdf.cell(0, 8, " " + display_val, 1, 1)
             pdf.set_font("Arial", 'B', 10)
-
+    
+    # ... (ඉතිරි Table එකේ Header සහ Data ලියන කොටස ඔයාගේ පරණ විදිහටම තියාගන්න)
     pdf.ln(8)
     pdf.set_font("Arial", 'B', 9)
     headers = ["Date", "Category", "Description", "Qty/Hr", "Rate", "Amount"]
