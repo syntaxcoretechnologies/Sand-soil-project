@@ -758,42 +758,59 @@ elif menu == "📊 Dashboard":
                 st.divider()
 
                 # --- Stock Balance Section ---
+                # --- Stock Balance Section (FIXED & CLEAN) ---
                 st.subheader("📦 Plant Stock Balance")
                 
-                # --- Fixed System Debugger ---
-                st.write("### 🔍 System Debugger")
-                
                 try:
-                    # 1. දත්ත මූලාශ්‍රය පරීක්ෂා කිරීම
-                    if 'sales_df' in locals():
-                        st.success("Found 'sales_df' variable")
-                        temp_df = sales_df.copy()
-                    elif 'df' in st.session_state:
-                        st.warning("'sales_df' not found, using session_state.df")
-                        temp_df = st.session_state.df.copy()
+                    # 1. Data Source එක තෝරාගැනීම
+                    if 'sales_df' in locals() and not sales_df.empty:
+                        full_df = sales_df.copy()
                     else:
-                        st.error("No data found!")
-                        temp_df = None
-                
-                    if temp_df is not None:
-                        # 2. Columns පෙන්වීම
-                        st.write("Columns:", temp_df.columns.tolist())
-                        
-                        # 3. වැදගත්ම දේ: දැනට තියෙන Categories ටික බැලීම
-                        all_cats = temp_df["Category"].unique().tolist()
-                        st.write("📌 Current Categories in DB:", all_cats)
-                
-                except Exception as e:
-                    st.error("❌ Error during debug!")
-                    st.exception(e)
-                # -----------------------------
-                st.subheader("Daily Income Trend")
-                trend_data = sales_df.groupby('Date')['Income'].sum()
-                st.line_chart(trend_data)
-                
-            else:
-                st.warning("තෝරාගත් දින පරාසය තුළ දත්ත නැත.")
+                        full_df = st.session_state.df.copy()
         
+                    if not full_df.empty:
+                        def get_stock(material_name):
+                            # Category filter කිරීම (Inward/Stock In සහ ද්‍රව්‍යයේ නම)
+                            in_mask = (full_df["Category"].str.contains("Inward|Stock In", case=False, na=False)) & \
+                                      (full_df["Category"].str.contains(material_name, case=False, na=False))
+                            
+                            # Outward filter කිරීම (ඔයාගේ DB එකේ තියෙන "💰 Sales Out (Sand)" වගේ ඒවා මෙතනින් අහුවේ)
+                            out_mask = (full_df["Category"].str.contains("Sales Out|Outward", case=False, na=False)) & \
+                                       (full_df["Category"].str.contains(material_name, case=False, na=False))
+        
+                            def safe_sum(temp_df):
+                                if "Qty_Cubes" in temp_df.columns:
+                                    return pd.to_numeric(temp_df["Qty_Cubes"], errors='coerce').fillna(0).sum()
+                                return 0.0
+        
+                            in_q = safe_sum(full_df[in_mask])
+                            out_q = safe_sum(full_df[out_mask])
+                            
+                            return in_q, out_q
+        
+                        # 2. ගණනය කිරීම්
+                        s_in, s_out = get_stock("Sand")
+                        so_in, so_out = get_stock("Soil")
+        
+                        # 3. UI එක පෙන්වීම
+                        s_col1, s_col2 = st.columns(2)
+                        s_col1.metric("Sand Remaining", f"{s_in - s_out:.2f} Cubes", delta=f"In: {s_in} | Out: {s_out}")
+                        s_col2.metric("Soil Remaining", f"{so_in - so_out:.2f} Cubes", delta=f"In: {so_in} | Out: {so_out}")
+        
+                        # --- 4. Income Trend Chart ---
+                        st.divider()
+                        st.subheader("Daily Income Trend")
+                        if 'Income' in full_df.columns:
+                            trend_data = full_df.groupby('Date')['Income'].sum()
+                            st.line_chart(trend_data)
+                    else:
+                        st.info("පද්ධතියේ දත්ත කිසිවක් නැත. කරුණාකර දත්ත ඇතුළත් කරන්න.")
+        
+                except Exception as e:
+                    st.error(f"Dashboard Error: {e}")
+        
+                st.divider()
+                
         # මෙන්න මෙතන තිබුණු else: එක මම අයින් කළා. 
         # දත්ත නැතිනම් පෙන්වන්න ඕන message එක මෙතනට දැම්මා.
         elif df.empty:
