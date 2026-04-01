@@ -1249,7 +1249,6 @@ elif menu == "📑 Reports Center":
             st.info("Staff database එකේ කිසිම කෙනෙක්ව register කරලා නැහැ.")    
 
             
-    # --- TAB 1: VEHICLE SETTLEMENT ---
     # 1. වාහන ලැයිස්තුව ලබා ගනිමු
     v_list = st.session_state.ve_db["No"].tolist() if not st.session_state.ve_db.empty else ["N/A"]
 
@@ -1272,18 +1271,24 @@ elif menu == "📑 Reports Center":
                     is_excavator = any(x in str(selected_ve).upper() for x in ["EX", "PC", "SK", "EXCAVATOR", "JCB"])
                     ve_records.columns = [str(c).strip() for c in ve_records.columns]
                     
-                    # 2. පැය ගණන (Units) - 'Qty/Hr' පරීක්ෂා කරනවා
+                    # 2. පැය ගණන හෝ කියුබ් ගණන (Units) ගණනය කිරීම - FIXED
+                    # PDF එකේ තියෙන 'Qty/Hr' කියන එකත් මෙතන බලනවා
                     h_col = next((c for c in ['Work_Hours', 'Qty_Cubes', 'Qty/Hr', 'Qty'] if c in ve_records.columns), None)
+                    
                     if h_col:
                         ve_records[h_col] = pd.to_numeric(ve_records[h_col], errors='coerce').fillna(0)
-                        total_units = ve_records[h_col].sum()
+                        # වැදගත්: පැය ගණන එකතු කරන්නේ Income රෙකෝඩ් වල තියෙන ඒවා විතරයි (නැත්නම් ඩීසල් ලීටර් ගණනත් මෙතනට එකතු වෙනවා)
+                        total_units = ve_records[
+                            (ve_records["Type"] == "Income") | 
+                            (ve_records["Category"].str.contains("Work Log", case=False, na=False))
+                        ][h_col].sum()
                     else:
                         total_units = 0.0
                     
                     # 3. මුදල් ගණනය කිරීම්
                     ve_records['Amount'] = pd.to_numeric(ve_records['Amount'], errors='coerce').fillna(0)
                     
-                    # 4. ආදායම ගණනය කිරීම (වැදගත්: මෙතන 'Work Log' කියන එකත් පරීක්ෂා කරනවා)
+                    # 4. ආදායම සහ වියදම ගණනය කිරීම
                     gross_earning = ve_records[
                         (ve_records["Type"] == "Income") | 
                         (ve_records["Category"].str.contains("Work Log", case=False, na=False))
@@ -1292,7 +1297,7 @@ elif menu == "📑 Reports Center":
                     total_exp = ve_records[ve_records["Type"] == "Expense"]["Amount"].sum()
                     net_balance = gross_earning - total_exp
                     
-                    # Metrics Display
+                    # 5. Metrics Display
                     c1, c2, c3, c4 = st.columns(4)
                     if is_excavator:
                         c1.metric("Total Work Hours", f"{total_units:,.2f} hrs")
@@ -1305,7 +1310,7 @@ elif menu == "📑 Reports Center":
                     
                     st.divider()
 
-                    # PDF Download Button
+                    # 6. PDF Download Button
                     if st.button("📥 Download Settlement PDF"):
                         summary_data = {
                             "Vehicle/Machine": selected_ve,
@@ -1320,9 +1325,9 @@ elif menu == "📑 Reports Center":
                         with open(pdf_path, "rb") as f:
                             st.download_button("📩 Download PDF Now", f, file_name=f"{selected_ve}_Settlement.pdf")
 
-                    # Detailed Log Table
+                    # 7. Detailed Log Table
                     st.write(f"**Detailed Transaction Log for {selected_ve}:**")
-                    display_cols = ['Date', 'Category', 'Qty_Cubes', 'Work_Hours', 'Amount', 'Type', 'Note']
+                    display_cols = ['Date', 'Category', 'Qty_Cubes', 'Work_Hours', 'Qty/Hr', 'Amount', 'Type', 'Note']
                     safe_cols = [c for c in display_cols if c in ve_records.columns]
                     st.dataframe(ve_records[safe_cols].sort_values(by='Date', ascending=False), use_container_width=True)
                     
