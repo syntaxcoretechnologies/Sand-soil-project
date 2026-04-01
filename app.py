@@ -757,48 +757,40 @@ elif menu == "📊 Dashboard":
 
                 st.divider()
 
-                # Stock Balance
-                # --- Stock Balance Section (Fixed) ---
-                st.subheader("📦 Plant Stock Balance (Selected Period)")
+                # --- Stock Balance Section (Ultra Safe Version) ---
+                st.subheader("📦 Plant Stock Balance")
                 s_col1, s_col2 = st.columns(2)
                 
-                # 1. වැදගත්ම දේ: තෝරාගත් දින පරාසය (Selected Range) අනුව විතරක් data filter කරගන්න
-                # මෙතන sales_df පාවිච්චි කරන්න, මොකද ඒක දැනටමත් filter වෙලා තියෙන්නේ
-                full_df = sales_df.copy() 
-                
+                # sales_df එක තියෙනවා නම් ඒක ගන්න, නැත්නම් session_state එක ගන්න
+                full_df = sales_df.copy() if 'sales_df' in locals() else st.session_state.df.copy()
+
                 def get_stock(material_name):
-                    # Inward records filter කිරීම
-                    inward_mask = (full_df["Category"].str.contains("Inward|Stock In", case=False, na=False)) & \
-                                  (full_df["Category"].str.contains(material_name, case=False, na=False))
+                    # 1. Inward සහ Outward filter කරගන්නා ආකාරය
+                    in_mask = (full_df["Category"].str.contains("Inward|Stock In", case=False, na=False)) & \
+                              (full_df["Category"].str.contains(material_name, case=False, na=False))
                     
-                    # Outward/Sales records filter කිරීම
-                    outward_mask = (full_df["Category"].str.contains("Sales Out|Issue|Outward", case=False, na=False)) & \
-                                   (full_df["Category"].str.contains(material_name, case=False, na=False))
-                
-                    # Qty_Cubes සහ Qty/Hr දෙකම එකතු වන සේ හදමු (මගහැරීමක් නොවෙන්න)
-                    def calc_total(temp_df):
-                        # Qty_Cubes තියෙනවා නම් ඒක ගන්න, නැත්නම් 0 ගන්න
-                        q1 = 0
-                        if "Qty_Cubes" in temp_df.columns:
-                            q1 = pd.to_numeric(temp_df["Qty_Cubes"], errors='coerce').fillna(0).sum()
-                        
-                        # Qty/Hr තියෙනවා නම් විතරක් ඒක ගන්න (KeyError එක එන්නේ මෙතනදී)
-                        q2 = 0
-                        if "Qty/Hr" in temp_df.columns:
-                            q2 = pd.to_numeric(temp_df["Qty/Hr"], errors='coerce').fillna(0).sum()
-                            
-                        return q1 + q2
-                
-                    in_q = calc_total(full_df[inward_mask])
-                    out_q = calc_total(full_df[outward_mask])
+                    out_mask = (full_df["Category"].str.contains("Sales Out|Issue|Outward", case=False, na=False)) & \
+                               (full_df["Category"].str.contains(material_name, case=False, na=False))
+
+                    # 2. අගයන් එකතු කරන ආරක්ෂිත ක්‍රමය (Column එක නැතත් Error එන්නේ නැත)
+                    def safe_sum(temp_df):
+                        total = 0.0
+                        # දැනට තියෙන්න පුළුවන් හැම column name එකක්ම මෙතන චෙක් කරනවා
+                        for col in ["Qty_Cubes", "Qty/Hr", "qty", "Qty"]:
+                            if col in temp_df.columns:
+                                total += pd.to_numeric(temp_df[col], errors='coerce').fillna(0).sum()
+                        return total
+
+                    in_q = safe_sum(full_df[in_mask])
+                    out_q = safe_sum(full_df[out_mask])
                     
                     return in_q, out_q
-                
-                # Sand සහ Soil සඳහා ගණනය කිරීම
+
+                # Sand සහ Soil සඳහා දත්ත ලබා ගැනීම
                 s_in, s_out = get_stock("Sand")
                 so_in, so_out = get_stock("Soil")
-                
-                # UI එකට පෙන්වීම
+
+                # UI එකේ පෙන්වීම
                 s_col1.metric("Sand Remaining", f"{s_in - s_out:.2f} Cubes", delta=f"In: {s_in} | Out: {s_out}")
                 s_col2.metric("Soil Remaining", f"{so_in - so_out:.2f} Cubes", delta=f"In: {so_in} | Out: {so_out}")
                 
