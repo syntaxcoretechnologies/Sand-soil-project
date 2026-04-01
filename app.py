@@ -450,21 +450,20 @@ def create_landowner_pdf(title, data_df, summary_dict):
         return str(text).encode("latin-1", "ignore").decode("latin-1")
 
     # --- මචං, මේ කොටස තමයි Summary එකට කලින් Cube ගණන හොයාගන්න දාපු FIX එක ---
+    # --- සාරාංශයට කලින් Cube ගණන හොයාගන්නා කොටස ---
     actual_total_cubes = 0.0
     for _, row in data_df.iterrows():
-        # Column names (Supabase/Dataframe) වලට අනුව කියුබ් ගණන ගමු
+        # මෙතන row.get එකට පාවිච්චි කරන නම PDF Table එකේ Column එකට සමාන විය යුතුයි
         q_cubes = float(row.get('Qty_Cubes', row.get('qty_cubes', 0)))
         q_qty = float(row.get('Qty', row.get('qty', row.get('Qty/Hr', 0))))
         
-        # කියුබ් ගණන තීරණය කිරීම
         row_cubes = q_cubes if q_cubes > 0 else q_qty
         
-        # Landowner report එකේ Earnings වලට අදාළ දේවල් විතරක් එකතු කරමු
         category_str = str(row.get('Category', row.get('category', ''))).lower()
+        # 'stock inward' සහ 'sales out' දෙකම පරීක්ෂා කිරීම වැදගත්
         if "inward" in category_str or "sales out" in category_str:
             actual_total_cubes += row_cubes
 
-    # Summary එකට ඇත්තම කියුබ් ගණන ඇතුළත් කරමු
     summary_dict["Total Units/Hours"] = f"{actual_total_cubes:,.2f}"
     # -----------------------------------------------------------------------
 
