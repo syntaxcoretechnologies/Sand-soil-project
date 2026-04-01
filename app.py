@@ -760,11 +760,11 @@ elif menu == "📊 Dashboard":
                 # --- Stock Balance Section ---
                 st.subheader("📦 Plant Stock Balance")
                 
-                # --- මෙන්න මෙතනට පේස්ට් කරන්න ---
+                # --- Fixed System Debugger ---
                 st.write("### 🔍 System Debugger")
                 
                 try:
-                    # මුලින්ම variables තියෙනවද බලමු
+                    # 1. දත්ත මූලාශ්‍රය පරීක්ෂා කිරීම
                     if 'sales_df' in locals():
                         st.success("Found 'sales_df' variable")
                         temp_df = sales_df.copy()
@@ -772,24 +772,21 @@ elif menu == "📊 Dashboard":
                         st.warning("'sales_df' not found, using session_state.df")
                         temp_df = st.session_state.df.copy()
                     else:
-                        st.error("No data found in session_state or locals!")
+                        st.error("No data found!")
                         temp_df = None
                 
                     if temp_df is not None:
-                        st.write("Columns in current table:", temp_df.columns.tolist())
+                        # 2. Columns පෙන්වීම
+                        st.write("Columns:", temp_df.columns.tolist())
                         
-                        # Test calculation
-                        test_in = temp_df[temp_df["Category"].str.contains("Inward", case=False, na=False)]
-                        st.write(f"Test Filter Row Count (Inward): {len(test_in)}")
-
-                # දැනට Database එකේ තියෙන ඔක්කොම Category නම් ටික මෙතනින් පේනවා
-                all_cats = temp_df["Category"].unique().tolist()
-                st.write("📌 Current Categories in DB:", all_cats)
+                        # 3. වැදගත්ම දේ: දැනට තියෙන Categories ටික බැලීම
+                        all_cats = temp_df["Category"].unique().tolist()
+                        st.write("📌 Current Categories in DB:", all_cats)
                 
                 except Exception as e:
-                    st.error("❌ මෙන්න ලෙඩේ අහුවුණා!")
+                    st.error("❌ Error during debug!")
                     st.exception(e)
-                # --------------------------------
+                # -----------------------------
                 st.subheader("Daily Income Trend")
                 trend_data = sales_df.groupby('Date')['Income'].sum()
                 st.line_chart(trend_data)
