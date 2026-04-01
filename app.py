@@ -451,6 +451,8 @@ def create_landowner_pdf(title, data_df, summary_dict):
 
     # --- මචං, මේ කොටස තමයි Summary එකට කලින් Cube ගණන හොයාගන්න දාපු FIX එක ---
     # --- සාරාංශයට කලින් Cube ගණන හොයාගන්නා කොටස ---
+    inward_rows = lo_records[lo_records['Category'].str.contains('Inward|Stock In', case=False, na=False)]
+    total_cubes = pd.to_numeric(inward_rows['Qty_Cubes'], errors='coerce').sum()
     actual_total_cubes = 0.0
     for _, row in data_df.iterrows():
         # මෙතන row.get එකට පාවිච්චි කරන නම PDF Table එකේ Column එකට සමාන විය යුතුයි
@@ -1420,6 +1422,7 @@ elif menu == "📑 Reports Center":
                     lo_summary = {
                         "Landowner Name": search_name,
                         "Report Date": datetime.now().strftime("%Y-%m-%d"),
+                        "Total Units/Hours": f"{total_cubes_val:,.2f}", # <--- මේක තමයි අලුත් පේළිය
                         "Total Stock Value": f"Rs. {total_payable:,.2f}",
                         "Total Advances Paid": f"Rs. {total_paid:,.2f}",
                         "Net Balance Payable": f"Rs. {lo_balance:,.2f}"
