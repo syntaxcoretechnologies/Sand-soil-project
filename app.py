@@ -167,21 +167,38 @@ def create_pdf(title, data_df, summary_dict):
         if text is None or str(text) == "nan": return ""
         return str(text).encode("latin-1", "ignore").decode("latin-1")
 
+    # --- අලුතින් එකතු කළ කොටස: Summary එක ලියන්න කලින් මුළු එකතුව ගණන් කරමු ---
+    def clean_val(v):
+        try:
+            if v is None or str(v).lower() == 'nan' or str(v).strip() == '': return 0.0
+            if isinstance(v, (int, float)): return float(v)
+            v_str = str(v).replace(',', '').replace('Rs.', '').replace('LKR', '').replace(' ', '').strip()
+            return float(v_str) if v_str else 0.0
+        except: return 0.0
+
+    # PDF එකේ පල්ලෙහා පාවිච්චි කරන logic එකම මෙතනදීත් පාවිච්චි කරලා මුළු පැය ගණන ගමු
+    current_total_qty = 0
+    unit_col = next((c for c in ['Qty/Hr', 'Work_Hours', 'Qty_Cubes', 'Qty'] if c in data_df.columns), None)
+    
+    if unit_col:
+        # Income හෝ Work Log වලට අදාළ පැය ගණන විතරක් ගමු
+        u_filter = (data_df["Type"] == "Income") | (data_df["Category"].str.contains("Work Log", case=False, na=False))
+        current_total_qty = data_df[u_filter][unit_col].apply(clean_val).sum()
+
+    # දැන් summary_dict එකේ තියෙන 0.00 අගය අපි ගණන් කරපු අගයෙන් replace කරනවා
+    summary_dict["Total Units/Hours"] = f"{current_total_qty:,.2f}"
+    # ------------------------------------------------------------------------
+
     # Title Section
     pdf.set_font("Arial", 'B', 12)
     pdf.set_fill_color(240, 240, 240)
     pdf.cell(0, 10, safe_text(f"STATEMENT: {title.upper()}"), 1, 1, 'L', fill=True)
     pdf.ln(2)
     
-    # --- මෙතන තමයි Summary එකේ Total එක හදන්නේ ---
-    # ලෝකල්ව එකතු කරලා බලමු සාරාංශය හරිද කියලා
-    total_qty_hrs = 0
-    
-    # Summary Table එක පෙන්වන කොටස
+    # Summary Table එක පෙන්වන කොටස (දැන් මෙතනට එන්නේ අර උඩදී හදපු නිවැරදි අගයයි)
     pdf.set_font("Arial", 'B', 10)
     for k, v in summary_dict.items():
         if k != "Rate_Breakdown":
-            # PDF එකේ උඩ පෙන්වන 'Total Units/Hours' එක 0 නම් ඒක වෙනුවට ඇත්ත එකතුව පෙන්වන්න පුළුවන්
             display_val = safe_text(v)
             pdf.cell(50, 8, safe_text(k) + ":", 1)
             pdf.set_font("Arial", '', 10)
