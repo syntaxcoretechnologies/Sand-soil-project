@@ -758,50 +758,51 @@ elif menu == "📊 Dashboard":
                 st.divider()
 
                 # --- Stock Balance Section (Ultra Safe Version) ---
-                # --- Stock Balance Section (Final Fixed) ---
+                # --- Stock Balance Section (Fixed & Error Proof) ---
                 st.subheader("📦 Plant Stock Balance")
-                s_col1, s_col2 = st.columns(2)
-                # --- Debugging Section (මේක දාලා බලන්න data පේනවද කියලා) ---
-                st.write("Debug: Table Columns:", full_df.columns.tolist())
-                st.write("Debug: Sample Data:", full_df[['Date', 'Category', 'Qty_Cubes']].head())
                 
-                # 'Sand' inward records තියෙනවද කියලා බලමු
-                debug_in = full_df[full_df["Category"].str.contains("Inward|Stock In", case=False, na=False) & 
-                                   full_df["Category"].str.contains("Sand", case=False, na=False)]
-                st.write(f"Debug: Sand Inward Records Found: {len(debug_in)}")
-                # -------------------------------------------------------
-                
-                # 1. දත්ත ලබා ගැනීම (sales_df නැතිනම් session_state පාවිච්චි කරයි)
-                if 'sales_df' in locals():
-                    full_df = sales_df.copy()
-                else:
-                    full_df = st.session_state.df.copy()
+                try:
+                    # 1. මුලින්ම පාවිච්චි කරන DataFrame එක තෝරාගමු
+                    if 'sales_df' in locals() and not sales_df.empty:
+                        full_df = sales_df.copy()
+                    else:
+                        full_df = st.session_state.df.copy()
 
-                def get_stock(material_name):
-                    # Inward සහ Outward filter කිරීම
-                    in_mask = (full_df["Category"].str.contains("Inward|Stock In", case=False, na=False)) & \
-                              (full_df["Category"].str.contains(material_name, case=False, na=False))
-                    
-                    out_mask = (full_df["Category"].str.contains("Sales Out|Issue|Outward", case=False, na=False)) & \
-                               (full_df["Category"].str.contains(material_name, case=False, na=False))
+                    # --- Debugging (ප්‍රශ්නයක් ආවොත් විතරක් පේන්න) ---
+                    # st.write("Available Columns:", full_df.columns.tolist()) 
 
-                    # ඕනෑම column එකක් (Qty_Cubes හෝ Qty/Hr) තිබුණොත් ගණන් කරන safe function එක
-                    def safe_sum(temp_df):
-                        val = 0.0
-                        for col in ["Qty_Cubes", "Qty/Hr", "qty", "Qty"]:
-                            if col in temp_df.columns:
-                                val += pd.to_numeric(temp_df[col], errors='coerce').fillna(0).sum()
-                        return val
+                    def get_stock(material_name):
+                        # Category එකේ 'Inward' හෝ 'Stock In' සහ අදාළ වැලි/පස් වර්ගය තියෙනවද බලනවා
+                        in_mask = (full_df["Category"].str.contains("Inward|Stock In", case=False, na=False)) & \
+                                  (full_df["Category"].str.contains(material_name, case=False, na=False))
+                        
+                        # Category එකේ 'Sales' හෝ 'Outward' සහ අදාළ වර්ගය තියෙනවද බලනවා
+                        out_mask = (full_df["Category"].str.contains("Sales Out|Issue|Outward", case=False, na=False)) & \
+                                   (full_df["Category"].str.contains(material_name, case=False, na=False))
 
-                    return safe_sum(full_df[in_mask]), safe_sum(full_df[out_mask])
+                        def safe_sum(temp_df):
+                            total = 0.0
+                            # ඔයාගේ database එකේ තියෙන්න පුළුවන් හැම නමක්ම මෙතන චෙක් කරනවා
+                            for col in ["Qty_Cubes", "Qty/Hr", "qty", "Qty"]:
+                                if col in temp_df.columns:
+                                    total += pd.to_numeric(temp_df[col], errors='coerce').fillna(0).sum()
+                            return total
 
-                # ගණනය කිරීම්
-                s_in, s_out = get_stock("Sand")
-                so_in, so_out = get_stock("Soil")
+                        return safe_sum(full_df[in_mask]), safe_sum(full_df[out_mask])
 
-                # Metric පෙන්වීම
-                s_col1.metric("Sand Remaining", f"{s_in - s_out:.2f} Cubes", delta=f"In: {s_in} | Out: {s_out}")
-                s_col2.metric("Soil Remaining", f"{so_in - so_out:.2f} Cubes", delta=f"In: {so_in} | Out: {so_out}")
+                    # 2. ගණනය කිරීම්
+                    s_in, s_out = get_stock("Sand")
+                    so_in, so_out = get_stock("Soil")
+
+                    # 3. UI එක පෙන්වීම
+                    s_col1, s_col2 = st.columns(2)
+                    s_col1.metric("Sand Remaining", f"{s_in - s_out:.2f} Cubes", delta=f"In: {s_in} | Out: {s_out}")
+                    s_col2.metric("Soil Remaining", f"{so_in - so_out:.2f} Cubes", delta=f"In: {so_in} | Out: {so_out}")
+
+                except Exception as e:
+                    st.error(f"Stock Logic Error: {e}")
+                    # මෙතනින් අපිට ඇත්තම ලෙඩේ බලාගන්න පුළුවන්
+                    st.info("මචං, 'Category' හෝ 'Qty_Cubes' column names database එකේ තියෙනවද බලන්න.")
 
                 st.divider()
                 st.subheader("Daily Income Trend")
