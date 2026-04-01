@@ -449,33 +449,30 @@ def create_landowner_pdf(title, data_df, summary_dict):
         if text is None or str(text) == "nan": return ""
         return str(text).encode("latin-1", "ignore").decode("latin-1")
 
-    # --- මචං, මේ කොටස තමයි Summary එකට කලින් Cube ගණන හොයාගන්න දාපු FIX එක ---
-    # --- සාරාංශයට කලින් Cube ගණන හොයාගන්නා කොටස ---
-    inward_rows = lo_records[lo_records['Category'].str.contains('Inward|Stock In', case=False, na=False)]
-    total_cubes = pd.to_numeric(inward_rows['Qty_Cubes'], errors='coerce').sum()
+    # --- මචං, මේ පේළි ටික තමයි වැදගත්ම ---
+    # PDF එකේ උඩ Summary එක ලියන්න කලින් අපිම ගණන් කරමු
     actual_total_cubes = 0.0
     for _, row in data_df.iterrows():
-        # මෙතන row.get එකට පාවිච්චි කරන නම PDF Table එකේ Column එකට සමාන විය යුතුයි
+        # Column names වලට අනුව දත්ත ගමු
         q_cubes = float(row.get('Qty_Cubes', row.get('qty_cubes', 0)))
         q_qty = float(row.get('Qty', row.get('qty', row.get('Qty/Hr', 0))))
+        row_qty = q_cubes if q_cubes > 0 else q_qty
         
-        row_cubes = q_cubes if q_cubes > 0 else q_qty
-        
-        category_str = str(row.get('Category', row.get('category', ''))).lower()
-        # 'stock inward' සහ 'sales out' දෙකම පරීක්ෂා කිරීම වැදගත්
-        if "inward" in category_str or "sales out" in category_str:
-            actual_total_cubes += row_cubes
+        cat_str = str(row.get('Category', row.get('category', ''))).lower()
+        # Earnings වලට අදාළ ඒවා විතරක් එකතු කරමු
+        if "inward" in cat_str or "sales out" in cat_str:
+            actual_total_cubes += row_qty
 
+    # 0.00 තිබුණත් නැතත් අපි ගණන් කරපු ඇත්තම අගය මෙතනට දානවා
     summary_dict["Total Units/Hours"] = f"{actual_total_cubes:,.2f}"
-    # -----------------------------------------------------------------------
+    # ------------------------------------
 
-    # Header Section
+    # දැන් සාමාන්‍ය විදිහට Summary එක Print කරන්න...
     pdf.set_font("Arial", 'B', 12)
     pdf.set_fill_color(240, 240, 240)
     pdf.cell(0, 10, safe_text(f"LANDOWNER STATEMENT: {title.upper()}"), 1, 1, 'L', fill=True)
     pdf.ln(2)
     
-    # Summary Details (දැන් මෙතනට නිවැරදි Total Units වැටෙනවා)
     pdf.set_font("Arial", 'B', 10)
     for k, v in summary_dict.items():
         pdf.cell(50, 8, safe_text(k) + ":", 1)
