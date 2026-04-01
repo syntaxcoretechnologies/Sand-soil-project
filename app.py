@@ -1268,22 +1268,27 @@ elif menu == "📑 Reports Center":
                 ve_records = df_f[df_f[target_col] == selected_ve].copy()
                 
                 if not ve_records.empty:
-                    # Excavator ද නැද්ද කියලා බලන්නේ Icon එක පෙන්වන්න විතරයි
+                    # 1. මැෂින් එක අඳුනා ගැනීම
                     is_excavator = any(x in str(selected_ve).upper() for x in ["EX", "PC", "SK", "EXCAVATOR", "JCB"])
-                    
                     ve_records.columns = [str(c).strip() for c in ve_records.columns]
                     
-                    # පැය ගණන හෝ කියුබ් ගණන ගණනය කිරීම
-                    h_col = 'Work_Hours' if 'Work_Hours' in ve_records.columns else 'Qty_Cubes'
-                    ve_records[h_col] = pd.to_numeric(ve_records[h_col], errors='coerce').fillna(0)
-                    total_units = ve_records[h_col].sum()
+                    # 2. පැය ගණන (Units) - 'Qty/Hr' පරීක්ෂා කරනවා
+                    h_col = next((c for c in ['Work_Hours', 'Qty_Cubes', 'Qty/Hr', 'Qty'] if c in ve_records.columns), None)
+                    if h_col:
+                        ve_records[h_col] = pd.to_numeric(ve_records[h_col], errors='coerce').fillna(0)
+                        total_units = ve_records[h_col].sum()
+                    else:
+                        total_units = 0.0
                     
-                    # මුදල් ගණනය කිරීම්
+                    # 3. මුදල් ගණනය කිරීම්
                     ve_records['Amount'] = pd.to_numeric(ve_records['Amount'], errors='coerce').fillna(0)
                     
-                    # --- FIXED LOGIC: ලොරි වලටත් Earnings පෙන්වන විදිහ ---
-                    # වාහනය මොකක් වුණත් "Income" කියලා තියෙන හැමදේම එකතු කරනවා
-                    gross_earning = ve_records[ve_records["Type"] == "Income"]["Amount"].sum()
+                    # 4. ආදායම ගණනය කිරීම (වැදගත්: මෙතන 'Work Log' කියන එකත් පරීක්ෂා කරනවා)
+                    gross_earning = ve_records[
+                        (ve_records["Type"] == "Income") | 
+                        (ve_records["Category"].str.contains("Work Log", case=False, na=False))
+                    ]["Amount"].sum()
+                    
                     total_exp = ve_records[ve_records["Type"] == "Expense"]["Amount"].sum()
                     net_balance = gross_earning - total_exp
                     
@@ -1292,9 +1297,8 @@ elif menu == "📑 Reports Center":
                     if is_excavator:
                         c1.metric("Total Work Hours", f"{total_units:,.2f} hrs")
                     else:
-                        c1.metric("Total Qty", f"{total_units:,.2f} Cubes")
+                        c1.metric("Total Qty", f"{total_units:,.2f} Units")
                     
-                    # මෙතන දැන් ලොරි වුණත් ආදායම පෙන්වනවා
                     c2.metric("Gross Earning", f"Rs. {gross_earning:,.2f}")
                     c3.metric("Total Expenses", f"Rs. {total_exp:,.2f}")
                     c4.metric("Net Settlement", f"Rs. {net_balance:,.2f}", delta=f"{net_balance:,.2f}")
