@@ -759,8 +759,8 @@ elif menu == "📊 Dashboard":
 
                 # --- Stock Balance Section ---
                 # --- Stock Balance Section (FIXED & CLEAN) ---
-                # --- Stock Balance Section (FINAL STABLE VERSION) ---
-                st.subheader("📦 Plant Stock Balance")
+                # --- Stock Balance Section (Raw Material Logic) ---
+                st.subheader("📦 Plant Stock Balance (Main Stock)")
                 
                 try:
                     # 1. දත්ත මූලාශ්‍රය තෝරාගැනීම
@@ -769,50 +769,67 @@ elif menu == "📊 Dashboard":
                     elif 'df' in st.session_state and not st.session_state.df.empty:
                         full_df = st.session_state.df.copy()
                     else:
-                        full_df = pd.DataFrame() # හිස් එකක් ලෙස ගැනීම
+                        full_df = pd.DataFrame()
         
                     if not full_df.empty:
-                        # get_stock function එක
-                        def get_stock(material_name):
-                            # Category එකේ නම අනුව Filter කිරීම
-                            in_mask = (full_df["Category"].str.contains("Inward|Stock In", case=False, na=False)) & \
-                                      (full_df["Category"].str.contains(material_name, case=False, na=False))
-                            
-                            out_mask = (full_df["Category"].str.contains("Sales Out|Outward", case=False, na=False)) & \
-                                       (full_df["Category"].str.contains(material_name, case=False, na=False))
+                        # --- අගයන් ගණනය කිරීමේ Function එක ---
+                        def get_totals():
+                            # 1. මුළු ඇතුළත් කිරීම් (Inward) - පස් විදිහට පමණක් එන නිසා
+                            in_mask = (full_df["Category"].str.contains("Inward|Stock In", case=False, na=False))
+                            total_in = pd.to_numeric(full_df[in_mask]["Qty_Cubes"], errors='coerce').fillna(0).sum()
         
-                            def safe_sum(temp_df):
-                                if "Qty_Cubes" in temp_df.columns:
-                                    return pd.to_numeric(temp_df["Qty_Cubes"], errors='coerce').fillna(0).sum()
-                                return 0.0
+                            # 2. වැලි විකුණුම් (Sand Out)
+                            sand_out_mask = (full_df["Category"].str.contains("Sales Out|Outward", case=False, na=False)) & \
+                                            (full_df["Category"].str.contains("Sand", case=False, na=False))
+                            sand_out = pd.to_numeric(full_df[sand_out_mask]["Qty_Cubes"], errors='coerce').fillna(0).sum()
         
-                            in_q = safe_sum(full_df[in_mask])
-                            out_q = safe_sum(full_df[out_mask])
-                            return in_q, out_q
+                            # 3. පස් විකුණුම් (Soil Out)
+                            soil_out_mask = (full_df["Category"].str.contains("Sales Out|Outward", case=False, na=False)) & \
+                                            (full_df["Category"].str.contains("Soil", case=False, na=False))
+                            soil_out = pd.to_numeric(full_df[soil_out_mask]["Qty_Cubes"], errors='coerce').fillna(0).sum()
         
-                        # 2. ගණනය කිරීම්
-                        s_in, s_out = get_stock("Sand")
-                        so_in, so_out = get_stock("Soil")
+                            return total_in, sand_out, soil_out
+        
+                        # අගයන් ලබා ගැනීම
+                        total_in, s_out, so_out = get_totals()
+                        
+                        # මුළු ඉතිරිය (Main Stock Balance)
+                        remaining_balance = total_in - (s_out + so_out)
         
                         # 3. UI එක පෙන්වීම
                         s_col1, s_col2 = st.columns(2)
-                        s_col1.metric("Sand Remaining", f"{s_in - s_out:.2f} Cubes", delta=f"In: {s_in} | Out: {s_out}")
-                        s_col2.metric("Soil Remaining", f"{so_in - so_out:.2f} Cubes", delta=f"In: {so_in} | Out: {so_out}")
+                        
+                        # Sand Card (පෙන්වන්නේ Sand out එක සහ Main Stock එකේ ඉතිරිය)
+                        s_col1.metric(
+                            "Sand Stats", 
+                            f"{remaining_balance:.2f} Cubes Left", 
+                            delta=f"Sold: {s_out} Cubes", 
+                            delta_color="inverse"
+                        )
+                        
+                        # Soil Card (පෙන්වන්නේ Soil In/Out සහ Main Stock එකේ ඉතිරිය)
+                        s_col2.metric(
+                            "Soil Stats", 
+                            f"{remaining_balance:.2f} Cubes Left", 
+                            delta=f"In: {total_in} | Sold: {so_out}",
+                            delta_color="normal"
+                        )
         
-                        # 4. Income Trend Chart
+                        st.info(f"💡 **සටහන:** මුළු පස් ඇතුළත් කිරීම් වලින් ({total_in}), වැලි ({s_out}) සහ පස් ({so_out}) විකුණුම් අඩු කර ශේෂය ගණනය කර ඇත.")
+        
+                        # --- 4. Income Trend Chart ---
                         st.divider()
                         st.subheader("Daily Income Trend")
-                        if 'Income' in full_df.columns and 'Date' in full_df.columns:
+                        if 'Income' in full_df.columns:
                             trend_data = full_df.groupby('Date')['Income'].sum()
                             st.line_chart(trend_data)
                     else:
-                        st.info("පද්ධතියේ දත්ත කිසිවක් නැත. කරුණාකර දත්ත ඇතුළත් කරන්න.")
+                        st.info("පද්ධතියේ දත්ත කිසිවක් නැත.")
         
                 except Exception as e:
-                    st.error(f"Dashboard එකේ දෝෂයක් ඇත: {e}")
+                    st.error(f"Dashboard Error: {e}")
         
                 st.divider()
- 
 # --- 2. SITE OPERATIONS SECTION ---
 # මේ 'elif' එක පටන් ගන්න ඕනේ උඩ තියෙන 'if menu == "📊 Dashboard":' එකට කෙළින්ම පල්ලෙහායින්
 # --- කලින් තිබුණු Site Operations එක අයින් කරලා මේක දාන්න ---
