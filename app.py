@@ -528,6 +528,52 @@ def create_landowner_pdf(title, data_df, summary_dict):
     fn = f"LO_Settlement_{datetime.now().strftime('%H%M%S')}.pdf"
     pdf.output(fn)
     return fn
+
+def create_others_report(df_others, start_date, end_date):
+    pdf = PDF() # ඔයා පාවිච්චි කරන PDF class එක
+    pdf.add_page()
+    
+    def safe_text(text):
+        if text is None or str(text) == "nan": return ""
+        return str(text).encode("latin-1", "ignore").decode("latin-1")
+
+    # Header
+    pdf.set_font("Arial", 'B', 14)
+    pdf.cell(0, 10, "OTHER EXPENSES REPORT", 1, 1, 'C')
+    pdf.set_font("Arial", '', 10)
+    pdf.cell(0, 10, f"Period: {start_date} to {end_date}", 0, 1, 'C')
+    pdf.ln(5)
+
+    # Table Header
+    headers = ["Date", "Category", "Description", "Amount (LKR)"]
+    w = [30, 40, 80, 40]
+    pdf.set_font("Arial", 'B', 10)
+    pdf.set_fill_color(220, 220, 220)
+    for i, h in enumerate(headers):
+        pdf.cell(w[i], 8, h, 1, 0, 'C', fill=True)
+    pdf.ln()
+
+    # Table Body
+    pdf.set_font("Arial", '', 9)
+    total_amount = 0
+    for _, row in df_others.iterrows():
+        amt = float(row.get('Amount', 0))
+        total_amount += amt
+        
+        pdf.cell(w[0], 7, safe_text(str(row.get('Date', ''))), 1)
+        pdf.cell(w[1], 7, safe_text(str(row.get('Category', ''))), 1)
+        pdf.cell(w[2], 7, safe_text(str(row.get('Note', ''))[:50]), 1)
+        pdf.cell(w[3], 7, f"{amt:,.2f}", 1, 1, 'R')
+
+    # Total Row
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(sum(w[:2]), 10, "TOTAL EXPENDITURE", 1, 0, 'R')
+    pdf.cell(w[2]+w[3], 10, f"LKR {total_amount:,.2f}  ", 1, 1, 'R')
+
+    from datetime import datetime
+    fn = f"Other_Expenses_{datetime.now().strftime('%H%M%S')}.pdf"
+    pdf.output(fn)
+    return fn
     
 # --- 9. SECURITY & LOGIN UI ---
 
@@ -971,10 +1017,10 @@ elif menu == "💰 Finance & Shed":
 
         elif fin == "🧾 Others":
             st.subheader("🧾 Other Expenses")
+            
+            # --- 1. දත්ත ඇතුළත් කරන Form එක ---
             with st.form("oth", clear_on_submit=True):
-                # --- මචං, මෙන්න මේ පේළිය අලුතින් එක් කළා ---
                 ex_date = st.date_input("Date", value=datetime.now().date())
-                
                 cat = st.selectbox("Category", ["Food", "Rent", "Utility", "Office", "Misc"])
                 am = st.number_input("Amount (LKR)", min_value=0.0)
                 nt = st.text_input("Description")
@@ -982,7 +1028,6 @@ elif menu == "💰 Finance & Shed":
                 if st.form_submit_button("Save Expense"):
                     if am > 0:
                         oth_data = {
-                            # දැන් මෙතනට වැටෙන්නේ ඔයා උඩින් තෝරන දවස (ex_date)
                             "Date": str(ex_date), 
                             "Type": "Expense", 
                             "Category": cat,
@@ -996,15 +1041,40 @@ elif menu == "💰 Finance & Shed":
                             "Status": "Paid"
                         }
                         try:
-                            # Supabase එකට දත්ත යැවීම
                             conn.table("master_log").insert(oth_data).execute()
-                            
-                            # Session State එක Update කරලා Refresh කිරීම
                             st.session_state.df = load_data("master_log", cols_master)
                             st.success(f"Saved! Record added for {ex_date}")
                             st.rerun()
                         except Exception as e: 
                             st.error(f"Error: {e}")
+                    else:
+                        st.warning("Please enter an amount greater than 0.")
+
+            # --- 2. Report එක Generate කරන කොටස (Form එකෙන් පිටත) ---
+            st.write("---") # ඉරක් ගහලා වෙන් කරමු
+            st.subheader("📊 Generate Others Report")
+            
+            col1, col2 = st.columns(2)
+            d_start = col1.date_input("Start Date", value=datetime.now().date().replace(day=1))
+            d_end = col2.date_input("End Date", value=datetime.now().date())
+    
+            if st.button("📥 Download Others PDF Report"):
+                # "Others" category වලට අදාළ දත්ත filter කිරීම
+                mask = (st.session_state.df['Category'].isin(["Food", "Rent", "Utility", "Office", "Misc"])) & \
+                       (st.session_state.df['Date'].astype(str).between(str(d_start), str(d_end)))
+                
+                report_df = st.session_state.df[mask].copy()
+                
+                if not report_df.empty:
+                    try:
+                        file_path = create_others_report(report_df, d_start, d_end)
+                        with open(file_path, "rb") as f:
+                            st.download_button("⬇️ Click here to Download", f, file_name=f"Expenses_{d_start}_to_{d_end}.pdf")
+                        st.success(f"Report for {len(report_df)} records generated!")
+                    except Exception as e:
+                        st.error(f"Report Error: {e}")
+                else:
+                    st.warning("No records found for the selected period.")
                             
 # --- 9. SYSTEM SETUP ---
 elif menu == "📑 Reports Center":
