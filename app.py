@@ -1419,10 +1419,17 @@ elif menu == "📑 Reports Center":
 
                 # 4. PDF Generation
                 if st.button("📄 Generate Landowner Report"):
+            
+                    # --- පළමුව: කියුබ් ගණන ගණන් කරගන්න (Calculation) ---
+                    # මෙතන lo_records පාවිච්චි කරලා Inward records වල එකතුව ගන්නවා
+                    inward_rows = lo_records[lo_records['Category'].str.contains('Inward|Stock In', case=False, na=False)]
+                    total_cubes_val = pd.to_numeric(inward_rows['Qty_Cubes'], errors='coerce').sum()
+        
+                    # --- දෙවනුව: Summary Dictionary එක හදන්න ---
                     lo_summary = {
                         "Landowner Name": search_name,
                         "Report Date": datetime.now().strftime("%Y-%m-%d"),
-                        "Total Units/Hours": f"{total_cubes_val:,.2f}", # <--- මේක තමයි අලුත් පේළිය
+                        "Total Units/Hours": f"{total_cubes_val:,.2f}", # දැන් මෙතනට අගය ලැබෙනවා
                         "Total Stock Value": f"Rs. {total_payable:,.2f}",
                         "Total Advances Paid": f"Rs. {total_paid:,.2f}",
                         "Net Balance Payable": f"Rs. {lo_balance:,.2f}"
