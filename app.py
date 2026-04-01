@@ -759,22 +759,25 @@ elif menu == "📊 Dashboard":
 
                 # --- Stock Balance Section ---
                 # --- Stock Balance Section (FIXED & CLEAN) ---
+                # --- Stock Balance Section (FINAL STABLE VERSION) ---
                 st.subheader("📦 Plant Stock Balance")
                 
                 try:
-                    # 1. Data Source එක තෝරාගැනීම
+                    # 1. දත්ත මූලාශ්‍රය තෝරාගැනීම
                     if 'sales_df' in locals() and not sales_df.empty:
                         full_df = sales_df.copy()
-                    else:
+                    elif 'df' in st.session_state and not st.session_state.df.empty:
                         full_df = st.session_state.df.copy()
+                    else:
+                        full_df = pd.DataFrame() # හිස් එකක් ලෙස ගැනීම
         
                     if not full_df.empty:
+                        # get_stock function එක
                         def get_stock(material_name):
-                            # Category filter කිරීම (Inward/Stock In සහ ද්‍රව්‍යයේ නම)
+                            # Category එකේ නම අනුව Filter කිරීම
                             in_mask = (full_df["Category"].str.contains("Inward|Stock In", case=False, na=False)) & \
                                       (full_df["Category"].str.contains(material_name, case=False, na=False))
                             
-                            # Outward filter කිරීම (ඔයාගේ DB එකේ තියෙන "💰 Sales Out (Sand)" වගේ ඒවා මෙතනින් අහුවේ)
                             out_mask = (full_df["Category"].str.contains("Sales Out|Outward", case=False, na=False)) & \
                                        (full_df["Category"].str.contains(material_name, case=False, na=False))
         
@@ -785,7 +788,6 @@ elif menu == "📊 Dashboard":
         
                             in_q = safe_sum(full_df[in_mask])
                             out_q = safe_sum(full_df[out_mask])
-                            
                             return in_q, out_q
         
                         # 2. ගණනය කිරීම්
@@ -797,24 +799,19 @@ elif menu == "📊 Dashboard":
                         s_col1.metric("Sand Remaining", f"{s_in - s_out:.2f} Cubes", delta=f"In: {s_in} | Out: {s_out}")
                         s_col2.metric("Soil Remaining", f"{so_in - so_out:.2f} Cubes", delta=f"In: {so_in} | Out: {so_out}")
         
-                        # --- 4. Income Trend Chart ---
+                        # 4. Income Trend Chart
                         st.divider()
                         st.subheader("Daily Income Trend")
-                        if 'Income' in full_df.columns:
+                        if 'Income' in full_df.columns and 'Date' in full_df.columns:
                             trend_data = full_df.groupby('Date')['Income'].sum()
                             st.line_chart(trend_data)
                     else:
                         st.info("පද්ධතියේ දත්ත කිසිවක් නැත. කරුණාකර දත්ත ඇතුළත් කරන්න.")
         
                 except Exception as e:
-                    st.error(f"Dashboard Error: {e}")
+                    st.error(f"Dashboard එකේ දෝෂයක් ඇත: {e}")
         
                 st.divider()
-                
-        # මෙන්න මෙතන තිබුණු else: එක මම අයින් කළා. 
-        # දත්ත නැතිනම් පෙන්වන්න ඕන message එක මෙතනට දැම්මා.
-        elif df.empty:
-            st.info("පද්ධතියේ දත්ත කිසිවක් නැත. කරුණාකර දත්ත ඇතුළත් කරන්න.")   
  
 # --- 2. SITE OPERATIONS SECTION ---
 # මේ 'elif' එක පටන් ගන්න ඕනේ උඩ තියෙන 'if menu == "📊 Dashboard":' එකට කෙළින්ම පල්ලෙහායින්
