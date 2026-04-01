@@ -760,57 +760,32 @@ elif menu == "📊 Dashboard":
                 # --- Stock Balance Section ---
                 st.subheader("📦 Plant Stock Balance")
                 
+                # --- මෙන්න මෙතනට පේස්ට් කරන්න ---
+                st.write("### 🔍 System Debugger")
+                
                 try:
-                    # 1. දත්ත මූලාශ්‍රය තෝරාගැනීම
-                    if 'sales_df' in locals() and not sales_df.empty:
-                        full_df = sales_df.copy()
-                        current_sales_df = sales_df # trend chart එක සඳහා
+                    # මුලින්ම variables තියෙනවද බලමු
+                    if 'sales_df' in locals():
+                        st.success("Found 'sales_df' variable")
+                        temp_df = sales_df.copy()
+                    elif 'df' in st.session_state:
+                        st.warning("'sales_df' not found, using session_state.df")
+                        temp_df = st.session_state.df.copy()
                     else:
-                        full_df = st.session_state.df.copy()
-                        current_sales_df = st.session_state.df.copy()
-        
-                    def get_stock(material_name):
-                        # Category filter (Inward/Outward)
-                        in_mask = (full_df["Category"].str.contains("Inward|Stock In", case=False, na=False)) & \
-                                  (full_df["Category"].str.contains(material_name, case=False, na=False))
+                        st.error("No data found in session_state or locals!")
+                        temp_df = None
+                
+                    if temp_df is not None:
+                        st.write("Columns in current table:", temp_df.columns.tolist())
                         
-                        out_mask = (full_df["Category"].str.contains("Sales Out|Issue|Outward", case=False, na=False)) & \
-                                   (full_df["Category"].str.contains(material_name, case=False, na=False))
-        
-                        def safe_sum(temp_df):
-                            total = 0.0
-                            for col in ["Qty_Cubes", "Qty/Hr", "qty", "Qty"]:
-                                if col in temp_df.columns:
-                                    total += pd.to_numeric(temp_df[col], errors='coerce').fillna(0).sum()
-                            return total
-        
-                        return safe_sum(full_df[in_mask]), safe_sum(full_df[out_mask])
-        
-                    # 2. වැලි සහ පස් ගණනය කිරීම
-                    s_in, s_out = get_stock("Sand")
-                    so_in, so_out = get_stock("Soil")
-        
-                    # 3. Metric පෙන්වීම
-                    s_col1, s_col2 = st.columns(2)
-                    s_col1.metric("Sand Remaining", f"{s_in - s_out:.2f} Cubes", delta=f"In: {s_in} | Out: {s_out}")
-                    s_col2.metric("Soil Remaining", f"{so_in - so_out:.2f} Cubes", delta=f"In: {so_in} | Out: {so_out}")
-        
-                    # 4. Income Trend Chart (Safety Check එකක් එක්ක)
-                    st.divider()
-                    st.subheader("Daily Income Trend")
-                    
-                    # පරීක්ෂා කරනවා අවශ්‍ය column එක තියෙනවද කියලා
-                    if not current_sales_df.empty and 'Income' in current_sales_df.columns:
-                        trend_data = current_sales_df.groupby('Date')['Income'].sum()
-                        st.line_chart(trend_data)
-                    else:
-                        st.info("Trend chart එක පෙන්වීමට Income දත්ත නැත.")
-        
+                        # Test calculation
+                        test_in = temp_df[temp_df["Category"].str.contains("Inward", case=False, na=False)]
+                        st.write(f"Test Filter Row Count (Inward): {len(test_in)}")
+                
                 except Exception as e:
-                    st.error(f"Dashboard Error: {e}")
-                    st.info("මචං, Database columns (Category, Date, Income) නිවැරදිදැයි පරීක්ෂා කරන්න.")
-        
-                st.divider()
+                    st.error("❌ මෙන්න ලෙඩේ අහුවුණා!")
+                    st.exception(e) # මෙතනින් තමයි රතු පාටින් ලොකු විස්තරයක් එන්නේ
+                # --------------------------------
                 st.subheader("Daily Income Trend")
                 trend_data = sales_df.groupby('Date')['Income'].sum()
                 st.line_chart(trend_data)
