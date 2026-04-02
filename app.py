@@ -706,7 +706,7 @@ if st.session_state.get("role") == "admin":
 else:
     # සාමාන්‍ය USER (Staff) ට පේන්නේ දත්ත ඇතුළත් කරන කොටස විතරයි
     # එතකොට එයාලට Dashboard එකේ තියෙන ලාභ-අලාභ බලන්න බැහැ
-    menu_options = ["🏗️ Site Operations"]
+    menu_options = ["🏗️ Site Operations","💰 Finance & Shed"]
 
 # 3. Sidebar එකේ මෙනු එක පෙන්වීම
 menu = st.sidebar.selectbox("MAIN MENU", menu_options)
