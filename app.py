@@ -2122,29 +2122,63 @@ elif menu == "⚙️ Data Manager":
                 
                 # --- EDIT FORM ---
                 with col1:
-                    st.subheader("📝 Edit Record")
+                    st.subheader("📝 Edit Full Record")
                     with st.form("edit_record_form", clear_on_submit=True):
-                        # මේ ඔක්කොම තියෙන්නේ form එක ඇතුළේ (indent වෙලා)
+                        # 1. මූලික විස්තර
                         u_date = st.date_input("Update Date", value=pd.to_datetime(record["Date"]))
-                        u_entity = st.text_input("Vehicle / Entity Name", value=str(record["Entity"]))
-                        u_amount = st.number_input("Amount (LKR)", value=float(record["Amount"]))
                         
-                        # පරෙස්සම් වෙන්න: මේ button එක අනිවාර්යයෙන්ම form එක ඇතුළේ තියෙන්න ඕනේ
-                        submit_button = st.form_submit_button("✅ Update Record Now")
-                    
-                        if submit_button:
+                        # Category සහ Type (Selectbox පාවිච්චි කිරීම වඩාත් හොඳයි)
+                        categories = ["💰 Sales Out (Sand)", "💰 Sales Out (Soil)", "🚚 Inward (Sand)", "🚚 Inward (Soil)", "⛽ Fuel", "🔧 Maintenance", "💸 Expense"]
+                        u_category = st.selectbox("Category", options=categories, index=categories.index(record["Category"]) if record["Category"] in categories else 0)
+                        
+                        u_type = st.selectbox("Type", options=["Income", "Expense"], index=0 if record["Type"] == "Income" else 1)
+                        
+                        u_entity = st.text_input("Vehicle / Entity Name", value=str(record["Entity"]))
+                        u_note = st.text_input("Modify Note", value=str(record["Note"]))
+                        
+                        # 2. සංඛ්‍යාත්මක දත්ත (Metrics)
+                        c1, c2 = st.columns(2)
+                        with c1:
+                            u_amount = st.number_input("Amount (LKR)", value=float(record["Amount"]), step=100.0)
+                            u_qty = st.number_input("Quantity (Cubes)", value=float(record["Qty_Cubes"]), step=0.5)
+                            u_fuel = st.number_input("Fuel (Ltrs)", value=float(record["Fuel_Ltr"]), step=1.0)
+                        with c2:
+                            u_hours = st.number_input("Hours / Days", value=float(record["Hours"]), step=0.5)
+                            u_rate = st.number_input("Rate Used", value=float(record["Rate_At_Time"]), step=10.0)
+                            u_status = st.selectbox("Status", options=["Completed", "Pending", "Canceled"], index=0)
+                
+                        # 3. Update Button
+                        submit_update = st.form_submit_button("✅ Update Everything Now")
+                
+                        if submit_update:
                             try:
-                                # Supabase update logic එක මෙතනට
-                                supabase.table("transactions").update({
+                                # --- Supabase Update Query ---
+                                update_data = {
                                     "Date": u_date.strftime("%Y-%m-%d"),
+                                    "Category": u_category,
+                                    "Type": u_type,
                                     "Entity": u_entity,
-                                    "Amount": u_amount
-                                }).eq("id", record["id"]).execute()
+                                    "Note": u_note,
+                                    "Amount": u_amount,
+                                    "Qty_Cubes": u_qty,
+                                    "Fuel_Ltr": u_fuel,
+                                    "Hours": u_hours,
+                                    "Rate_At_Time": u_rate,
+                                    "Status": u_status
+                                }
                                 
-                                st.success("Updated successfully!")
+                                # DB එකට යැවීම
+                                supabase.table("transactions").update(update_data).eq("id", record["id"]).execute()
+                
+                                # Local Session State එක Update කිරීම (App එකේ වහාම පේන්න)
+                                for key, value in update_data.items():
+                                    st.session_state.df.at[idx, key] = value
+                
+                                st.success(f"Record {record['id']} updated successfully!")
                                 st.rerun()
+                
                             except Exception as e:
-                                st.error(f"Error: {e}")
+                                st.error(f"Error updating record: {e}")
                 # --- DELETE BUTTON ---
                 with col2:
                     st.subheader("🗑️ Delete Record")
