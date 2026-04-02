@@ -2154,35 +2154,34 @@ elif menu == "⚙️ Data Manager":
                         submit_update = st.form_submit_button("✅ Update Everything Now")
                 
                         if submit_update:
-                            try:
-                                # --- Supabase Update Query (Using 'conn' instead of 'supabase') ---
-                                update_data = {
-                                    "Date": u_date.strftime("%Y-%m-%d"),
-                                    "Category": u_category,
-                                    "Type": u_type,
-                                    "Entity": u_entity,
-                                    "Note": u_note,
-                                    "Amount": u_amount,
-                                    "Qty_Cubes": u_qty,
-                                    "Fuel_Ltr": u_fuel,
-                                    "Hours": u_hours,
-                                    "Rate_At_Time": u_rate,
-                                    "Status": u_status
-                                }
-                                
-                                # 'conn' පාවිච්චි කරලා Supabase එකට දත්ත යැවීම
-                                # ඔයාගේ Table එකේ නම "transactions" නෙවෙයි නම් ඒක මෙතන වෙනස් කරන්න.
-                                conn.table("transactions").update(update_data).eq("id", record["id"]).execute()
-                
-                                # Local Session State එක Update කිරීම (App එකේ වහාම පේන්න)
-                                for key, value in update_data.items():
-                                    st.session_state.df.at[idx, key] = value
-                
-                                st.success(f"Record {record['id']} updated successfully!")
-                                st.rerun()
-                
-                            except Exception as e:
-                                st.error(f"Error updating record: {e}")
+                        try:
+                            # --- Supabase Update Query ---
+                            update_data = {
+                                "Date": u_date.strftime("%Y-%m-%d"),
+                                "Category": u_category,
+                                "Type": u_type,
+                                "Entity": u_entity,
+                                "Note": u_note,
+                                "Amount": u_amount,
+                                "Qty_Cubes": u_qty,
+                                "Fuel_Ltr": u_fuel,
+                                "Hours": u_hours,
+                                "Rate_At_Time": u_rate,
+                                "Status": u_status
+                            }
+                            
+                            # මෙතන table නම 'master_log' විදිහට වෙනස් කළා
+                            conn.table("master_log").update(update_data).eq("id", record["id"]).execute()
+            
+                            # Local Session State එක Update කිරීම
+                            for key, value in update_data.items():
+                                st.session_state.df.at[idx, key] = value
+            
+                            st.success(f"Record {record['id']} updated successfully in Master Log!")
+                            st.rerun()
+            
+                        except Exception as e:
+                            st.error(f"Error updating record: {e}")
               
                 with col2:
                     st.subheader("🗑️ Delete Record")
