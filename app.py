@@ -2123,37 +2123,28 @@ elif menu == "⚙️ Data Manager":
                 # --- EDIT FORM ---
                 with col1:
                     st.subheader("📝 Edit Record")
-                    if st.form_submit_button("✅ Update Record Now"):
+                    with st.form("edit_record_form", clear_on_submit=True):
+                        # මේ ඔක්කොම තියෙන්නේ form එක ඇතුළේ (indent වෙලා)
+                        u_date = st.date_input("Update Date", value=pd.to_datetime(record["Date"]))
+                        u_entity = st.text_input("Vehicle / Entity Name", value=str(record["Entity"]))
+                        u_amount = st.number_input("Amount (LKR)", value=float(record["Amount"]))
+                        
+                        # පරෙස්සම් වෙන්න: මේ button එක අනිවාර්යයෙන්ම form එක ඇතුළේ තියෙන්න ඕනේ
+                        submit_button = st.form_submit_button("✅ Update Record Now")
+                    
+                        if submit_button:
                             try:
-                                # 1. Supabase එකේ දත්ත Update කිරීම
-                                # මෙතන 'id' කියන column එක උබේ Supabase Table එකේ primary key එක වෙන්න ඕනේ.
-                                response = supabase.table("transactions").update({
+                                # Supabase update logic එක මෙතනට
+                                supabase.table("transactions").update({
                                     "Date": u_date.strftime("%Y-%m-%d"),
                                     "Entity": u_entity,
-                                    "Note": u_note,
-                                    "Amount": u_amount,
-                                    "Qty_Cubes": u_qty,
-                                    "Hours": u_hours,
-                                    "Rate_At_Time": u_rate
+                                    "Amount": u_amount
                                 }).eq("id", record["id"]).execute()
-
-                                # 2. Session State එකේ (Local) දත්ත Update කිරීම
-                                st.session_state.df.at[idx, "Date"] = u_date.strftime("%Y-%m-%d")
-                                st.session_state.df.at[idx, "Entity"] = u_entity
-                                st.session_state.df.at[idx, "Note"] = u_note
-                                st.session_state.df.at[idx, "Amount"] = u_amount
-                                st.session_state.df.at[idx, "Qty_Cubes"] = u_qty
-                                st.session_state.df.at[idx, "Hours"] = u_hours
-                                st.session_state.df.at[idx, "Rate_At_Time"] = u_rate
-
-                                st.success(f"Record {search_id} has been updated in Supabase!")
                                 
-                                # App එක refresh කරන්න කලින් පොඩි වෙලාවක් දෙනවා success message එක පේන්න
+                                st.success("Updated successfully!")
                                 st.rerun()
-
                             except Exception as e:
-                                st.error(f"Error updating Supabase: {e}")
-
+                                st.error(f"Error: {e}")
                 # --- DELETE BUTTON ---
                 with col2:
                     st.subheader("🗑️ Delete Record")
