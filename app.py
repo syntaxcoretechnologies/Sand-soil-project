@@ -2180,10 +2180,10 @@ elif menu == "⚙️ Data Manager":
                 
                                 st.success(f"Record {record['id']} updated successfully!")
                                 st.rerun()
-
-            except Exception as e:
-                st.error(f"Error updating record: {e}")
-                # --- DELETE BUTTON ---
+                
+                            except Exception as e:
+                                st.error(f"Error updating record: {e}")
+              
                 with col2:
                     st.subheader("🗑️ Delete Record")
                     st.error("❗ Warning: This action cannot be undone.")
