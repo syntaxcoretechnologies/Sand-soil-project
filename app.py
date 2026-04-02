@@ -2127,7 +2127,7 @@ elif menu == "⚙️ Data Manager":
                         # 1. මූලික විස්තර
                         u_date = st.date_input("Update Date", value=pd.to_datetime(record["Date"]))
                         
-                        # Category සහ Type (Selectbox පාවිච්චි කිරීම වඩාත් හොඳයි)
+                        # Category සහ Type
                         categories = ["💰 Sales Out (Sand)", "💰 Sales Out (Soil)", "🚚 Inward (Sand)", "🚚 Inward (Soil)", "⛽ Fuel", "🔧 Maintenance", "💸 Expense"]
                         u_category = st.selectbox("Category", options=categories, index=categories.index(record["Category"]) if record["Category"] in categories else 0)
                         
@@ -2145,14 +2145,17 @@ elif menu == "⚙️ Data Manager":
                         with c2:
                             u_hours = st.number_input("Hours / Days", value=float(record["Hours"]), step=0.5)
                             u_rate = st.number_input("Rate Used", value=float(record["Rate_At_Time"]), step=10.0)
-                            u_status = st.selectbox("Status", options=["Completed", "Pending", "Canceled"], index=0)
+                            # Status එක database එකේ තියෙන අගය අනුව index එක තෝරමු
+                            status_options = ["Completed", "Pending", "Canceled"]
+                            current_status = record.get("Status", "Completed")
+                            u_status = st.selectbox("Status", options=status_options, index=status_options.index(current_status) if current_status in status_options else 0)
                 
                         # 3. Update Button
                         submit_update = st.form_submit_button("✅ Update Everything Now")
                 
                         if submit_update:
                             try:
-                                # --- Supabase Update Query ---
+                                # --- Supabase Update Query (Using 'conn' instead of 'supabase') ---
                                 update_data = {
                                     "Date": u_date.strftime("%Y-%m-%d"),
                                     "Category": u_category,
@@ -2167,8 +2170,9 @@ elif menu == "⚙️ Data Manager":
                                     "Status": u_status
                                 }
                                 
-                                # DB එකට යැවීම
-                                supabase.table("transactions").update(update_data).eq("id", record["id"]).execute()
+                                # 'conn' පාවිච්චි කරලා Supabase එකට දත්ත යැවීම
+                                # ඔයාගේ Table එකේ නම "transactions" නෙවෙයි නම් ඒක මෙතන වෙනස් කරන්න.
+                                conn.table("transactions").update(update_data).eq("id", record["id"]).execute()
                 
                                 # Local Session State එක Update කිරීම (App එකේ වහාම පේන්න)
                                 for key, value in update_data.items():
@@ -2176,9 +2180,9 @@ elif menu == "⚙️ Data Manager":
                 
                                 st.success(f"Record {record['id']} updated successfully!")
                                 st.rerun()
-                
-                            except Exception as e:
-                                st.error(f"Error updating record: {e}")
+
+            except Exception as e:
+                st.error(f"Error updating record: {e}")
                 # --- DELETE BUTTON ---
                 with col2:
                     st.subheader("🗑️ Delete Record")
