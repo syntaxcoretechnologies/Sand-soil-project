@@ -2200,11 +2200,24 @@ elif menu == "⚙️ Data Manager":
                         except Exception as e:
                             st.error(f"Error deleting from Supabase: {e}")
                             
-            # 3. සම්පූර්ණ Log එක පහළින් පෙන්වීම (Latest First)
-            st.divider()
-            st.write("#### 📋 Full Transaction Log (Use ID to Edit/Delete)")
-            st.dataframe(
-                st.session_state.df.sort_values(by="id", ascending=False), 
-                use_container_width=True, 
-                hide_index=True
-            )    
+           # --- අලුත් ආරක්ෂිත ක්‍රමය (Data Fixes ඇතුළුව) ---
+            if not st.session_state.df.empty:
+                # 1. පෙන්වන්න කලින් Data ටික Clean කරගමු (Arrow Error එක නැති කරන්න)
+                df_to_show = st.session_state.df.copy()
+
+                for col in df_to_show.columns:
+                    # ඉලක්කම් තියෙන columns වල අකුරු/None තිබුණොත් ඒවා 0 කරන්න
+                    if col in ["Amount", "Qty_Cubes", "Fuel_Ltr", "Hours", "Rate_At_Time"]:
+                        df_to_show[col] = pd.to_numeric(df_to_show[col], errors='coerce').fillna(0)
+                    else:
+                        # අනිත් හැම එකක්ම string බවට පත් කරන්න
+                        df_to_show[col] = df_to_show[col].astype(str)
+
+                # 2. දැන් ලස්සනට Table එක පෙන්වමු
+                st.dataframe(
+                    df_to_show.sort_values(by="id", ascending=False), 
+                    width="stretch", 
+                    hide_index=True
+                )
+            else:
+                st.info("No records found in the database.")
