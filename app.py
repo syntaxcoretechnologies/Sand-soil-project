@@ -749,7 +749,20 @@ elif menu == "📊 Dashboard":
                 temp_sales_df['Income'] = pd.to_numeric(temp_sales_df['Amount'], errors='coerce').fillna(0)
                 
                 real_income = temp_sales_df['Income'].sum()
-                total_expenses = pd.to_numeric(filtered_df[filtered_df["Type"] == "Expense"]["Amount"], errors='coerce').sum()
+
+                # --- මෙන්න මෙතන තමයි වෙනස කරන්නේ (Settle records අයින් කිරීම) ---
+                # 1. මුලින්ම ඔක්කොම Expenses ටික ගන්නවා
+                all_expenses_df = filtered_df[filtered_df["Type"] == "Expense"].copy()
+                
+                # 2. ඒ අතරින් "Settle" හෝ "Payment" කියන වචන Note එකේ නැති ඒවා විතරක් පෙරා ගන්නවා
+                # මෙතනින් Double Entry (දෙපාරක් වියදම වැටීම) වළක්වනවා
+                actual_expenses_df = all_expenses_df[
+                    ~all_expenses_df["Note"].str.contains("Settle|Payment|Settle Payment", case=False, na=False)
+                ]
+                
+                # 3. දැන් සැබෑ වියදම ගණනය කරනවා
+                total_expenses = pd.to_numeric(actual_expenses_df["Amount"], errors='coerce').sum()
+                # ---------------------------------------------------------
 
                 m1, m2, m3 = st.columns(3)
                 m1.metric("Net Sales Income", f"Rs. {real_income:,.2f}")
