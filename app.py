@@ -761,7 +761,7 @@ elif menu == "📊 Dashboard":
                 ]
                 
                 # 3. දැන් සැබෑ වියදම ගණනය කරනවා
-                total_expenses = pd.to_numeric(actual_expenses_df["Amount"], errors='coerce').sum()
+                total_expenses = pd.to_numeric(actual_expenses_df["Amount"], errors='coerce').fillna(0).sum()
                 # ---------------------------------------------------------
 
                 m1, m2, m3 = st.columns(3)
