@@ -743,7 +743,8 @@ elif menu == "📊 Dashboard":
 
                 if not filtered_df.empty:
                     # --- 1. INCOME (ආදායම) ---
-                    income_mask = filtered_df["Category"].str.contains("Sales Out|Excavator", case=False, na=False)
+                    # දැන් ආදායමට ගන්නේ "Sales Out" (වැලි/පස් විකුණුම්) විතරයි
+                    income_mask = filtered_df["Category"].str.contains("Sales Out", case=False, na=False)
                     temp_sales_df = filtered_df[income_mask].copy()
                     
                     if not temp_sales_df.empty:
@@ -753,13 +754,17 @@ elif menu == "📊 Dashboard":
                         real_income = 0
 
                     # --- 2. TOTAL EXPENSES (වියදම්) ---
+                    # Type එක Expense වන සියල්ල (Shed, Stock, Finance, සහ දැන් Excavator)
                     all_exp_df = filtered_df[filtered_df["Type"] == "Expense"].copy()
 
                     if not all_exp_df.empty:
                         all_exp_df["Note"] = all_exp_df["Note"].astype(str).fillna("")
+                        
+                        # Settle/Payment ඇති රෙකෝඩ්ස් අයින් කරමු (Double counting නැති කරන්න)
                         actual_expenses_df = all_exp_df[
                             ~all_exp_df["Note"].str.contains("Settle|Payment", case=False, na=False)
                         ].copy()
+                        
                         total_expenses = pd.to_numeric(actual_expenses_df["Amount"], errors='coerce').fillna(0).sum()
                     else:
                         total_expenses = 0
@@ -775,20 +780,16 @@ elif menu == "📊 Dashboard":
 
                     st.divider()
 
-                    # --- Stock Balance Section (Raw Material Logic) ---
+                    # --- Stock Balance Section ---
                     st.subheader("📦 Plant Stock Balance (Main Stock)")
-                    
                     try:
-                        # 1. මුළු ඇතුළත් කිරීම් (Inward)
                         in_mask = (filtered_df["Category"].str.contains("Inward|Stock In", case=False, na=False))
                         total_in = pd.to_numeric(filtered_df[in_mask]["Qty_Cubes"], errors='coerce').fillna(0).sum()
 
-                        # 2. වැලි විකුණුම් (Sand Out)
                         sand_out_mask = (filtered_df["Category"].str.contains("Sales Out|Outward", case=False, na=False)) & \
                                         (filtered_df["Category"].str.contains("Sand", case=False, na=False))
                         sand_out = pd.to_numeric(filtered_df[sand_out_mask]["Qty_Cubes"], errors='coerce').fillna(0).sum()
 
-                        # 3. පස් විකුණුම් (Soil Out)
                         soil_out_mask = (filtered_df["Category"].str.contains("Sales Out|Outward", case=False, na=False)) & \
                                         (filtered_df["Category"].str.contains("Soil", case=False, na=False))
                         soil_out = pd.to_numeric(filtered_df[soil_out_mask]["Qty_Cubes"], errors='coerce').fillna(0).sum()
@@ -799,22 +800,18 @@ elif menu == "📊 Dashboard":
                         s_col1.metric("Sand Stats", f"{remaining_balance:.2f} Cubes Left", delta=f"Sold: {sand_out} Cubes", delta_color="inverse")
                         s_col2.metric("Soil Stats", f"{remaining_balance:.2f} Cubes Left", delta=f"In: {total_in} | Sold: {soil_out}", delta_color="normal")
 
-                        st.info(f"💡 **සටහන:** පස් ඇතුළත් කිරීම් වලින් ({total_in}), වැලි ({sand_out}) සහ පස් ({soil_out}) විකුණුම් අඩු කර ශේෂය ගණනය කර ඇත.")
-
                         # --- Income Trend Chart ---
                         st.divider()
                         st.subheader("Daily Income Trend")
                         if not temp_sales_df.empty:
-                            # වැදගත්: මෙතන Income_Val පාවිච්චි කළ යුතුයි
                             trend_data = temp_sales_df.groupby('Date')['Income_Val'].sum()
                             st.line_chart(trend_data)
-
                     except Exception as e:
                         st.error(f"Stock Logic Error: {e}")
                 else:
                     st.warning("තෝරාගත් දින පරාසය තුළ දත්ත නැත.")
             else:
-                st.info("පද්ධතියේ දත්ත කිසිවක් නැත. කරුණාකර දත්ත ඇතුළත් කරන්න.")
+                st.info("පද්ධතියේ දත්ත කිසිවක් නැත.")
             
 # --- 2. SITE OPERATIONS SECTION ---
 # මේ 'elif' එක පටන් ගන්න ඕනේ උඩ තියෙන 'if menu == "📊 Dashboard":' එකට කෙළින්ම පල්ලෙහායින්
