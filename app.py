@@ -1153,7 +1153,7 @@ elif menu == "📑 Reports Center":
         daily_report_data = df_f[
             (df_f["Category"].str.contains("Sales Out|Outward", case=False, na=False)) | 
             (df_f["Type"].str.strip().str.capitalize() == "Expense") |
-            (df_f["Category"].str.contains("Food|Fuel|Repair|Shed|Advance", case=False, na=False))
+            (df_f["Category"].str.contains("Food|Fuel|Repair|Shed|Advance|Rent|Office|Misc|Utility", case=False, na=False))
         ].copy()
         
         if not daily_report_data.empty:
@@ -1171,13 +1171,12 @@ elif menu == "📑 Reports Center":
             # --- UI එකේ Summary එක පෙන්වීම (STRICT FIXED LOGIC) ---
             
             # 1. Gross Sales: Category එකේ 'Sales Out/Outward' තිබිය යුතුයි. 
-            # නමුත් Type එක 'Expense' නොවිය යුතුයි සහ Category එකේ වියදම් වචන නොවිය යුතුයි.
-            # තවද Amount එක ධන (+) අගයක් විය යුතුයි.
+            # නමුත් Type එක 'Expense' නොවිය යුතුයි, Category එකේ වියදම් වචන නොවිය යුතුයි සහ Amount එක ධන (+) විය යුතුයි.
             sales_mask = (
                 (daily_report_data["Amount"] > 0) &
                 (daily_report_data["Category"].str.contains("Sales Out|Outward", case=False, na=False)) & 
                 (daily_report_data["Type"].str.strip().str.capitalize() != "Expense") &
-                (~daily_report_data["Category"].str.contains("Food|Fuel|Repair|Shed|Advance", case=False, na=False))
+                (~daily_report_data["Category"].str.contains("Food|Fuel|Repair|Shed|Advance|Rent|Office|Misc|Utility", case=False, na=False))
             )
             total_sales = daily_report_data[sales_mask]['Amount'].sum()
 
@@ -1186,7 +1185,7 @@ elif menu == "📑 Reports Center":
             expense_mask = (
                 (daily_report_data["Amount"] < 0) |
                 (daily_report_data["Type"].str.strip().str.capitalize() == "Expense") |
-                (daily_report_data["Category"].str.contains("Food|Fuel|Repair|Shed|Advance", case=False, na=False))
+                (daily_report_data["Category"].str.contains("Food|Fuel|Repair|Shed|Advance|Rent|Office|Misc|Utility", case=False, na=False))
             )
             
             # වියදම් එකතුව පෙන්වීමේදී ධන අගයක් ලෙස පෙන්වීමට abs() භාවිතා කරමු
@@ -1225,11 +1224,12 @@ elif menu == "📑 Reports Center":
                     "Total Expenses": f"LKR {total_expenses:,.2f}",
                     "Net Balance": f"LKR {net_bal:,.2f}"
                 }
+                # මෙතනදී අපි කලින් හදපු දියුණු කරපු create_pdf function එක call වෙනවා
                 pdf_fn = create_pdf(f"Daily_Settlement", pdf_ready_df, inc_summary)
                 with open(pdf_fn, "rb") as f:
                     st.download_button("📩 Click to Download PDF", f, file_name=f"Settlement_Report_{f_d}.pdf")
         else:
-            st.warning("තෝරාගත් දින පරාසය තුළ දත්ත (Sales හෝ Expenses) කිසිවක් නැත.")
+            st.warning("තෝරාගත් දින පරාසය තුළ දත්ත (Sales හෝ Expenses) කිසිවක් නැත."))
             
     # --- TAB: PROFIT/LOSS ANALYSIS ---
     with r_prof:
