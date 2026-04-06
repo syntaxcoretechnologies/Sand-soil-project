@@ -753,19 +753,40 @@ elif menu == "📊 Dashboard":
                     else:
                         real_income = 0
 
-                    # --- 2. TOTAL EXPENSES (වියදම්) ---
-                    # Type එක Expense වන සියල්ල (Shed, Stock, Finance, සහ දැන් Excavator)
-                    all_exp_df = filtered_df[filtered_df["Type"] == "Expense"].copy()
+                    # --- 2. TOTAL EXPENSES (වියදම්) - RE-FIXED LOGIC ---
+                    
+                    # 1. ඇත්තම වියදම් (Fuel, Repair, Payroll, etc.)
+                    # මේවා එකතු විය යුතුයි
+                    expense_categories = [
+                        "Food", "Fuel", "Repair", "Advance", "Rent", 
+                        "Office", "Misc", "Utility", "Payroll", "Wage", 
+                        "Salary", "Staff", "Owner Advance", "Driver"
+                    ]
+                    exp_pattern = "|".join(expense_categories)
+                    
+                    # 2. ගෙවීම් (Shed Payments / Settle)
+                    # මේවා වියදම් වලින් අඩු විය යුතුයි
+                    settle_pattern = "Settle|Payment|Shed"
 
-                    if not all_exp_df.empty:
-                        all_exp_df["Note"] = all_exp_df["Note"].astype(str).fillna("")
+                    # Mask එක හදාගමු
+                    is_actual_expense = (
+                        (filtered_df["Category"].str.contains(exp_pattern, case=False, na=False)) |
+                        (filtered_df["Type"].str.strip().str.capitalize() == "Expense")
+                    ) & ~(filtered_df["Note"].str.contains(settle_pattern, case=False, na=False))
+
+                    # Shed එකට කරන payments විතරක් වෙන් කරගමු
+                    is_settlement = filtered_df["Note"].str.contains(settle_pattern, case=False, na=False)
+
+                    if not filtered_df.empty:
+                        # ඇත්තම වියදම් වල එකතුව (Positive values)
+                        raw_expenses = pd.to_numeric(filtered_df[is_actual_expense]["Amount"], errors='coerce').abs().fillna(0).sum()
                         
-                        # Settle/Payment ඇති රෙකෝඩ්ස් අයින් කරමු (Double counting නැති කරන්න)
-                        actual_expenses_df = all_exp_df[
-                            ~all_exp_df["Note"].str.contains("Settle|Payment", case=False, na=False)
-                        ].copy()
+                        # කරපු ගෙවීම් වල එකතුව (Payments)
+                        total_payments = pd.to_numeric(filtered_df[is_settlement]["Amount"], errors='coerce').abs().fillna(0).sum()
                         
-                        total_expenses = pd.to_numeric(actual_expenses_df["Amount"], errors='coerce').fillna(0).sum()
+                        # වියදම් වලින් ගෙවීම් අඩු කරමු
+                        # මෙතකොට Shed එකට ගෙවපුවා වියදමෙන් අයින් වෙනවා
+                        total_expenses = raw_expenses - total_payments
                     else:
                         total_expenses = 0
 
