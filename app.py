@@ -243,19 +243,21 @@ def create_pdf(title, data_df, summary_dict):
         pdf.cell(w[2], 7, note_val, 1)
         pdf.cell(w[3], 7, f"{row_qty:,.2f}" if row_qty > 0 else "-", 1, 0, 'C')
         
-        # --- FIXED LOGIC: Expense එකක්ද කියලා බලමු ---
-        # 1. Category එකේ මේ වචන තියෙනවා නම් (දැන් Food, Utility, Office ඇතුළත් කළා)
-        # 2. එහෙමත් නැත්නම් Amount එක සෘණ (-) නම්
+        # --- FIXED EXPENSE LOGIC ---
+        # Category එකේ වියදම් වචනයක් තියෙනවා නම් හෝ Amount එක 0 ට වඩා අඩු නම් එය වියදමකි
         is_expense = any(exp in cat_str for exp in ["Fuel", "Repair", "Advance", "Payroll", "Salary", "Expense", "Staff", "Food", "Rent", "Utility", "Office", "Misc"]) or (amt < 0)
 
         if is_expense:
-            display_amt = abs(amt) # සෘණ අගය ධන කර වරහන් ඇතුළේ පෙන්වමු
-            total_exp += display_amt
+            # සෘණ අගය ධන කර වරහන් ඇතුළේ පෙන්වා, මුළු වියදමට එකතු කරයි
+            display_amt_val = abs(amt)
+            total_exp += display_amt_val
+            
             pdf.set_text_color(200, 0, 0)
             pdf.cell(w[4], 7, "EXPENSE", 1, 0, 'C')
-            pdf.cell(w[5], 7, f"({display_amt:,.2f})", 1, 1, 'R')
+            pdf.cell(w[5], 7, f"({display_amt_val:,.2f})", 1, 1, 'R')
             pdf.set_text_color(0, 0, 0)
         else:
+            # ධන අගයන් පමණක් ආදායමට එකතු කරයි
             total_earn += amt
             pdf.cell(w[4], 7, f"{rate:,.2f}" if rate > 0 else "-", 1, 0, 'R')
             pdf.cell(w[5], 7, f"{amt:,.2f}", 1, 1, 'R')
@@ -268,6 +270,7 @@ def create_pdf(title, data_df, summary_dict):
     pdf.cell(w[3], 8, f"{current_total_qty:,.2f}", 1, 0, 'C', fill=True)
     pdf.cell(w[4] + w[5], 8, "", 1, 1, 'R', fill=True)
     
+    # පහළ summary එකේදී වැරදි අගයන් නොපෙන්වීමට total_earn සහ total_exp පාවිච්චි කරයි
     pdf.cell(sum(w[:5]), 8, "GROSS EARNINGS (LKR)", 1, 0, 'R')
     pdf.cell(w[5], 8, f"{total_earn:,.2f}", 1, 1, 'R')
     
