@@ -753,40 +753,41 @@ elif menu == "📊 Dashboard":
                     else:
                         real_income = 0
 
-                    # --- 2. TOTAL EXPENSES (වියදම්) - RE-FIXED LOGIC ---
+                    # --- 2. TOTAL EXPENSES (වියදම්) - SHED PAYMENT ONLY DEDUCTION ---
                     
-                    # 1. ඇත්තම වියදම් (Fuel, Repair, Payroll, etc.)
-                    # මේවා එකතු විය යුතුයි
+                    # 1. Hamama expenses (Fuel, Food, Repair etc.)
                     expense_categories = [
-                        "Food", "Fuel", "Repair", "Advance", "Rent", 
-                        "Office", "Misc", "Utility", "Payroll", "Wage", 
-                        "Salary", "Staff", "Owner Advance", "Driver"
+                        "Food", "Fuel", "Repair", "Advance", "Rent", "Office", 
+                        "Misc", "Utility", "Payroll", "Wage", "Salary", 
+                        "Staff", "Owner Advance", "Driver", "Shed"
                     ]
                     exp_pattern = "|".join(expense_categories)
-                    
-                    # 2. ගෙවීම් (Shed Payments / Settle)
-                    # මේවා වියදම් වලින් අඩු විය යුතුයි
-                    settle_pattern = "Settle|Payment|Shed"
 
-                    # Mask එක හදාගමු
-                    is_actual_expense = (
-                        (filtered_df["Category"].str.contains(exp_pattern, case=False, na=False)) |
-                        (filtered_df["Type"].str.strip().str.capitalize() == "Expense")
-                    ) & ~(filtered_df["Note"].str.contains(settle_pattern, case=False, na=False))
+                    expense_mask = (
+                        (filtered_df["Amount"] < 0) |
+                        (filtered_df["Type"].str.strip().str.capitalize() == "Expense") |
+                        (filtered_df["Category"].str.contains(exp_pattern, case=False, na=False))
+                    )
 
-                    # Shed එකට කරන payments විතරක් වෙන් කරගමු
-                    is_settlement = filtered_df["Note"].str.contains(settle_pattern, case=False, na=False)
+                    all_exp_df = filtered_df[expense_mask].copy()
 
-                    if not filtered_df.empty:
-                        # ඇත්තම වියදම් වල එකතුව (Positive values)
-                        raw_expenses = pd.to_numeric(filtered_df[is_actual_expense]["Amount"], errors='coerce').abs().fillna(0).sum()
+                    if not all_exp_df.empty:
+                        all_exp_df["Note"] = all_exp_df["Note"].astype(str).fillna("")
                         
-                        # කරපු ගෙවීම් වල එකතුව (Payments)
-                        total_payments = pd.to_numeric(filtered_df[is_settlement]["Amount"], errors='coerce').abs().fillna(0).sum()
+                        # A. Actual Expenses: Note eke "Payment" ho "Settle" nathi ewa (Mewa thamai mulu viyadama)
+                        actual_exp_mask = ~all_exp_df["Note"].str.contains("Payment|Settle", case=False, na=False)
+                        raw_expenses = pd.to_numeric(all_exp_df[actual_exp_mask]["Amount"], errors='coerce').abs().fillna(0).sum()
                         
-                        # වියදම් වලින් ගෙවීම් අඩු කරමු
-                        # මෙතකොට Shed එකට ගෙවපුවා වියදමෙන් අයින් වෙනවා
-                        total_expenses = raw_expenses - total_payments
+                        # B. Shed Payments: Note eke "Shed" saha "Payment" ho "Settle" dekama thiyena ewa witharak gannawa
+                        # Meka nisa normal fuel bills adu wenne ne, karapu payment eka witharak adu wenawa
+                        shed_payment_mask = (all_exp_df["Category"].str.contains("Shed", case=False, na=False)) & \
+                                           (all_exp_df["Note"].str.contains("Payment|Settle", case=False, na=False))
+                        
+                        total_shed_payments = pd.to_numeric(all_exp_df[shed_payment_mask]["Amount"], errors='coerce').abs().fillna(0).sum()
+                        
+                        # C. Net Expense calculation
+                        # Viyadam walin shed ekata karapu payments witharak adu karanawa
+                        total_expenses = raw_expenses - total_shed_payments
                     else:
                         total_expenses = 0
 
