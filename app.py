@@ -1052,13 +1052,17 @@ elif menu == "💰 Finance & Shed":
                 
                 if st.form_submit_button("Save Expense"):
                     if am > 0:
+                        # වියදමක් නිසා Amount එක අනිවාර්යයෙන්ම සෘණ (-) අගයක් කරමු
+                        # abs(am) මගින් අගය ධන බවට පත් කර එය ඉදිරියට - ලකුණක් යොදයි
+                        final_amount = -abs(am)
+                        
                         oth_data = {
                             "Date": str(ex_date), 
                             "Type": "Expense", 
                             "Category": cat,
                             "Entity": "Admin", 
                             "Note": nt, 
-                            "Amount": am,
+                            "Amount": final_amount, # මෙතනට සෘණ අගය ලබා දෙයි
                             "Qty_Cubes": 0, 
                             "Fuel_Ltr": 0, 
                             "Hours": 0, 
@@ -1067,8 +1071,9 @@ elif menu == "💰 Finance & Shed":
                         }
                         try:
                             conn.table("master_log").insert(oth_data).execute()
+                            # දත්ත නැවත ලෝඩ් කරමු
                             st.session_state.df = load_data("master_log", cols_master)
-                            st.success(f"Saved! Record added for {ex_date}")
+                            st.success(f"Saved! Record added for {ex_date} as LKR {final_amount}")
                             st.rerun()
                         except Exception as e: 
                             st.error(f"Error: {e}")
