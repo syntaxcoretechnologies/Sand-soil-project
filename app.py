@@ -1229,7 +1229,7 @@ elif menu == "📑 Reports Center":
                 with open(pdf_fn, "rb") as f:
                     st.download_button("📩 Click to Download PDF", f, file_name=f"Settlement_Report_{f_d}.pdf")
         else:
-            st.warning("තෝරාගත් දින පරාසය තුළ දත්ත (Sales හෝ Expenses) කිසිවක් නැත."))
+            st.warning("තෝරාගත් දින පරාසය තුළ දත්ත (Sales හෝ Expenses) කිසිවක් නැත.")
             
     # --- TAB: PROFIT/LOSS ANALYSIS ---
     with r_prof:
