@@ -742,26 +742,34 @@ elif menu == "📊 Dashboard":
             filtered_df = df.loc[mask].copy()
 
             if not filtered_df.empty:
-                # --- Financial Metrics ---
-                # 1. Income එක ගණනය කිරීම (කලින් තිබුණු විදිහටම)
-                # --- Financial Metrics ---
-                s_mask = filtered_df["Category"].str.contains("Sales Out", case=False, na=False)
-                temp_sales_df = filtered_df[s_mask].copy()
-                temp_sales_df['Income'] = pd.to_numeric(temp_sales_df['Amount'], errors='coerce').fillna(0)
+                # --- 1. INCOME (ආදායම) ---
+                # මෙතන "Sales Out" සහ "Excavator" (ආදායමක් ලෙස සලකන ඒවා) ඇතුළත් කරන්න
+                income_mask = filtered_df["Category"].str.contains("Sales Out|Excavator", case=False, na=False)
+                temp_sales_df = filtered_df[income_mask].copy()
                 
-                real_income = temp_sales_df['Income'].sum()
+                # Amount එක number එකක් බවට සහතික කරගනිමු
+                temp_sales_df['Income_Val'] = pd.to_numeric(temp_sales_df['Amount'], errors='coerce').fillna(0)
+                real_income = temp_sales_df['Income_Val'].sum()
 
-                # Expenses ගණනය කිරීම
-                exp_df = filtered_df[filtered_df["Type"] == "Expense"].copy()
-                
-                # --- මෙතන "Note" වෙනුවට ඔයාගේ Database එකේ තියෙන නම හරියටම දාන්න ---
-                filtered_exp_df = exp_df[
-                    ~exp_df["Note"].str.contains("Settle|Payment", case=False, na=False)
-                ]
-                
-                total_expenses = pd.to_numeric(filtered_exp_df["Amount"], errors='coerce').fillna(0).sum()
+                # --- 2. TOTAL EXPENSES (සියලුම වියදම්) ---
+                # 'Type' එක "Expense" ලෙස ඇති සියලුම දත්ත (Excavator fuel, Shed, Stock Inward ආදී සියල්ල)
+                all_exp_df = filtered_df[filtered_df["Type"] == "Expense"].copy()
 
-                # 3. Metrics පෙන්වීම (කලින් තිබුණු විදිහටම)
+                if not all_exp_df.empty:
+                    # 'Note' එක string එකක් කරලා Settle/Payment ඒවා අයින් කරනවා
+                    all_exp_df["Note"] = all_exp_df["Note"].astype(str).fillna("")
+                    
+                    # 'Settle' වචනය ඇති රෙකෝඩ්ස් අයින් කිරීම (Double Entry වැළැක්වීමට)
+                    actual_expenses_df = all_exp_df[
+                        ~all_exp_df["Note"].str.contains("Settle|Payment", case=False, na=False)
+                    ].copy()
+
+                    # Amount එක number එකක් කරලා මුළු එකතුව ගන්නවා
+                    total_expenses = pd.to_numeric(actual_expenses_df["Amount"], errors='coerce').fillna(0).sum()
+                else:
+                    total_expenses = 0
+
+                # --- 3. DISPLAY METRICS ---
                 m1, m2, m3 = st.columns(3)
                 m1.metric("Net Sales Income", f"Rs. {real_income:,.2f}")
                 m2.metric("Total Expenses", f"Rs. {total_expenses:,.2f}")
