@@ -1150,7 +1150,6 @@ elif menu == "📑 Reports Center":
         df_f.columns = [str(c).strip() for c in df_f.columns]
         
         # 2. Filtering for Sales & Expenses
-        # මෙතැනදී Food, Fuel, Repair වැනි වචන ඇත්නම් ඒවා අනිවාර්යයෙන්ම වාර්තාවට ඇතුළත් කරගන්නවා
         daily_report_data = df_f[
             (df_f["Category"].str.contains("Sales Out|Outward", case=False, na=False)) | 
             (df_f["Type"].str.strip().str.capitalize() == "Expense") |
@@ -1172,20 +1171,26 @@ elif menu == "📑 Reports Center":
             # --- UI එකේ Summary එක පෙන්වීම (STRICT FIXED LOGIC) ---
             
             # 1. Gross Sales: Category එකේ 'Sales Out/Outward' තිබිය යුතුයි. 
-            # නමුත් Type එක 'Expense' නොවිය යුතුයි සහ Category එකේ 'Food/Repair/Fuel' වැනි දේ නොවිය යුතුයි.
+            # නමුත් Type එක 'Expense' නොවිය යුතුයි සහ Category එකේ වියදම් වචන නොවිය යුතුයි.
+            # තවද Amount එක ධන (+) අගයක් විය යුතුයි.
             sales_mask = (
+                (daily_report_data["Amount"] > 0) &
                 (daily_report_data["Category"].str.contains("Sales Out|Outward", case=False, na=False)) & 
                 (daily_report_data["Type"].str.strip().str.capitalize() != "Expense") &
                 (~daily_report_data["Category"].str.contains("Food|Fuel|Repair|Shed|Advance", case=False, na=False))
             )
             total_sales = daily_report_data[sales_mask]['Amount'].sum()
 
-            # 2. Total Expenses: Type එක 'Expense' වන සියල්ල සහ Category එකේ වියදම් වචන ඇති සියල්ල.
+            # 2. Total Expenses: Type එක 'Expense' වන සියල්ල හෝ Category එකේ වියදම් වචන ඇති සියල්ල 
+            # හෝ Amount එක සෘණ (-) අගයක් වන සියල්ල.
             expense_mask = (
+                (daily_report_data["Amount"] < 0) |
                 (daily_report_data["Type"].str.strip().str.capitalize() == "Expense") |
                 (daily_report_data["Category"].str.contains("Food|Fuel|Repair|Shed|Advance", case=False, na=False))
             )
-            total_expenses = daily_report_data[expense_mask]['Amount'].sum()
+            
+            # වියදම් එකතුව පෙන්වීමේදී ධන අගයක් ලෙස පෙන්වීමට abs() භාවිතා කරමු
+            total_expenses = abs(daily_report_data[expense_mask]['Amount'].sum())
             
             net_bal = total_sales - total_expenses
 
