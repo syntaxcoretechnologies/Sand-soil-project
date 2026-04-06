@@ -1065,12 +1065,16 @@ elif menu == "💰 Finance & Shed":
                             "Qty_Cubes": 0, 
                             "Fuel_Ltr": 0, 
                             "Hours": 0, 
-                            # මෙතනට "EXPENSE" දැම්මම PDF එකේ Rate තීරුවේ ඒක පේනවා
-                            "Rate_At_Time": "EXPENSE", 
+                            # මෙතනට "EXPENSE" අකුරු දැම්මොත් ඩේටාබේස් එක Reject කරනවා
+                            # ඒ නිසා මෙතනට 0 දීලා PDF එකේදී මේක හදාගමු
+                            "Rate_At_Time": 0, 
                             "Status": "Paid"
                         }
                         try:
+                            # ඩේටාබේස් එකට සේව් කිරීම
                             conn.table("master_log").insert(oth_data).execute()
+                            
+                            # සේව් වුණාට පස්සේ දත්ත අප්ඩේට් කරමු
                             st.session_state.df = load_data("master_log", cols_master)
                             st.success(f"Saved! Record added for {ex_date}")
                             st.rerun()
@@ -1078,7 +1082,6 @@ elif menu == "💰 Finance & Shed":
                             st.error(f"Error: {e}")
                     else:
                         st.warning("Please enter an amount greater than 0.")
-
             # --- 2. Report එක Generate කරන කොටස (Form එකෙන් පිටත) ---
             st.write("---") # ඉරක් ගහලා වෙන් කරමු
             st.subheader("📊 Generate Others Report")
