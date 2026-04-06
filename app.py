@@ -1146,14 +1146,13 @@ elif menu == "📑 Reports Center":
         df_f.columns = [str(c).strip() for c in df_f.columns]
         
         # 2. Filtering for Sales & Expenses
-        # අකුරු කැපිටල්/සිම්පල් ඕනෑම විදිහකට තිබුණත් අහු වෙන විදිහට (case=False)
         daily_report_data = df_f[
             (df_f["Category"].str.contains("Sales Out|Outward", case=False, na=False)) | 
             (df_f["Type"].str.strip().str.capitalize() == "Expense")
         ].copy()
         
         if not daily_report_data.empty:
-            # දත්ත Numbers බව තහවුරු කරගමු (Calculation වලට කලින්)
+            # දත්ත Numbers බව තහවුරු කරගමු
             for col in ['Amount', 'Qty_Cubes', 'Rate_At_Time']:
                 if col in daily_report_data.columns:
                     daily_report_data[col] = pd.to_numeric(daily_report_data[col], errors='coerce').fillna(0)
@@ -1161,16 +1160,11 @@ elif menu == "📑 Reports Center":
             # PDF එකට යවන්න දත්ත
             pdf_ready_df = daily_report_data.copy()
             
-            # --- මෙන්න මෙතන තමයි Table එකට දත්ත ගන්නේ ---
-            # 'Sales Out' ඇති සියල්ල display_sales වලට ගමු
-            display_sales = daily_report_data[
-                daily_report_data["Category"].str.contains("Sales Out|Outward", case=False, na=False)
-            ].copy()
+            # --- UI Table එකට Sales සහ Expenses දෙකම ගමු ---
+            display_combined = daily_report_data.copy()
             
             # --- UI එකේ Summary එක පෙන්වීම ---
-            # Category එකේ 'Sales Out' තියෙන ඒවායේ එකතුව
             total_sales = daily_report_data[daily_report_data["Category"].str.contains("Sales Out|Outward", case=False, na=False)]['Amount'].sum()
-            # Type එක 'Expense' ඒවායේ එකතුව
             total_expenses = daily_report_data[daily_report_data["Type"].str.strip().str.capitalize() == "Expense"]['Amount'].sum()
             net_bal = total_sales - total_expenses
 
@@ -1179,17 +1173,22 @@ elif menu == "📑 Reports Center":
             col_s2.metric("Total Expenses", f"LKR {total_expenses:,.2f}", delta_color="inverse")
             col_s3.metric("Net Settlement", f"LKR {net_bal:,.2f}")
 
-            # UI Table පෙන්වීම (සහතික කරගමු Table එක පෙන්වන්න දත්ත තියෙනවා කියලා)
-            if not display_sales.empty:
+            # UI Table පෙන්වීම
+            if not display_combined.empty:
+                # මෙතනට 'Type' column එකත් එකතු කළා වියදමක්ද විකුණුමක්ද කියලා පැහැදිලිව පේන්න
                 rename_dict = {
-                    'Date': 'Date', 'Category': 'Material', 'Entity': 'Vehicle/Client', 
-                    'Qty_Cubes': 'Qty', 'Rate_At_Time': 'Rate', 'Amount': 'Total Amount'
+                    'Date': 'Date', 
+                    'Type': 'Type',
+                    'Category': 'Material/Category', 
+                    'Entity': 'Vehicle/Client/Entity', 
+                    'Qty_Cubes': 'Qty', 
+                    'Rate_At_Time': 'Rate', 
+                    'Amount': 'Total Amount'
                 }
-                # පෙන්වීමට අවශ්‍ය Columns පමණක් තෝරා ගනිමු
-                cols_to_show = [c for c in rename_dict.keys() if c in display_sales.columns]
-                st.dataframe(display_sales[cols_to_show].rename(columns=rename_dict), use_container_width=True)
+                cols_to_show = [c for c in rename_dict.keys() if c in display_combined.columns]
+                st.dataframe(display_combined[cols_to_show].rename(columns=rename_dict), use_container_width=True)
             else:
-                st.info("තෝරාගත් කාලය තුළ විකුණුම් (Sales Out) වාර්තා වී නැත.")
+                st.info("තෝරාගත් කාලය තුළ ගනුදෙනු වාර්තා වී නැත.")
 
             # 7. PDF Button
             if st.button("📥 Download Daily Settlement PDF"):
@@ -1206,7 +1205,6 @@ elif menu == "📑 Reports Center":
                     st.download_button("📩 Click to Download PDF", f, file_name=f"Settlement_Report_{f_d}.pdf")
         else:
             st.warning("තෝරාගත් දින පරාසය තුළ දත්ත (Sales හෝ Expenses) කිසිවක් නැත.")
-            
     # --- TAB: PROFIT/LOSS ANALYSIS ---
     with r_prof:
         st.subheader("📊 Daily Profit & Loss Analysis")
