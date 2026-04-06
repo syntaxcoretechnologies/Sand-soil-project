@@ -1163,9 +1163,19 @@ elif menu == "📑 Reports Center":
             # --- UI Table එකට Sales සහ Expenses දෙකම ගමු ---
             display_combined = daily_report_data.copy()
             
-            # --- UI එකේ Summary එක පෙන්වීම ---
-            total_sales = daily_report_data[daily_report_data["Category"].str.contains("Sales Out|Outward", case=False, na=False)]['Amount'].sum()
-            total_expenses = daily_report_data[daily_report_data["Type"].str.strip().str.capitalize() == "Expense"]['Amount'].sum()
+            # --- UI එකේ Summary එක පෙන්වීම (FIXED LOGIC) ---
+            
+            # Gross Sales: Sales Out/Outward තිබුණත්, ඒක අනිවාර්යයෙන්ම Expense නොවිය යුතුයි
+            total_sales = daily_report_data[
+                (daily_report_data["Category"].str.contains("Sales Out|Outward", case=False, na=False)) & 
+                (daily_report_data["Type"].str.strip().str.capitalize() != "Expense")
+            ]['Amount'].sum()
+
+            # Total Expenses: Type එක Expense වන සියල්ල පමණි
+            total_expenses = daily_report_data[
+                (daily_report_data["Type"].str.strip().str.capitalize() == "Expense")
+            ]['Amount'].sum()
+            
             net_bal = total_sales - total_expenses
 
             col_s1, col_s2, col_s3 = st.columns(3)
@@ -1175,7 +1185,6 @@ elif menu == "📑 Reports Center":
 
             # UI Table පෙන්වීම
             if not display_combined.empty:
-                # මෙතනට 'Type' column එකත් එකතු කළා වියදමක්ද විකුණුමක්ද කියලා පැහැදිලිව පේන්න
                 rename_dict = {
                     'Date': 'Date', 
                     'Type': 'Type',
@@ -1205,6 +1214,7 @@ elif menu == "📑 Reports Center":
                     st.download_button("📩 Click to Download PDF", f, file_name=f"Settlement_Report_{f_d}.pdf")
         else:
             st.warning("තෝරාගත් දින පරාසය තුළ දත්ත (Sales හෝ Expenses) කිසිවක් නැත.")
+            
     # --- TAB: PROFIT/LOSS ANALYSIS ---
     with r_prof:
         st.subheader("📊 Daily Profit & Loss Analysis")
