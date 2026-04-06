@@ -757,21 +757,30 @@ elif menu == "📊 Dashboard":
                     # Type එක "Expense" වන සියලුම දත්ත (Shed, Stock, Finance, ආදිය)
                     all_exp_df = filtered_df[filtered_df["Type"] == "Expense"].copy()
 
+                    if not filtered_df.empty:
+                    # --- 1. INCOME (ආදායම) ---
+                    income_mask = filtered_df["Category"].str.contains("Sales Out|Excavator", case=False, na=False)
+                    temp_sales_df = filtered_df[income_mask].copy()
+                    
+                    if not temp_sales_df.empty:
+                        temp_sales_df['Income_Val'] = pd.to_numeric(temp_sales_df['Amount'], errors='coerce').fillna(0)
+                        real_income = temp_sales_df['Income_Val'].sum()
+                    else:
+                        real_income = 0
+
+                    # --- 2. TOTAL EXPENSES (වියදම්) ---
+                    all_exp_df = filtered_df[filtered_df["Type"] == "Expense"].copy()
+
                     if not all_exp_df.empty:
-                        # 'Note' column එක string එකක් බවට සහතික කරගමු
                         all_exp_df["Note"] = all_exp_df["Note"].astype(str).fillna("")
-                        
-                        # Reference/Note එකේ 'Settle' හෝ 'Payment' ඇති රෙකෝඩ්ස් අයින් කිරීම
                         actual_expenses_df = all_exp_df[
                             ~all_exp_df["Note"].str.contains("Settle|Payment", case=False, na=False)
                         ].copy()
-
-                        # මුළු වියදම එකතු කරමු
                         total_expenses = pd.to_numeric(actual_expenses_df["Amount"], errors='coerce').fillna(0).sum()
                     else:
                         total_expenses = 0
 
-                    # --- 3. METRICS පෙන්වීම ---
+                    # --- 3. METRICS ---
                     m1, m2, m3 = st.columns(3)
                     m1.metric("Net Sales Income", f"Rs. {real_income:,.2f}")
                     m2.metric("Total Expenses", f"Rs. {total_expenses:,.2f}")
@@ -781,10 +790,10 @@ elif menu == "📊 Dashboard":
                     m3.metric("Net Cashflow", f"Rs. {cashflow:,.2f}", delta=f"{margin:.1f}% Margin")
 
                     st.divider()
+                # මෙන්න මේ 'else' එක තමයි උඩ 'if not filtered_df.empty:' එකට කෙළින්ම එන්න ඕනේ
                 else:
                     st.warning("No data found for the selected date range.")
-            else:
-                st.info("No data available in the system yet.")
+                    
                 # --- Stock Balance Section (Raw Material Logic) ---
                 st.subheader("📦 Plant Stock Balance (Main Stock)")
                 
