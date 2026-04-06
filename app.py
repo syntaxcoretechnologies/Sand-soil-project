@@ -1131,48 +1131,47 @@ elif menu == "📑 Reports Center":
         t_d = st.date_input("To Date", datetime.now().date(), key="r_to")
 
     # 4. Filtering Logic
-    # මුලින්ම Date column එක datetime බවට හරවමු
     df_raw['Date'] = pd.to_datetime(df_raw['Date'], errors='coerce')
-    
-    # දැන් ඒකෙන් වෙලාව අයින් කරලා Date එක විතරක් ගමු
-    # මෙතන .dt.date පාවිච්චි කරද්දී f_d සහ t_d සමඟ සසඳන්න ලේසියි
     df_raw['Date_Only'] = df_raw['Date'].dt.date
     
-    # Filter කිරීම (Date_Only පාවිච්චි කරලා)
+    # Filter කිරීම (Date objects දෙකක් සසඳන නිසා දැන් 100% නිවැරදිව අද දවස අහු වෙනවා)
     df_f = df_raw[(df_raw["Date_Only"] >= f_d) & (df_raw["Date_Only"] <= t_d)].copy()
-    
-    # පසුව පෙන්වන කොට Table එකේ පිරිසිදුව පෙන්වන්න Date column එක format කරමු
     df_f['Date'] = df_f['Date_Only']
-    df_f = df_f.drop(columns=['Date_Only']) # අමතර column එක අයින් කරමු
-    
+    # df_f = df_f.drop(columns=['Date_Only']) # මේ පේළිය දැනට තියන්න, පල්ලෙහාට ඕන වෙනවා
+
     with r_inc:
         st.subheader("Daily Sales & Income Statement")
         
         # 1. Clean columns
         df_f.columns = [str(c).strip() for c in df_f.columns]
         
-        # 2. වැදගත්ම වෙනස: Sales Out හෝ Expense (වියදම්) තියෙන ඔක්කොම ගන්නවා
-        # Category එකේ 'Sales Out' තියෙන ඒවා සහ Type එක 'Expense' තියෙන ඒවා පෙරමු
+        # 2. Filtering for Sales & Expenses
+        # අකුරු කැපිටල්/සිම්පල් ඕනෑම විදිහකට තිබුණත් අහු වෙන විදිහට (case=False)
         daily_report_data = df_f[
-            (df_f["Category"].str.contains("Sales Out", case=False, na=False)) | 
-            (df_f["Type"] == "Expense")
+            (df_f["Category"].str.contains("Sales Out|Outward", case=False, na=False)) | 
+            (df_f["Type"].str.strip().str.capitalize() == "Expense")
         ].copy()
         
         if not daily_report_data.empty:
-            # PDF එකට යවන්න original column names සහිත DataFrame එකක්
-            pdf_ready_df = daily_report_data.copy()
-            
-            # පෙන්වන ටේබල් එක (User ට පෙන්වද්දී විකුණුම් විතරක් පෙන්නන්න ඕනේ නම් මේක තියන්න)
-            display_sales = daily_report_data[daily_report_data["Category"].str.contains("Sales Out", case=False, na=False)].copy()
-            
-            # දත්ත Numbers බව තහවුරු කරගමු
+            # දත්ත Numbers බව තහවුරු කරගමු (Calculation වලට කලින්)
             for col in ['Amount', 'Qty_Cubes', 'Rate_At_Time']:
                 if col in daily_report_data.columns:
-                    pdf_ready_df[col] = pd.to_numeric(pdf_ready_df[col], errors='coerce').fillna(0)
+                    daily_report_data[col] = pd.to_numeric(daily_report_data[col], errors='coerce').fillna(0)
 
+            # PDF එකට යවන්න දත්ත
+            pdf_ready_df = daily_report_data.copy()
+            
+            # --- මෙන්න මෙතන තමයි Table එකට දත්ත ගන්නේ ---
+            # 'Sales Out' ඇති සියල්ල display_sales වලට ගමු
+            display_sales = daily_report_data[
+                daily_report_data["Category"].str.contains("Sales Out|Outward", case=False, na=False)
+            ].copy()
+            
             # --- UI එකේ Summary එක පෙන්වීම ---
-            total_sales = pdf_ready_df[pdf_ready_df["Category"].str.contains("Sales Out", na=False)]['Amount'].sum()
-            total_expenses = pdf_ready_df[pdf_ready_df["Type"] == "Expense"]['Amount'].sum()
+            # Category එකේ 'Sales Out' තියෙන ඒවායේ එකතුව
+            total_sales = daily_report_data[daily_report_data["Category"].str.contains("Sales Out|Outward", case=False, na=False)]['Amount'].sum()
+            # Type එක 'Expense' ඒවායේ එකතුව
+            total_expenses = daily_report_data[daily_report_data["Type"].str.strip().str.capitalize() == "Expense"]['Amount'].sum()
             net_bal = total_sales - total_expenses
 
             col_s1, col_s2, col_s3 = st.columns(3)
@@ -1180,14 +1179,19 @@ elif menu == "📑 Reports Center":
             col_s2.metric("Total Expenses", f"LKR {total_expenses:,.2f}", delta_color="inverse")
             col_s3.metric("Net Settlement", f"LKR {net_bal:,.2f}")
 
-            # UI Table (Sales පමණක් පෙන්වමු ලස්සනට)
-            rename_dict = {
-                'Date': 'Date', 'Category': 'Material', 'Entity': 'Vehicle/Client', 
-                'Qty_Cubes': 'Qty', 'Rate_At_Time': 'Rate', 'Amount': 'Total Amount'
-            }
-            st.dataframe(display_sales.rename(columns=rename_dict), use_container_width=True)
-            
-            # 7. PDF Button එක
+            # UI Table පෙන්වීම (සහතික කරගමු Table එක පෙන්වන්න දත්ත තියෙනවා කියලා)
+            if not display_sales.empty:
+                rename_dict = {
+                    'Date': 'Date', 'Category': 'Material', 'Entity': 'Vehicle/Client', 
+                    'Qty_Cubes': 'Qty', 'Rate_At_Time': 'Rate', 'Amount': 'Total Amount'
+                }
+                # පෙන්වීමට අවශ්‍ය Columns පමණක් තෝරා ගනිමු
+                cols_to_show = [c for c in rename_dict.keys() if c in display_sales.columns]
+                st.dataframe(display_sales[cols_to_show].rename(columns=rename_dict), use_container_width=True)
+            else:
+                st.info("තෝරාගත් කාලය තුළ විකුණුම් (Sales Out) වාර්තා වී නැත.")
+
+            # 7. PDF Button
             if st.button("📥 Download Daily Settlement PDF"):
                 inc_summary = {
                     "Report Type": "Daily Settlement Statement",
@@ -1197,14 +1201,11 @@ elif menu == "📑 Reports Center":
                     "Total Expenses": f"LKR {total_expenses:,.2f}",
                     "Net Balance": f"LKR {net_bal:,.2f}"
                 }
-                
-                # මෙතනදී pdf_ready_df එකේ දැන් Sales සහ Expenses දෙකම තියෙනවා
                 pdf_fn = create_pdf(f"Daily_Settlement", pdf_ready_df, inc_summary)
-                
                 with open(pdf_fn, "rb") as f:
                     st.download_button("📩 Click to Download PDF", f, file_name=f"Settlement_Report_{f_d}.pdf")
         else:
-            st.warning("තෝරාගත් දින පරාසය තුළ දත්ත කිසිවක් නැත.")
+            st.warning("තෝරාගත් දින පරාසය තුළ දත්ත (Sales හෝ Expenses) කිසිවක් නැත.")
             
     # --- TAB: PROFIT/LOSS ANALYSIS ---
     with r_prof:
