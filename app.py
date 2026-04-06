@@ -1146,9 +1146,11 @@ elif menu == "📑 Reports Center":
         df_f.columns = [str(c).strip() for c in df_f.columns]
         
         # 2. Filtering for Sales & Expenses
+        # මෙතැනදී Food, Fuel, Repair වැනි වචන ඇත්නම් ඒවා අනිවාර්යයෙන්ම වාර්තාවට ඇතුළත් කරගන්නවා
         daily_report_data = df_f[
             (df_f["Category"].str.contains("Sales Out|Outward", case=False, na=False)) | 
-            (df_f["Type"].str.strip().str.capitalize() == "Expense")
+            (df_f["Type"].str.strip().str.capitalize() == "Expense") |
+            (df_f["Category"].str.contains("Food|Fuel|Repair|Shed|Advance", case=False, na=False))
         ].copy()
         
         if not daily_report_data.empty:
@@ -1163,18 +1165,23 @@ elif menu == "📑 Reports Center":
             # --- UI Table එකට Sales සහ Expenses දෙකම ගමු ---
             display_combined = daily_report_data.copy()
             
-            # --- UI එකේ Summary එක පෙන්වීම (FIXED LOGIC) ---
+            # --- UI එකේ Summary එක පෙන්වීම (STRICT FIXED LOGIC) ---
             
-            # Gross Sales: Sales Out/Outward තිබුණත්, ඒක අනිවාර්යයෙන්ම Expense නොවිය යුතුයි
-            total_sales = daily_report_data[
+            # 1. Gross Sales: Category එකේ 'Sales Out/Outward' තිබිය යුතුයි. 
+            # නමුත් Type එක 'Expense' නොවිය යුතුයි සහ Category එකේ 'Food/Repair/Fuel' වැනි දේ නොවිය යුතුයි.
+            sales_mask = (
                 (daily_report_data["Category"].str.contains("Sales Out|Outward", case=False, na=False)) & 
-                (daily_report_data["Type"].str.strip().str.capitalize() != "Expense")
-            ]['Amount'].sum()
+                (daily_report_data["Type"].str.strip().str.capitalize() != "Expense") &
+                (~daily_report_data["Category"].str.contains("Food|Fuel|Repair|Shed|Advance", case=False, na=False))
+            )
+            total_sales = daily_report_data[sales_mask]['Amount'].sum()
 
-            # Total Expenses: Type එක Expense වන සියල්ල පමණි
-            total_expenses = daily_report_data[
-                (daily_report_data["Type"].str.strip().str.capitalize() == "Expense")
-            ]['Amount'].sum()
+            # 2. Total Expenses: Type එක 'Expense' වන සියල්ල සහ Category එකේ වියදම් වචන ඇති සියල්ල.
+            expense_mask = (
+                (daily_report_data["Type"].str.strip().str.capitalize() == "Expense") |
+                (daily_report_data["Category"].str.contains("Food|Fuel|Repair|Shed|Advance", case=False, na=False))
+            )
+            total_expenses = daily_report_data[expense_mask]['Amount'].sum()
             
             net_bal = total_sales - total_expenses
 
