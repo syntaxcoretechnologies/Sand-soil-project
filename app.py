@@ -178,21 +178,14 @@ def create_pdf(title, data_df, summary_dict):
     # --- 1. සාරාංශය සඳහා මුළු එකතුව කලින්ම ගණනය කරමු ---
     actual_total_units = 0.0
     for _, row in data_df.iterrows():
-        # පල්ලෙහා table එකේ පාවිච්චි කරන logic එකම මෙතනටත් දැම්මා
         q_cubes = clean_val(row.get('Qty_Cubes', row.get('qty_cubes', 0)))
-        # Column නම 'Hours' හෝ 'Work_Hours' හෝ 'hours' විය හැක
         w_hrs = clean_val(row.get('Hours', row.get('hours', row.get('Work_Hours', row.get('work_hours', 0)))))
         q_qty = clean_val(row.get('Qty', row.get('qty', 0)))
-        
-        # පේළියේ අගය තීරණය කිරීම (පල්ලෙහා table එකේ logic එකමයි)
         row_qty = q_cubes if q_cubes > 0 else (w_hrs if w_hrs > 0 else q_qty)
-        
-        # Category එක Work Log නම් පමණක් පැය ගණනට එකතු කරන්න
         category_str = str(row.get('Category', row.get('category', ''))).lower()
         if "work log" in category_str:
             actual_total_units += row_qty
 
-    # Summary dictionary එකේ අගය අපේ ගණනය කිරීමෙන් override කරනවා
     summary_dict["Total Units/Hours"] = f"{actual_total_units:,.2f}"
 
     # --- 2. PDF Header & Summary Section ---
@@ -225,22 +218,20 @@ def create_pdf(title, data_df, summary_dict):
     current_total_qty = 0 
     
     for _, row in data_df.iterrows():
-        # row එක ඇතුළේ clean_val ආයේ define කරන්න ඕනේ නැහැ, උඩ එක පාවිච්චි වෙනවා
         q_cubes = clean_val(row.get('Qty_Cubes', row.get('qty_cubes', 0)))
         w_hrs = clean_val(row.get('Hours', row.get('hours', row.get('Work_Hours', row.get('work_hours', 0)))))
         q_qty = clean_val(row.get('Qty', row.get('qty', 0)))
-        
         row_qty = q_cubes if q_cubes > 0 else (w_hrs if w_hrs > 0 else q_qty)
         
         category = row.get('Category', row.get('category', 'N/A'))
         cat_str = str(category)
         
-        # පල්ලෙහා Total එකටත් Work Log විතරක් ගමු
         if "work log" in cat_str.lower():
             current_total_qty += row_qty
         
         rate = clean_val(row.get('Rate_At_Time', row.get('rate_at_time', 0)))
         amt = clean_val(row.get('Amount', row.get('amount', 0)))
+        
         if amt == 0 and row_qty > 0 and rate > 0:
             amt = row_qty * rate
 
@@ -252,11 +243,17 @@ def create_pdf(title, data_df, summary_dict):
         pdf.cell(w[2], 7, note_val, 1)
         pdf.cell(w[3], 7, f"{row_qty:,.2f}" if row_qty > 0 else "-", 1, 0, 'C')
         
-        if any(exp in cat_str for exp in ["Fuel", "Repair", "Advance", "Payroll", "Salary", "Expense", "Staff"]):
-            total_exp += amt
+        # --- FIXED LOGIC: Expense එකක්ද කියලා බලමු ---
+        # 1. Category එකේ මේ වචන තියෙනවා නම් (දැන් Food, Utility, Office ඇතුළත් කළා)
+        # 2. එහෙමත් නැත්නම් Amount එක සෘණ (-) නම්
+        is_expense = any(exp in cat_str for exp in ["Fuel", "Repair", "Advance", "Payroll", "Salary", "Expense", "Staff", "Food", "Rent", "Utility", "Office", "Misc"]) or (amt < 0)
+
+        if is_expense:
+            display_amt = abs(amt) # සෘණ අගය ධන කර වරහන් ඇතුළේ පෙන්වමු
+            total_exp += display_amt
             pdf.set_text_color(200, 0, 0)
             pdf.cell(w[4], 7, "EXPENSE", 1, 0, 'C')
-            pdf.cell(w[5], 7, f"({amt:,.2f})", 1, 1, 'R')
+            pdf.cell(w[5], 7, f"({display_amt:,.2f})", 1, 1, 'R')
             pdf.set_text_color(0, 0, 0)
         else:
             total_earn += amt
