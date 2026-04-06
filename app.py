@@ -724,62 +724,67 @@ if st.sidebar.button("Logout 🔓", use_container_width=True, type="secondary"):
 # --- 1. DASHBOARD SECTION (සම්පූර්ණ එකම මෙතන තියෙනවා) ---
 # --- 6. DASHBOARD ---
 elif menu == "📊 Dashboard":
-        st.markdown("<h2 style='color: #2E86C1;'>📊 Business Overview</h2>", unsafe_allow_html=True)
-        
-        if not st.session_state.df.empty:
-            df = st.session_state.df.copy()
-            st.subheader("📅 Filter Transactions")
-            col_f1, col_f2 = st.columns(2)
+            st.markdown("<h2 style='color: #2E86C1;'>📊 Business Overview</h2>", unsafe_allow_html=True)
             
-            with col_f1:
-                from datetime import timedelta, datetime
-                start_date = st.date_input("From Date", datetime.now().date() - timedelta(days=7))
-            with col_f2:
-                end_date = st.date_input("To Date", datetime.now().date())
-            
-            df['Date'] = pd.to_datetime(df['Date']).dt.date
-            mask = (df['Date'] >= start_date) & (df['Date'] <= end_date)
-            filtered_df = df.loc[mask].copy()
-
-            if not filtered_df.empty:
-                # --- 1. INCOME (ආදායම) ---
-                # මෙතන "Sales Out" සහ "Excavator" (ආදායමක් ලෙස සලකන ඒවා) ඇතුළත් කරන්න
-                income_mask = filtered_df["Category"].str.contains("Sales Out|Excavator", case=False, na=False)
-                temp_sales_df = filtered_df[income_mask].copy()
+            if not st.session_state.df.empty:
+                df = st.session_state.df.copy()
+                st.subheader("📅 Filter Transactions")
+                col_f1, col_f2 = st.columns(2)
                 
-                # Amount එක number එකක් බවට සහතික කරගනිමු
-                temp_sales_df['Income_Val'] = pd.to_numeric(temp_sales_df['Amount'], errors='coerce').fillna(0)
-                real_income = temp_sales_df['Income_Val'].sum()
+                with col_f1:
+                    from datetime import timedelta, datetime
+                    start_date = st.date_input("From Date", datetime.now().date() - timedelta(days=7))
+                with col_f2:
+                    end_date = st.date_input("To Date", datetime.now().date())
+                
+                df['Date'] = pd.to_datetime(df['Date']).dt.date
+                mask = (df['Date'] >= start_date) & (df['Date'] <= end_date)
+                filtered_df = df.loc[mask].copy()
 
-                # --- 2. TOTAL EXPENSES (සියලුම වියදම්) ---
-                # 'Type' එක "Expense" ලෙස ඇති සියලුම දත්ත (Excavator fuel, Shed, Stock Inward ආදී සියල්ල)
-                all_exp_df = filtered_df[filtered_df["Type"] == "Expense"].copy()
-
-                if not all_exp_df.empty:
-                    # 'Note' එක string එකක් කරලා Settle/Payment ඒවා අයින් කරනවා
-                    all_exp_df["Note"] = all_exp_df["Note"].astype(str).fillna("")
+                if not filtered_df.empty:
+                    # --- 1. INCOME (ආදායම) ගණනය කිරීම ---
+                    # Sales Out සහ Excavator ආදායම් පමණක් ගනිමු
+                    income_mask = filtered_df["Category"].str.contains("Sales Out|Excavator", case=False, na=False)
+                    temp_sales_df = filtered_df[income_mask].copy()
                     
-                    # 'Settle' වචනය ඇති රෙකෝඩ්ස් අයින් කිරීම (Double Entry වැළැක්වීමට)
-                    actual_expenses_df = all_exp_df[
-                        ~all_exp_df["Note"].str.contains("Settle|Payment", case=False, na=False)
-                    ].copy()
+                    if not temp_sales_df.empty:
+                        temp_sales_df['Income_Val'] = pd.to_numeric(temp_sales_df['Amount'], errors='coerce').fillna(0)
+                        real_income = temp_sales_df['Income_Val'].sum()
+                    else:
+                        real_income = 0
 
-                    # Amount එක number එකක් කරලා මුළු එකතුව ගන්නවා
-                    total_expenses = pd.to_numeric(actual_expenses_df["Amount"], errors='coerce').fillna(0).sum()
+                    # --- 2. TOTAL EXPENSES (වියදම්) ගණනය කිරීම ---
+                    # Type එක "Expense" වන සියලුම දත්ත (Shed, Stock, Finance, ආදිය)
+                    all_exp_df = filtered_df[filtered_df["Type"] == "Expense"].copy()
+
+                    if not all_exp_df.empty:
+                        # 'Note' column එක string එකක් බවට සහතික කරගමු
+                        all_exp_df["Note"] = all_exp_df["Note"].astype(str).fillna("")
+                        
+                        # Reference/Note එකේ 'Settle' හෝ 'Payment' ඇති රෙකෝඩ්ස් අයින් කිරීම
+                        actual_expenses_df = all_exp_df[
+                            ~all_exp_df["Note"].str.contains("Settle|Payment", case=False, na=False)
+                        ].copy()
+
+                        # මුළු වියදම එකතු කරමු
+                        total_expenses = pd.to_numeric(actual_expenses_df["Amount"], errors='coerce').fillna(0).sum()
+                    else:
+                        total_expenses = 0
+
+                    # --- 3. METRICS පෙන්වීම ---
+                    m1, m2, m3 = st.columns(3)
+                    m1.metric("Net Sales Income", f"Rs. {real_income:,.2f}")
+                    m2.metric("Total Expenses", f"Rs. {total_expenses:,.2f}")
+                    
+                    cashflow = real_income - total_expenses
+                    margin = (cashflow / real_income * 100) if real_income > 0 else 0
+                    m3.metric("Net Cashflow", f"Rs. {cashflow:,.2f}", delta=f"{margin:.1f}% Margin")
+
+                    st.divider()
                 else:
-                    total_expenses = 0
-
-                # --- 3. DISPLAY METRICS ---
-                m1, m2, m3 = st.columns(3)
-                m1.metric("Net Sales Income", f"Rs. {real_income:,.2f}")
-                m2.metric("Total Expenses", f"Rs. {total_expenses:,.2f}")
-                
-                cashflow = real_income - total_expenses
-                margin = (cashflow / real_income * 100) if real_income > 0 else 0
-                m3.metric("Net Cashflow", f"Rs. {cashflow:,.2f}", delta=f"{margin:.1f}% Margin")
-
-                st.divider()
-
+                    st.warning("No data found for the selected date range.")
+            else:
+                st.info("No data available in the system yet.")
                 # --- Stock Balance Section (Raw Material Logic) ---
                 st.subheader("📦 Plant Stock Balance (Main Stock)")
                 
