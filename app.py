@@ -1204,7 +1204,15 @@ elif menu == "📑 Reports Center":
             col_s3.metric("Net Settlement", f"LKR {net_bal:,.2f}")
 
             # UI Table පෙන්වීම
+            # UI Table පෙන්වීම
             if not display_combined.empty:
+                # --- මෙන්න මෙතනදී Table එකේ විතරක් Minus අයින් කරන්න අලුත් copy එකක් හදනවා ---
+                table_display_df = display_combined.copy()
+                
+                # 'Amount' තීරුවේ සෘණ අගයන් (Minus) තිබේ නම් ඒවා ධන (Positive) අගයන් කරමු
+                if 'Amount' in table_display_df.columns:
+                    table_display_df['Amount'] = table_display_df['Amount'].abs()
+                
                 rename_dict = {
                     'Date': 'Date', 
                     'Type': 'Type',
@@ -1214,10 +1222,15 @@ elif menu == "📑 Reports Center":
                     'Rate_At_Time': 'Rate', 
                     'Amount': 'Total Amount'
                 }
-                cols_to_show = [c for c in rename_dict.keys() if c in display_combined.columns]
-                # මෙතනදී Table එකේ Amount එක පෙන්වද්දී සෘණ ලකුණ පෙන්වන්න ඉඩ දෙමු, 
-                # එවිට User ට ඒක වියදමක් බව පැහැදිලි වෙනවා.
-                st.dataframe(display_combined[cols_to_show].rename(columns=rename_dict), use_container_width=True)
+                
+                # පෙන්විය යුතු තීරු (Columns) තෝරාගැනීම
+                cols_to_show = [c for c in rename_dict.keys() if c in table_display_df.columns]
+                
+                # දැන් table_display_df එක භාවිතා කර ටේබල් එක පෙන්වමු
+                st.dataframe(
+                    table_display_df[cols_to_show].rename(columns=rename_dict), 
+                    use_container_width=True
+                )
             else:
                 st.info("තෝරාගත් කාලය තුළ ගනුදෙනු වාර්තා වී නැත.")
 
