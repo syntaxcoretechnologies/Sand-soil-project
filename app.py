@@ -743,27 +743,25 @@ elif menu == "📊 Dashboard":
 
             if not filtered_df.empty:
                 # --- Financial Metrics ---
-                # Income එක ගන්නේ Sales Out records වලින් පමණි
+                # 1. Income එක ගණනය කිරීම (කලින් තිබුණු විදිහටම)
                 s_mask = filtered_df["Category"].str.contains("Sales Out", case=False, na=False)
                 temp_sales_df = filtered_df[s_mask].copy()
                 temp_sales_df['Income'] = pd.to_numeric(temp_sales_df['Amount'], errors='coerce').fillna(0)
-                
                 real_income = temp_sales_df['Income'].sum()
 
-                # --- මෙන්න මෙතන තමයි වෙනස කරන්නේ (Settle records අයින් කිරීම) ---
-                # 1. මුලින්ම ඔක්කොම Expenses ටික ගන්නවා
-                all_expenses_df = filtered_df[filtered_df["Type"] == "Expense"].copy()
+                # 2. Expenses එක ගණනය කිරීම (Settle රෙකෝඩ්ස් පමණක් අයින් කර)
+                # මුලින්ම Type එක Expense වන සියල්ල ගන්නවා
+                exp_df = filtered_df[filtered_df["Type"] == "Expense"].copy()
                 
-                # 2. ඒ අතරින් "Settle" හෝ "Payment" කියන වචන Note එකේ නැති ඒවා විතරක් පෙරා ගන්නවා
-                # මෙතනින් Double Entry (දෙපාරක් වියදම වැටීම) වළක්වනවා
-                actual_expenses_df = all_expenses_df[
-                    ~all_expenses_df["Note"].str.contains("Settle|Payment|Settle Payment", case=False, na=False)
+                # දැන් ඒ අතරින් Reference එකේ 'Settle' හෝ 'Payment' තියෙන ඒවා අයින් කරනවා
+                # එවිට Double Entry ප්‍රශ්නය විසඳෙනවා, හැබැයි අනෙක් සියලුම වියදම් එකතු වෙනවා
+                filtered_exp_df = exp_df[
+                    ~exp_df["Reference (Cheque No/Cash/Slip)"].str.contains("Settle|Payment", case=False, na=False)
                 ]
                 
-                # 3. දැන් සැබෑ වියදම ගණනය කරනවා
-                total_expenses = pd.to_numeric(actual_expenses_df["Amount"], errors='coerce').fillna(0).sum()
-                # ---------------------------------------------------------
+                total_expenses = pd.to_numeric(filtered_exp_df["Amount"], errors='coerce').fillna(0).sum()
 
+                # 3. Metrics පෙන්වීම (කලින් තිබුණු විදිහටම)
                 m1, m2, m3 = st.columns(3)
                 m1.metric("Net Sales Income", f"Rs. {real_income:,.2f}")
                 m2.metric("Total Expenses", f"Rs. {total_expenses:,.2f}")
