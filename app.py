@@ -1131,8 +1131,19 @@ elif menu == "📑 Reports Center":
         t_d = st.date_input("To Date", datetime.now().date(), key="r_to")
 
     # 4. Filtering Logic
-    df_raw['Date'] = pd.to_datetime(df_raw['Date'], errors='coerce').dt.date
-    df_f = df_raw[(df_raw["Date"] >= f_d) & (df_raw["Date"] <= t_d)].copy()
+    # මුලින්ම Date column එක datetime බවට හරවමු
+    df_raw['Date'] = pd.to_datetime(df_raw['Date'], errors='coerce')
+    
+    # දැන් ඒකෙන් වෙලාව අයින් කරලා Date එක විතරක් ගමු
+    # මෙතන .dt.date පාවිච්චි කරද්දී f_d සහ t_d සමඟ සසඳන්න ලේසියි
+    df_raw['Date_Only'] = df_raw['Date'].dt.date
+    
+    # Filter කිරීම (Date_Only පාවිච්චි කරලා)
+    df_f = df_raw[(df_raw["Date_Only"] >= f_d) & (df_raw["Date_Only"] <= t_d)].copy()
+    
+    # පසුව පෙන්වන කොට Table එකේ පිරිසිදුව පෙන්වන්න Date column එක format කරමු
+    df_f['Date'] = df_f['Date_Only']
+    df_f = df_f.drop(columns=['Date_Only']) # අමතර column එක අයින් කරමු
     
     with r_inc:
         st.subheader("Daily Sales & Income Statement")
