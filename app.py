@@ -1065,16 +1065,11 @@ elif menu == "💰 Finance & Shed":
                             "Qty_Cubes": 0, 
                             "Fuel_Ltr": 0, 
                             "Hours": 0, 
-                            # මෙතනට "EXPENSE" අකුරු දැම්මොත් ඩේටාබේස් එක Reject කරනවා
-                            # ඒ නිසා මෙතනට 0 දීලා PDF එකේදී මේක හදාගමු
                             "Rate_At_Time": 0, 
                             "Status": "Paid"
                         }
                         try:
-                            # ඩේටාබේස් එකට සේව් කිරීම
                             conn.table("master_log").insert(oth_data).execute()
-                            
-                            # සේව් වුණාට පස්සේ දත්ත අප්ඩේට් කරමු
                             st.session_state.df = load_data("master_log", cols_master)
                             st.success(f"Saved! Record added for {ex_date}")
                             st.rerun()
@@ -1082,16 +1077,17 @@ elif menu == "💰 Finance & Shed":
                             st.error(f"Error: {e}")
                     else:
                         st.warning("Please enter an amount greater than 0.")
-            # --- 2. Report එක Generate කරන කොටස (Form එකෙන් පිටත) ---
-            st.write("---") # ඉරක් ගහලා වෙන් කරමු
+        
+            # --- 2. Report එක Generate කරන කොටස ---
+            st.write("---")
             st.subheader("📊 Generate Others Report")
             
             col1, col2 = st.columns(2)
             d_start = col1.date_input("Start Date", value=datetime.now().date().replace(day=1))
             d_end = col2.date_input("End Date", value=datetime.now().date())
-    
+        
             if st.button("📥 Download Others PDF Report"):
-                # "Others" category වලට අදාළ දත්ත filter කිරීම
+                # filter කිරීමේදී Category එක වගේම Type එකත් බැලීම වඩා හොඳයි
                 mask = (st.session_state.df['Category'].isin(["Food", "Rent", "Utility", "Office", "Misc"])) & \
                        (st.session_state.df['Date'].astype(str).between(str(d_start), str(d_end)))
                 
@@ -1099,6 +1095,10 @@ elif menu == "💰 Finance & Shed":
                 
                 if not report_df.empty:
                     try:
+                        # මෙතනදී create_others_report එකට යවන report_df එකේ 
+                        # Amount එක ධන කරලා (Positive) යැවීමෙන් PDF එකේ Minus ප්‍රශ්නය විසඳෙනවා
+                        report_df['Amount'] = report_df['Amount'].abs() 
+                        
                         file_path = create_others_report(report_df, d_start, d_end)
                         with open(file_path, "rb") as f:
                             st.download_button("⬇️ Click here to Download", f, file_name=f"Expenses_{d_start}_to_{d_end}.pdf")
@@ -1153,6 +1153,7 @@ elif menu == "📑 Reports Center":
         df_f.columns = [str(c).strip() for c in df_f.columns]
         
         # 2. Filtering for Sales & Expenses
+        # මෙතනට අපි අලුතින් එකතු කරපු Categories (Rent, Office, etc.) ඔක්කොම ඇතුළත් කරලා තියෙන්නේ
         daily_report_data = df_f[
             (df_f["Category"].str.contains("Sales Out|Outward", case=False, na=False)) | 
             (df_f["Type"].str.strip().str.capitalize() == "Expense") |
@@ -1173,8 +1174,8 @@ elif menu == "📑 Reports Center":
             
             # --- UI එකේ Summary එක පෙන්වීම (STRICT FIXED LOGIC) ---
             
-            # 1. Gross Sales: Category එකේ 'Sales Out/Outward' තිබිය යුතුයි. 
-            # නමුත් Type එක 'Expense' නොවිය යුතුයි, Category එකේ වියදම් වචන නොවිය යුතුයි සහ Amount එක ධන (+) විය යුතුයි.
+            # 1. Gross Sales: 
+            # Category එකේ Sales තියෙන්න ඕනේ, හැබැයි Expense වචන හෝ සෘණ අගයන් තියෙන්න බැහැ.
             sales_mask = (
                 (daily_report_data["Amount"] > 0) &
                 (daily_report_data["Category"].str.contains("Sales Out|Outward", case=False, na=False)) & 
@@ -1183,16 +1184,17 @@ elif menu == "📑 Reports Center":
             )
             total_sales = daily_report_data[sales_mask]['Amount'].sum()
 
-            # 2. Total Expenses: Type එක 'Expense' වන සියල්ල හෝ Category එකේ වියදම් වචන ඇති සියල්ල 
-            # හෝ Amount එක සෘණ (-) අගයක් වන සියල්ල.
+            # 2. Total Expenses:
+            # සෘණ අගයන් තියෙන ඒවා හෝ Expense ලෙස නම් කර ඇති ඒවා.
             expense_mask = (
                 (daily_report_data["Amount"] < 0) |
                 (daily_report_data["Type"].str.strip().str.capitalize() == "Expense") |
                 (daily_report_data["Category"].str.contains("Food|Fuel|Repair|Shed|Advance|Rent|Office|Misc|Utility", case=False, na=False))
             )
             
-            # වියදම් එකතුව පෙන්වීමේදී ධන අගයක් ලෙස පෙන්වීමට abs() භාවිතා කරමු
-            total_expenses = abs(daily_report_data[expense_mask]['Amount'].sum())
+            # ඉතා වැදගත්: සෘණ අගයන් තිබුණත් ඒවා ධන කරලා (abs) එකතු කරමු. 
+            # එවිටයි මුළු වියදම නිවැරදිව ලැබෙන්නේ.
+            total_expenses = daily_report_data[expense_mask]['Amount'].abs().sum()
             
             net_bal = total_sales - total_expenses
 
@@ -1213,6 +1215,8 @@ elif menu == "📑 Reports Center":
                     'Amount': 'Total Amount'
                 }
                 cols_to_show = [c for c in rename_dict.keys() if c in display_combined.columns]
+                # මෙතනදී Table එකේ Amount එක පෙන්වද්දී සෘණ ලකුණ පෙන්වන්න ඉඩ දෙමු, 
+                # එවිට User ට ඒක වියදමක් බව පැහැදිලි වෙනවා.
                 st.dataframe(display_combined[cols_to_show].rename(columns=rename_dict), use_container_width=True)
             else:
                 st.info("තෝරාගත් කාලය තුළ ගනුදෙනු වාර්තා වී නැත.")
@@ -1227,7 +1231,8 @@ elif menu == "📑 Reports Center":
                     "Total Expenses": f"LKR {total_expenses:,.2f}",
                     "Net Balance": f"LKR {net_bal:,.2f}"
                 }
-                # මෙතනදී අපි කලින් හදපු දියුණු කරපු create_pdf function එක call වෙනවා
+                # මෙතනදී create_pdf function එකට යවනකොට 
+                # අපි කලින් හදපු update කරපු create_pdf එක පාවිච්චි වෙනවා.
                 pdf_fn = create_pdf(f"Daily_Settlement", pdf_ready_df, inc_summary)
                 with open(pdf_fn, "rb") as f:
                     st.download_button("📩 Click to Download PDF", f, file_name=f"Settlement_Report_{f_d}.pdf")
