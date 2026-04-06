@@ -744,19 +744,19 @@ elif menu == "📊 Dashboard":
             if not filtered_df.empty:
                 # --- Financial Metrics ---
                 # 1. Income එක ගණනය කිරීම (කලින් තිබුණු විදිහටම)
+                # --- Financial Metrics ---
                 s_mask = filtered_df["Category"].str.contains("Sales Out", case=False, na=False)
                 temp_sales_df = filtered_df[s_mask].copy()
                 temp_sales_df['Income'] = pd.to_numeric(temp_sales_df['Amount'], errors='coerce').fillna(0)
+                
                 real_income = temp_sales_df['Income'].sum()
 
-                # 2. Expenses එක ගණනය කිරීම (Settle රෙකෝඩ්ස් පමණක් අයින් කර)
-                # මුලින්ම Type එක Expense වන සියල්ල ගන්නවා
+                # Expenses ගණනය කිරීම
                 exp_df = filtered_df[filtered_df["Type"] == "Expense"].copy()
                 
-                # දැන් ඒ අතරින් Reference එකේ 'Settle' හෝ 'Payment' තියෙන ඒවා අයින් කරනවා
-                # එවිට Double Entry ප්‍රශ්නය විසඳෙනවා, හැබැයි අනෙක් සියලුම වියදම් එකතු වෙනවා
+                # --- මෙතන "Note" වෙනුවට ඔයාගේ Database එකේ තියෙන නම හරියටම දාන්න ---
                 filtered_exp_df = exp_df[
-                    ~exp_df["Reference (Cheque No/Cash/Slip)"].str.contains("Settle|Payment", case=False, na=False)
+                    ~exp_df["Note"].str.contains("Settle|Payment", case=False, na=False)
                 ]
                 
                 total_expenses = pd.to_numeric(filtered_exp_df["Amount"], errors='coerce').fillna(0).sum()
