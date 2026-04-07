@@ -1169,87 +1169,70 @@ elif menu == "📑 Reports Center":
         # 1. Clean columns
         df_f.columns = [str(c).strip() for c in df_f.columns]
         
-        # 2. Filtering for Sales, Expenses & r_inc
-        # r_inc kiyana eka Category ekata hari Type ekata hari ekathu karala thiyenawa kiyala hithala filtering update kala
+        # 2. Filtering for Sales, Expenses, r_inc & Excavator Work
+        # 'Excavator' saha 'Work' kiyana keywords filter ekata ekathu kara
         daily_report_data = df_f[
             (df_f["Category"].str.contains("Sales Out|Outward|r_inc", case=False, na=False)) | 
             (df_f["Type"].str.strip().str.capitalize() == "Expense") |
             (df_f["Type"].str.contains("r_inc", case=False, na=False)) |
-            (df_f["Category"].str.contains("Food|Fuel|Repair|Shed|Advance|Rent|Office|Misc|Utility", case=False, na=False))
+            (df_f["Category"].str.contains("Food|Fuel|Repair|Shed|Advance|Rent|Office|Misc|Utility|Excavator|Work", case=False, na=False))
         ].copy()
         
         if not daily_report_data.empty:
-            # දත්ත Numbers බව තහවුරු කරගමු
             for col in ['Amount', 'Qty_Cubes', 'Rate_At_Time']:
                 if col in daily_report_data.columns:
                     daily_report_data[col] = pd.to_numeric(daily_report_data[col], errors='coerce').fillna(0)
 
-            # PDF එකට යවන්න දත්ත
             pdf_ready_df = daily_report_data.copy()
-            
-            # --- UI Table එකට Sales සහ Expenses දෙකම ගමු ---
             display_combined = daily_report_data.copy()
             
-            # --- UI එකේ Summary එක පෙන්වීම (STRICT FIXED LOGIC) ---
+            # --- SUMMARY LOGIC ---
             
-            # 1. Gross Sales: 
+            # 1. Gross Sales (r_inc nethi, Excavator nethi, Sales with positive amount)
             sales_mask = (
                 (daily_report_data["Amount"] > 0) &
                 (daily_report_data["Category"].str.contains("Sales Out|Outward", case=False, na=False)) & 
                 (daily_report_data["Type"].str.strip().str.capitalize() != "Expense") &
-                (~daily_report_data["Category"].str.contains("Food|Fuel|Repair|Shed|Advance|Rent|Office|Misc|Utility|r_inc", case=False, na=False))
+                (~daily_report_data["Category"].str.contains("Food|Fuel|Repair|Shed|Advance|Rent|Office|Misc|Utility|r_inc|Excavator|Work", case=False, na=False))
             )
             total_sales = daily_report_data[sales_mask]['Amount'].sum()
 
-            # 2. Retention Income (r_inc):
-            # Category wala hari Type wala hari r_inc thiyena ewa wenama gannawa
+            # 2. Retention Income (r_inc)
             r_inc_mask = (
                 (daily_report_data["Category"].str.contains("r_inc", case=False, na=False)) |
                 (daily_report_data["Type"].str.contains("r_inc", case=False, na=False))
             )
             total_r_inc = daily_report_data[r_inc_mask]['Amount'].sum()
 
-            # 3. Total Expenses:
-            # 3. Total Expenses (Excavator Work saha anith ewa):
-            # Category eke 'Excavator' hari 'Work' hari thiyenawa nam ekath expense ekak widiyata gannawa
-            
+            # 3. Total Expenses (Excavator Work saha anith ewa)
+            # Methana 'Excavator' saha 'Work' thiyena ewath expense widiyata ganne
             expense_mask = (
                 (daily_report_data["Amount"] < 0) |
                 (daily_report_data["Type"].str.strip().str.capitalize() == "Expense") |
                 (daily_report_data["Category"].str.contains("Food|Fuel|Repair|Shed|Advance|Rent|Office|Misc|Utility|Excavator|Work", case=False, na=False))
             )
-            
-            # Minus thiyena ewa abs() karala sum karanawa
             total_expenses = daily_report_data[expense_mask]['Amount'].abs().sum()
             
-            # Net Settlement Calculation (Sales + r_inc - Expenses)
             net_bal = (total_sales + total_r_inc) - total_expenses
 
-            # Metrics display (Columns 4 kata bedala r_inc ekath damma)
+            # Summary Metrics
             col_s1, col_s2, col_s3, col_s4 = st.columns(4)
             col_s1.metric("Gross Sales", f"LKR {total_sales:,.2f}")
             col_s2.metric("Retention (r_inc)", f"LKR {total_r_inc:,.2f}")
             col_s3.metric("Total Expenses", f"LKR {total_expenses:,.2f}", delta_color="inverse")
             col_s4.metric("Net Settlement", f"LKR {net_bal:,.2f}")
 
-            # UI Table පෙන්වීම
+            # UI Table
             if not display_combined.empty:
                 table_display_df = display_combined.copy()
-                
-                # 'Amount' තීරුවේ සෘණ අගයන් (Minus) තිබේ නම් ඒවා ධන (Positive) අගයන් කරමු
                 if 'Amount' in table_display_df.columns:
                     table_display_df['Amount'] = table_display_df['Amount'].abs()
                 
                 rename_dict = {
-                    'Date': 'Date', 
-                    'Type': 'Type',
-                    'Category': 'Material/Category', 
-                    'Entity': 'Vehicle/Client/Entity', 
-                    'Qty_Cubes': 'Qty', 
-                    'Rate_At_Time': 'Rate', 
-                    'Amount': 'Total Amount'
+                    'Date': 'Date', 'Type': 'Type', 'Category': 'Material/Category', 
+                    'Entity': 'Vehicle/Client/Entity', 'Qty_Cubes': 'Qty', 
+                    'Rate_At_Time': 'Rate', 'Amount': 'Total Amount'
                 }
-                
                 cols_to_show = [c for c in rename_dict.keys() if c in table_display_df.columns]
                 
                 st.dataframe(
@@ -1257,7 +1240,24 @@ elif menu == "📑 Reports Center":
                     use_container_width=True
                 )
             else:
-                st.info("තෝරාගත් කාලය තුළ ගනුදෙනු වාර්තා වී නැත.")
+                st.info("දත්ත වාර්තා වී නැත.")
+
+            # PDF Download
+            if st.button("📥 Download Daily Settlement PDF"):
+                inc_summary = {
+                    "Report Type": "Daily Settlement Statement",
+                    "Period": f"{f_d} to {t_d}",
+                    "Total Records": len(pdf_ready_df),
+                    "Gross Earnings": f"LKR {total_sales:,.2f}",
+                    "Retention Inc": f"LKR {total_r_inc:,.2f}",
+                    "Total Expenses": f"LKR {total_expenses:,.2f}",
+                    "Net Balance": f"LKR {net_bal:,.2f}"
+                }
+                pdf_fn = create_pdf(f"Daily_Settlement", pdf_ready_df, inc_summary)
+                with open(pdf_fn, "rb") as f:
+                    st.download_button("📩 Click to Download PDF", f, file_name=f"Settlement_Report_{f_d}.pdf")
+        else:
+            st.warning("තෝරාගත් පරාසය තුළ කිසිදු දත්තයක් නැත.")
 
             # 7. PDF Button
             if st.button("📥 Download Daily Settlement PDF"):
