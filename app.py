@@ -1170,7 +1170,6 @@ elif menu == "📑 Reports Center":
         df_f.columns = [str(c).strip() for c in df_f.columns]
         
         # 2. Filtering for Sales, Expenses, r_inc & Excavator Work
-        # 'Excavator' saha 'Work' kiyana keywords filter ekata ekathu kara
         daily_report_data = df_f[
             (df_f["Category"].str.contains("Sales Out|Outward|r_inc", case=False, na=False)) | 
             (df_f["Type"].str.strip().str.capitalize() == "Expense") |
@@ -1188,7 +1187,7 @@ elif menu == "📑 Reports Center":
             
             # --- SUMMARY LOGIC ---
             
-            # 1. Gross Sales (r_inc nethi, Excavator nethi, Sales with positive amount)
+            # 1. Gross Sales
             sales_mask = (
                 (daily_report_data["Amount"] > 0) &
                 (daily_report_data["Category"].str.contains("Sales Out|Outward", case=False, na=False)) & 
@@ -1205,7 +1204,6 @@ elif menu == "📑 Reports Center":
             total_r_inc = daily_report_data[r_inc_mask]['Amount'].sum()
 
             # 3. Total Expenses (Excavator Work saha anith ewa)
-            # Methana 'Excavator' saha 'Work' thiyena ewath expense widiyata ganne
             expense_mask = (
                 (daily_report_data["Amount"] < 0) |
                 (daily_report_data["Type"].str.strip().str.capitalize() == "Expense") |
@@ -1242,7 +1240,7 @@ elif menu == "📑 Reports Center":
             else:
                 st.info("දත්ත වාර්තා වී නැත.")
 
-            # PDF Download
+            # PDF Download Button (Single Instance)
             if st.button("📥 Download Daily Settlement PDF"):
                 inc_summary = {
                     "Report Type": "Daily Settlement Statement",
@@ -1256,24 +1254,7 @@ elif menu == "📑 Reports Center":
                 pdf_fn = create_pdf(f"Daily_Settlement", pdf_ready_df, inc_summary)
                 with open(pdf_fn, "rb") as f:
                     st.download_button("📩 Click to Download PDF", f, file_name=f"Settlement_Report_{f_d}.pdf")
-        else:
-            st.warning("තෝරාගත් පරාසය තුළ කිසිදු දත්තයක් නැත.")
 
-            # 7. PDF Button
-            if st.button("📥 Download Daily Settlement PDF"):
-                inc_summary = {
-                    "Report Type": "Daily Settlement Statement",
-                    "Period": f"{f_d} to {t_d}",
-                    "Total Records": len(pdf_ready_df),
-                    "Gross Earnings": f"LKR {total_sales:,.2f}",
-                    "Retention Inc": f"LKR {total_r_inc:,.2f}",
-                    "Total Expenses": f"LKR {total_expenses:,.2f}",
-                    "Net Balance": f"LKR {net_bal:,.2f}"
-                }
-                
-                pdf_fn = create_pdf(f"Daily_Settlement", pdf_ready_df, inc_summary)
-                with open(pdf_fn, "rb") as f:
-                    st.download_button("📩 Click to Download PDF", f, file_name=f"Settlement_Report_{f_d}.pdf")
         else:
             st.warning("තෝරාගත් දින පරාසය තුළ දත්ත (Sales, Expenses හෝ r_inc) කිසිවක් නැත.")
             
