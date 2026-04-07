@@ -737,13 +737,14 @@ elif menu == "📊 Dashboard":
                 with col_f2:
                     end_date = st.date_input("To Date", datetime.now().date())
                 
-                df['Date'] = pd.to_datetime(df['Date']).dt.date
-                mask = (df['Date'] >= start_date) & (df['Date'] <= end_date)
+                # --- 1. DATE FILTERING (4-6 දත්ත අහු නොවන ප්‍රශ්නයට විසඳුම) ---
+                df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+                df = df.dropna(subset=['Date'])
+                mask = (df['Date'].dt.date >= start_date) & (df['Date'].dt.date <= end_date)
                 filtered_df = df.loc[mask].copy()
 
                 if not filtered_df.empty:
-                    # --- 1. INCOME (ආදායම) ---
-                    # දැන් ආදායමට ගන්නේ "Sales Out" (වැලි/පස් විකුණුම්) විතරයි
+                    # --- 2. INCOME (ආදායම - Sales Out පමණි) ---
                     income_mask = filtered_df["Category"].str.contains("Sales Out", case=False, na=False)
                     temp_sales_df = filtered_df[income_mask].copy()
                     
@@ -753,21 +754,15 @@ elif menu == "📊 Dashboard":
                     else:
                         real_income = 0
 
-                    # --- 2. TOTAL EXPENSES (වියදම්) - SHED PAYMENT ONLY DEDUCTION ---
-                    
-                    # --- 2. TOTAL EXPENSES (INWARD + EXCAVATOR + OTHER EXPENSES) ---
-                    
-                    # 1. Dashboard එකේ වියදම් වලට අහු විය යුතු සියලුම Categories
+                    # --- 3. TOTAL EXPENSES (INWARD + EXCAVATOR + OTHER) ---
                     expense_categories = [
                         "Food", "Fuel", "Repair", "Advance", "Rent", "Office", 
                         "Misc", "Utility", "Payroll", "Wage", "Salary", 
                         "Staff", "Owner Advance", "Driver", "Shed",
-                        "Inward", "Stock In", # Landowner payments
-                        "Excavator"            # Excavator hire/work cost
+                        "Inward", "Stock In", "Excavator"
                     ]
                     exp_pattern = "|".join(expense_categories)
 
-                    # 2. Expense Mask එක හදමු
                     expense_mask = (
                         (filtered_df["Amount"] < 0) |
                         (filtered_df["Type"].str.strip().str.capitalize() == "Expense") |
@@ -778,25 +773,20 @@ elif menu == "📊 Dashboard":
 
                     if not all_exp_df.empty:
                         all_exp_df["Note"] = all_exp_df["Note"].astype(str).fillna("")
-                        
-                        # A. Raw Expenses: Note එකේ Payment/Settle නැති ඔක්කොම (මූලික වියදම්)
-                        # මෙතනට Inward, Excavator සහ අනිත් ඔක්කොම වියදම් එකතු වෙනවා
+                        # Actual Expenses (Payments නොවන ඒවා)
                         actual_exp_mask = ~all_exp_df["Note"].str.contains("Payment|Settle", case=False, na=False)
                         raw_expenses = pd.to_numeric(all_exp_df[actual_exp_mask]["Amount"], errors='coerce').abs().fillna(0).sum()
                         
-                        # B. Shed Payments: Note එකේ "Shed" තියෙන සහ "Payment" හෝ "Settle" තියෙන රෙකෝඩ්ස් විතරයි
-                        # මේක විතරයි වියදමෙන් අඩු වෙන්නේ
+                        # Shed Payments (වියදමෙන් අඩු විය යුතු ඒවා)
                         shed_payment_mask = (all_exp_df["Category"].str.contains("Shed", case=False, na=False)) & \
                                            (all_exp_df["Note"].str.contains("Payment|Settle", case=False, na=False))
                         
                         total_shed_payments = pd.to_numeric(all_exp_df[shed_payment_mask]["Amount"], errors='coerce').abs().fillna(0).sum()
-                        
-                        # C. Net Expense Calculation
-                        # මුළු වියදමෙන් Shed එකට ගෙවපු සල්ලි විතරක් අඩු කරනවා
                         total_expenses = raw_expenses - total_shed_payments
                     else:
                         total_expenses = 0
-                    # --- 3. METRICS ---
+
+                    # --- 4. METRICS DISPLAY ---
                     m1, m2, m3 = st.columns(3)
                     m1.metric("Net Sales Income", f"Rs. {real_income:,.2f}")
                     m2.metric("Total Expenses", f"Rs. {total_expenses:,.2f}")
@@ -807,15 +797,12 @@ elif menu == "📊 Dashboard":
 
                     st.divider()
 
-                    # --- Stock Balance Section (FIXED) ---
+                    # --- 5. STOCK BALANCE SECTION ---
                     st.subheader("📦 Plant Stock Balance (Main Stock)")
-                    
                     try:
-                        # 1. Inward Stock
                         in_mask = (filtered_df["Category"].str.contains("Inward|Stock In", case=False, na=False))
                         total_in = pd.to_numeric(filtered_df[in_mask]["Qty_Cubes"], errors='coerce').fillna(0).sum()
 
-                        # 2. Outward Stock (Sand & Soil)
                         sand_out_mask = (filtered_df["Category"].str.contains("Sales Out|Outward", case=False, na=False)) & \
                                         (filtered_df["Category"].str.contains("Sand", case=False, na=False))
                         sand_out = pd.to_numeric(filtered_df[sand_out_mask]["Qty_Cubes"], errors='coerce').fillna(0).sum()
@@ -834,12 +821,10 @@ elif menu == "📊 Dashboard":
                         st.divider()
                         st.subheader("Daily Income Trend")
                         if not temp_sales_df.empty:
-                            trend_data = temp_sales_df.groupby('Date')['Income_Val'].sum()
+                            trend_data = temp_sales_df.groupby(temp_sales_df['Date'].dt.date)['Income_Val'].sum()
                             st.line_chart(trend_data)
-                            
                     except Exception as e:
                         st.error(f"Stock Logic Error: {e}")
-
                 else:
                     st.warning("තෝරාගත් දින පරාසය තුළ දත්ත නැත.")
             else:
