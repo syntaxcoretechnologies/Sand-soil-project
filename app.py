@@ -1210,11 +1210,16 @@ elif menu == "📑 Reports Center":
             total_r_inc = daily_report_data[r_inc_mask]['Amount'].sum()
 
             # 3. Total Expenses:
+            # 3. Total Expenses (Excavator Work saha anith ewa):
+            # Category eke 'Excavator' hari 'Work' hari thiyenawa nam ekath expense ekak widiyata gannawa
+            
             expense_mask = (
                 (daily_report_data["Amount"] < 0) |
                 (daily_report_data["Type"].str.strip().str.capitalize() == "Expense") |
-                (daily_report_data["Category"].str.contains("Food|Fuel|Repair|Shed|Advance|Rent|Office|Misc|Utility", case=False, na=False))
+                (daily_report_data["Category"].str.contains("Food|Fuel|Repair|Shed|Advance|Rent|Office|Misc|Utility|Excavator|Work", case=False, na=False))
             )
+            
+            # Minus thiyena ewa abs() karala sum karanawa
             total_expenses = daily_report_data[expense_mask]['Amount'].abs().sum()
             
             # Net Settlement Calculation (Sales + r_inc - Expenses)
