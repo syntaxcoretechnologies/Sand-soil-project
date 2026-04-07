@@ -807,12 +807,18 @@ elif menu == "📊 Dashboard":
 
                     st.divider()
 
-                    # --- Stock Balance Section ---
-                    st.subheader("📦 Plant Stock Balance (Main Stock)")
-                    try:
+                    # --- Stock Balance Section (FIXED) ---
+                        st.subheader("📦 Plant Stock Balance (Main Stock)")
+                        
+                        # 1. Inward Stock (ඇතුළට ආපු තොග)
+                        # Category එකේ 'Inward' හෝ 'Stock In' තිබිය යුතුයි
                         in_mask = (filtered_df["Category"].str.contains("Inward|Stock In", case=False, na=False))
+                        
+                        # Qty_Cubes එක numeric බව තහවුරු කරගෙන එකතු කරමු
                         total_in = pd.to_numeric(filtered_df[in_mask]["Qty_Cubes"], errors='coerce').fillna(0).sum()
 
+                        # 2. Outward Stock (විකුණුම් - වැලි සහ පස්)
+                        # Category එකේ 'Sales Out' හෝ 'Outward' තිබිය යුතුයි
                         sand_out_mask = (filtered_df["Category"].str.contains("Sales Out|Outward", case=False, na=False)) & \
                                         (filtered_df["Category"].str.contains("Sand", case=False, na=False))
                         sand_out = pd.to_numeric(filtered_df[sand_out_mask]["Qty_Cubes"], errors='coerce').fillna(0).sum()
@@ -821,12 +827,12 @@ elif menu == "📊 Dashboard":
                                         (filtered_df["Category"].str.contains("Soil", case=False, na=False))
                         soil_out = pd.to_numeric(filtered_df[soil_out_mask]["Qty_Cubes"], errors='coerce').fillna(0).sum()
 
+                        # ඉතිරි තොගය
                         remaining_balance = total_in - (sand_out + soil_out)
 
                         s_col1, s_col2 = st.columns(2)
                         s_col1.metric("Sand Stats", f"{remaining_balance:.2f} Cubes Left", delta=f"Sold: {sand_out} Cubes", delta_color="inverse")
-                        s_col2.metric("Soil Stats", f"{remaining_balance:.2f} Cubes Left", delta=f"In: {total_in} | Sold: {soil_out}", delta_color="normal")
-
+                        s_col2.metric("Inward Total", f"{total_in:.2f} Cubes", delta=f"Soil Sold: {soil_out}", delta_color="normal")
                         # --- Income Trend Chart ---
                         st.divider()
                         st.subheader("Daily Income Trend")
