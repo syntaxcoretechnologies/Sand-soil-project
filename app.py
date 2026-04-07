@@ -755,14 +755,19 @@ elif menu == "📊 Dashboard":
 
                     # --- 2. TOTAL EXPENSES (වියදම්) - SHED PAYMENT ONLY DEDUCTION ---
                     
-                    # 1. Hamama expenses (Fuel, Food, Repair etc.)
+                    # --- 2. TOTAL EXPENSES (INWARD + EXCAVATOR + OTHER EXPENSES) ---
+                    
+                    # 1. Dashboard එකේ වියදම් වලට අහු විය යුතු සියලුම Categories
                     expense_categories = [
                         "Food", "Fuel", "Repair", "Advance", "Rent", "Office", 
                         "Misc", "Utility", "Payroll", "Wage", "Salary", 
-                        "Staff", "Owner Advance", "Driver", "Shed"
+                        "Staff", "Owner Advance", "Driver", "Shed",
+                        "Inward", "Stock In", # Landowner payments
+                        "Excavator"            # Excavator hire/work cost
                     ]
                     exp_pattern = "|".join(expense_categories)
 
+                    # 2. Expense Mask එක හදමු
                     expense_mask = (
                         (filtered_df["Amount"] < 0) |
                         (filtered_df["Type"].str.strip().str.capitalize() == "Expense") |
@@ -774,23 +779,23 @@ elif menu == "📊 Dashboard":
                     if not all_exp_df.empty:
                         all_exp_df["Note"] = all_exp_df["Note"].astype(str).fillna("")
                         
-                        # A. Actual Expenses: Note eke "Payment" ho "Settle" nathi ewa (Mewa thamai mulu viyadama)
+                        # A. Raw Expenses: Note එකේ Payment/Settle නැති ඔක්කොම (මූලික වියදම්)
+                        # මෙතනට Inward, Excavator සහ අනිත් ඔක්කොම වියදම් එකතු වෙනවා
                         actual_exp_mask = ~all_exp_df["Note"].str.contains("Payment|Settle", case=False, na=False)
                         raw_expenses = pd.to_numeric(all_exp_df[actual_exp_mask]["Amount"], errors='coerce').abs().fillna(0).sum()
                         
-                        # B. Shed Payments: Note eke "Shed" saha "Payment" ho "Settle" dekama thiyena ewa witharak gannawa
-                        # Meka nisa normal fuel bills adu wenne ne, karapu payment eka witharak adu wenawa
+                        # B. Shed Payments: Note එකේ "Shed" තියෙන සහ "Payment" හෝ "Settle" තියෙන රෙකෝඩ්ස් විතරයි
+                        # මේක විතරයි වියදමෙන් අඩු වෙන්නේ
                         shed_payment_mask = (all_exp_df["Category"].str.contains("Shed", case=False, na=False)) & \
                                            (all_exp_df["Note"].str.contains("Payment|Settle", case=False, na=False))
                         
                         total_shed_payments = pd.to_numeric(all_exp_df[shed_payment_mask]["Amount"], errors='coerce').abs().fillna(0).sum()
                         
-                        # C. Net Expense calculation
-                        # Viyadam walin shed ekata karapu payments witharak adu karanawa
+                        # C. Net Expense Calculation
+                        # මුළු වියදමෙන් Shed එකට ගෙවපු සල්ලි විතරක් අඩු කරනවා
                         total_expenses = raw_expenses - total_shed_payments
                     else:
                         total_expenses = 0
-
                     # --- 3. METRICS ---
                     m1, m2, m3 = st.columns(3)
                     m1.metric("Net Sales Income", f"Rs. {real_income:,.2f}")
