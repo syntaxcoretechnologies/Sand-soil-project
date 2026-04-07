@@ -1169,11 +1169,12 @@ elif menu == "📑 Reports Center":
         # 1. Clean columns
         df_f.columns = [str(c).strip() for c in df_f.columns]
         
-        # 2. Filtering for Sales & Expenses
-        # මෙතනට අපි අලුතින් එකතු කරපු Categories (Rent, Office, etc.) ඔක්කොම ඇතුළත් කරලා තියෙන්නේ
+        # 2. Filtering for Sales, Expenses & r_inc
+        # r_inc kiyana eka Category ekata hari Type ekata hari ekathu karala thiyenawa kiyala hithala filtering update kala
         daily_report_data = df_f[
-            (df_f["Category"].str.contains("Sales Out|Outward", case=False, na=False)) | 
+            (df_f["Category"].str.contains("Sales Out|Outward|r_inc", case=False, na=False)) | 
             (df_f["Type"].str.strip().str.capitalize() == "Expense") |
+            (df_f["Type"].str.contains("r_inc", case=False, na=False)) |
             (df_f["Category"].str.contains("Food|Fuel|Repair|Shed|Advance|Rent|Office|Misc|Utility", case=False, na=False))
         ].copy()
         
@@ -1192,38 +1193,42 @@ elif menu == "📑 Reports Center":
             # --- UI එකේ Summary එක පෙන්වීම (STRICT FIXED LOGIC) ---
             
             # 1. Gross Sales: 
-            # Category එකේ Sales තියෙන්න ඕනේ, හැබැයි Expense වචන හෝ සෘණ අගයන් තියෙන්න බැහැ.
             sales_mask = (
                 (daily_report_data["Amount"] > 0) &
                 (daily_report_data["Category"].str.contains("Sales Out|Outward", case=False, na=False)) & 
                 (daily_report_data["Type"].str.strip().str.capitalize() != "Expense") &
-                (~daily_report_data["Category"].str.contains("Food|Fuel|Repair|Shed|Advance|Rent|Office|Misc|Utility", case=False, na=False))
+                (~daily_report_data["Category"].str.contains("Food|Fuel|Repair|Shed|Advance|Rent|Office|Misc|Utility|r_inc", case=False, na=False))
             )
             total_sales = daily_report_data[sales_mask]['Amount'].sum()
 
-            # 2. Total Expenses:
-            # සෘණ අගයන් තියෙන ඒවා හෝ Expense ලෙස නම් කර ඇති ඒවා.
+            # 2. Retention Income (r_inc):
+            # Category wala hari Type wala hari r_inc thiyena ewa wenama gannawa
+            r_inc_mask = (
+                (daily_report_data["Category"].str.contains("r_inc", case=False, na=False)) |
+                (daily_report_data["Type"].str.contains("r_inc", case=False, na=False))
+            )
+            total_r_inc = daily_report_data[r_inc_mask]['Amount'].sum()
+
+            # 3. Total Expenses:
             expense_mask = (
                 (daily_report_data["Amount"] < 0) |
                 (daily_report_data["Type"].str.strip().str.capitalize() == "Expense") |
                 (daily_report_data["Category"].str.contains("Food|Fuel|Repair|Shed|Advance|Rent|Office|Misc|Utility", case=False, na=False))
             )
-            
-            # ඉතා වැදගත්: සෘණ අගයන් තිබුණත් ඒවා ධන කරලා (abs) එකතු කරමු. 
-            # එවිටයි මුළු වියදම නිවැරදිව ලැබෙන්නේ.
             total_expenses = daily_report_data[expense_mask]['Amount'].abs().sum()
             
-            net_bal = total_sales - total_expenses
+            # Net Settlement Calculation (Sales + r_inc - Expenses)
+            net_bal = (total_sales + total_r_inc) - total_expenses
 
-            col_s1, col_s2, col_s3 = st.columns(3)
+            # Metrics display (Columns 4 kata bedala r_inc ekath damma)
+            col_s1, col_s2, col_s3, col_s4 = st.columns(4)
             col_s1.metric("Gross Sales", f"LKR {total_sales:,.2f}")
-            col_s2.metric("Total Expenses", f"LKR {total_expenses:,.2f}", delta_color="inverse")
-            col_s3.metric("Net Settlement", f"LKR {net_bal:,.2f}")
+            col_s2.metric("Retention (r_inc)", f"LKR {total_r_inc:,.2f}")
+            col_s3.metric("Total Expenses", f"LKR {total_expenses:,.2f}", delta_color="inverse")
+            col_s4.metric("Net Settlement", f"LKR {net_bal:,.2f}")
 
-            # UI Table පෙන්වීම
             # UI Table පෙන්වීම
             if not display_combined.empty:
-                # --- මෙන්න මෙතනදී Table එකේ විතරක් Minus අයින් කරන්න අලුත් copy එකක් හදනවා ---
                 table_display_df = display_combined.copy()
                 
                 # 'Amount' තීරුවේ සෘණ අගයන් (Minus) තිබේ නම් ඒවා ධන (Positive) අගයන් කරමු
@@ -1240,10 +1245,8 @@ elif menu == "📑 Reports Center":
                     'Amount': 'Total Amount'
                 }
                 
-                # පෙන්විය යුතු තීරු (Columns) තෝරාගැනීම
                 cols_to_show = [c for c in rename_dict.keys() if c in table_display_df.columns]
                 
-                # දැන් table_display_df එක භාවිතා කර ටේබල් එක පෙන්වමු
                 st.dataframe(
                     table_display_df[cols_to_show].rename(columns=rename_dict), 
                     use_container_width=True
@@ -1258,16 +1261,16 @@ elif menu == "📑 Reports Center":
                     "Period": f"{f_d} to {t_d}",
                     "Total Records": len(pdf_ready_df),
                     "Gross Earnings": f"LKR {total_sales:,.2f}",
+                    "Retention Inc": f"LKR {total_r_inc:,.2f}",
                     "Total Expenses": f"LKR {total_expenses:,.2f}",
                     "Net Balance": f"LKR {net_bal:,.2f}"
                 }
-                # මෙතනදී create_pdf function එකට යවනකොට 
-                # අපි කලින් හදපු update කරපු create_pdf එක පාවිච්චි වෙනවා.
+                
                 pdf_fn = create_pdf(f"Daily_Settlement", pdf_ready_df, inc_summary)
                 with open(pdf_fn, "rb") as f:
                     st.download_button("📩 Click to Download PDF", f, file_name=f"Settlement_Report_{f_d}.pdf")
         else:
-            st.warning("තෝරාගත් දින පරාසය තුළ දත්ත (Sales හෝ Expenses) කිසිවක් නැත.")
+            st.warning("තෝරාගත් දින පරාසය තුළ දත්ත (Sales, Expenses හෝ r_inc) කිසිවක් නැත.")
             
     # --- TAB: PROFIT/LOSS ANALYSIS ---
     with r_prof:
