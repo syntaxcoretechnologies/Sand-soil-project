@@ -1169,13 +1169,13 @@ elif menu == "📑 Reports Center":
         # 1. Clean columns
         df_f.columns = [str(c).strip() for c in df_f.columns]
         
-        # 2. Filtering for Sales, Expenses, r_inc & Excavator Work
+        # 2. Filtering for Sales, Expenses, r_inc, Excavator & Stock Inward
         # 'r' prefix eka saha regex=True dammahama ara warning eka nathi wenawa
         daily_report_data = df_f[
             (df_f["Category"].str.contains(r"Sales Out|Outward|r_inc", case=False, na=False, regex=True)) | 
             (df_f["Type"].str.strip().str.capitalize() == "Expense") |
             (df_f["Type"].str.contains(r"r_inc", case=False, na=False, regex=True)) |
-            (df_f["Category"].str.contains(r"Food|Fuel|Repair|Shed|Advance|Rent|Office|Misc|Utility|Excavator|Work", case=False, na=False, regex=True))
+            (df_f["Category"].str.contains(r"Food|Fuel|Repair|Shed|Advance|Rent|Office|Misc|Utility|Excavator|Work|Inward|Stock In", case=False, na=False, regex=True))
         ].copy()
         
         if not daily_report_data.empty:
@@ -1188,30 +1188,31 @@ elif menu == "📑 Reports Center":
             
             # --- SUMMARY LOGIC ---
             
-            # 1. Gross Sales
+            # 1. Gross Sales (Sales Out pamanai - Stock Inward/Excavator meken ain kala)
             sales_mask = (
                 (daily_report_data["Amount"] > 0) &
-                (daily_report_data["Category"].str.contains("Sales Out|Outward", case=False, na=False, regex=True)) & 
+                (daily_report_data["Category"].str.contains(r"Sales Out|Outward", case=False, na=False, regex=True)) & 
                 (daily_report_data["Type"].str.strip().str.capitalize() != "Expense") &
-                (~daily_report_data["Category"].str.contains("Food|Fuel|Repair|Shed|Advance|Rent|Office|Misc|Utility|r_inc|Excavator|Work", case=False, na=False, regex=True))
+                (~daily_report_data["Category"].str.contains(r"Food|Fuel|Repair|Shed|Advance|Rent|Office|Misc|Utility|r_inc|Excavator|Work|Inward|Stock In", case=False, na=False, regex=True))
             )
             total_sales = daily_report_data[sales_mask]['Amount'].sum()
 
             # 2. Retention Income (r_inc)
             r_inc_mask = (
-                (daily_report_data["Category"].str.contains("r_inc", case=False, na=False, regex=True)) |
-                (daily_report_data["Type"].str.contains("r_inc", case=False, na=False, regex=True))
+                (daily_report_data["Category"].str.contains(r"r_inc", case=False, na=False, regex=True)) |
+                (daily_report_data["Type"].str.contains(r"r_inc", case=False, na=False, regex=True))
             )
             total_r_inc = daily_report_data[r_inc_mask]['Amount'].sum()
 
-            # 3. Total Expenses (Excavator Work saha anith ewa)
+            # 3. Total Expenses (Excavator Work, Stock Inward saha anith wiyadam okkoma)
             expense_mask = (
                 (daily_report_data["Amount"] < 0) |
                 (daily_report_data["Type"].str.strip().str.capitalize() == "Expense") |
-                (daily_report_data["Category"].str.contains("Food|Fuel|Repair|Shed|Advance|Rent|Office|Misc|Utility|Excavator|Work", case=False, na=False, regex=True))
+                (daily_report_data["Category"].str.contains(r"Food|Fuel|Repair|Shed|Advance|Rent|Office|Misc|Utility|Excavator|Work|Inward|Stock In", case=False, na=False, regex=True))
             )
             total_expenses = daily_report_data[expense_mask]['Amount'].abs().sum()
             
+            # Net Balance Calculation
             net_bal = (total_sales + total_r_inc) - total_expenses
 
             # Summary Metrics
