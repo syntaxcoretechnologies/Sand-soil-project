@@ -1240,7 +1240,7 @@ elif menu == "📑 Reports Center":
             else:
                 st.info("දත්ත වාර්තා වී නැත.")
 
-            # PDF Download Button (Single Instance)
+            # PDF Download Button
             if st.button("📥 Download Daily Settlement PDF"):
                 inc_summary = {
                     "Report Type": "Daily Settlement Statement",
@@ -1256,6 +1256,7 @@ elif menu == "📑 Reports Center":
                     st.download_button("📩 Click to Download PDF", f, file_name=f"Settlement_Report_{f_d}.pdf")
 
         else:
+            # Anna me 'else' eka thama 'if not daily_report_data.empty:' ekata samana wenna ona.
             st.warning("තෝරාගත් දින පරාසය තුළ දත්ත (Sales, Expenses හෝ r_inc) කිසිවක් නැත.")
             
     # --- TAB: PROFIT/LOSS ANALYSIS ---
