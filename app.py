@@ -1170,6 +1170,7 @@ elif menu == "📑 Reports Center":
         df_f.columns = [str(c).strip() for c in df_f.columns]
         
         # 2. Filtering for Sales, Expenses, r_inc & Excavator Work
+        # 'r' prefix eka saha regex=True dammahama ara warning eka nathi wenawa
         daily_report_data = df_f[
             (df_f["Category"].str.contains(r"Sales Out|Outward|r_inc", case=False, na=False, regex=True)) | 
             (df_f["Type"].str.strip().str.capitalize() == "Expense") |
