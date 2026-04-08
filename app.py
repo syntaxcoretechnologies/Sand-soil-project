@@ -1169,15 +1169,15 @@ elif menu == "📑 Reports Center":
         # 1. Clean columns
         df_f.columns = [str(c).strip() for c in df_f.columns]
         
-        # Expense keywords list (Shed summary calculation ekedi ain karanna ona nisa wenama gaththa)
-        exp_keywords = r"Food|Fuel|Repair|Advance|Rent|Office|Misc|Utility|Excavator|Work|Inward|Stock In"
+        # Expense keywords list - ඔයාගේ 'Fuel Entry' කියන නම මෙතනට දැම්මා
+        exp_keywords = r"Food|Fuel Entry|Repair|Advance|Rent|Office|Misc|Utility|Excavator|Work|Inward|Stock In"
         
-        # 2. Filtering for All Relevant Records (Table eke pennanna Shed records gannawa)
+        # 2. Filtering for All Relevant Records (Table එකේ පෙන්නන්න Shed Payment records ගන්නවා)
         daily_report_data = df_f[
             (df_f["Category"].str.contains(r"Sales Out|Outward|r_inc", case=False, na=False, regex=True)) | 
             (df_f["Type"].str.strip().str.capitalize() == "Expense") |
             (df_f["Type"].str.contains(r"r_inc", case=False, na=False, regex=True)) |
-            (df_f["Category"].str.contains(exp_keywords + r"|Shed", case=False, na=False, regex=True))
+            (df_f["Category"].str.contains(exp_keywords + r"|Shed Payment", case=False, na=False, regex=True))
         ].copy()
         
         if not daily_report_data.empty:
@@ -1188,14 +1188,14 @@ elif menu == "📑 Reports Center":
             pdf_ready_df = daily_report_data.copy()
             display_combined = daily_report_data.copy()
             
-            # --- SUMMARY LOGIC (FIXED FOR FUEL & SHED) ---
+            # --- SUMMARY LOGIC (FIXED FOR FUEL ENTRY & SHED PAYMENT) ---
             
             # 1. Gross Sales
             sales_mask = (
                 (daily_report_data["Amount"] > 0) &
                 (daily_report_data["Category"].str.contains(r"Sales Out|Outward", case=False, na=False, regex=True)) & 
                 (daily_report_data["Type"].str.strip().str.capitalize() != "Expense") &
-                (~daily_report_data["Category"].str.contains(exp_keywords + r"|Shed|r_inc", case=False, na=False, regex=True))
+                (~daily_report_data["Category"].str.contains(exp_keywords + r"|Shed Payment|r_inc", case=False, na=False, regex=True))
             )
             total_sales = daily_report_data[sales_mask]['Amount'].sum()
 
@@ -1206,13 +1206,13 @@ elif menu == "📑 Reports Center":
             )
             total_r_inc = daily_report_data[r_inc_mask]['Amount'].sum()
 
-            # 3. Total Expenses (Fuel, Excavator etc. includes | Shed Payments EXCLUDED)
-            # Methanadi Category eke 'Shed' thibunoth eka summary wiyadam walata ekathu wenne naha
+            # 3. Total Expenses (Fuel Entry ඇතුළත්, Shed Payment ඉවත් කර ඇත)
+            # මචං මෙතනින් තමයි Double counting නවත්තන්නේ
             expense_mask = (
                 ((daily_report_data["Amount"] < 0) | 
                  (daily_report_data["Type"].str.strip().str.capitalize() == "Expense") |
                  (daily_report_data["Category"].str.contains(exp_keywords, case=False, na=False, regex=True))) &
-                (~daily_report_data["Category"].str.contains(r"Shed", case=False, na=False, regex=True))
+                (~daily_report_data["Category"].str.contains(r"Shed Payment", case=False, na=False, regex=True))
             )
             total_expenses = daily_report_data[expense_mask]['Amount'].abs().sum()
             
@@ -1705,103 +1705,120 @@ elif menu == "📑 Reports Center":
                 
     # --- TAB 3: DAILY LOG (FULL AUDIT TRAIL) ---
     with r3:
-        st.subheader("📋 Detailed Transaction Log")
+    st.subheader("📋 Detailed Transaction Log")
+    
+    if not df_f.empty:
+        # 1. පෙන්විය යුතු තීරු (Fuel_Ltr එකත් මම ඇතුළත් කළා තෙල් විස්තර පේන්න ඕන නිසා)
+        log_cols = ['Date', 'Type', 'Category', 'Entity', 'Qty_Cubes', 'Fuel_Ltr', 'Hours', 'Amount', 'Note']
         
-        if not df_f.empty:
-            # 1. පෙන්විය යුතු තීරු (Column Names) නිවැරදිව ලබා දීම
-            # මෙතන 'Hours' කියන එක හරියටම තියෙනවාද බලන්න (Work_Hours නෙවෙයි)
-            log_cols = ['Date', 'Type', 'Category', 'Entity', 'Qty_Cubes', 'Hours', 'Amount', 'Note']
-            
-            # 2. ඔයාගෙ Database එකේ තියෙන තීරු විතරක් තෝරාගන්නවා
-            available_log_cols = [c for c in log_cols if c in df_f.columns]
-            
-            # 3. දත්ත Sort කිරීම (අලුත්ම ඒක උඩට)
-            display_log = df_f[available_log_cols].sort_values(by='Date', ascending=False)
-            
-            # 4. Table එක Format කරලා පෙන්වීම
-            st.dataframe(
-                display_log.style.format({
-                    "Amount": "{:,.2f}", 
-                    "Qty_Cubes": "{:,.2f}",
-                    "Hours": "{:,.2f}" # මෙතන 'Hours' තිබීම අනිවාර්යයි
-                }), 
-                use_container_width=True,
-                height=500,
-                hide_index=True
-            )
-            
-            # CSV Download Button එක...
-            csv = display_log.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                label="📥 Export Full Log as CSV",
-                data=csv,
-                file_name=f"Detailed_Log.csv",
-                mime='text/csv',
-            )
-        else:
-            st.info("දත්ත කිසිවක් වාර්තා වී නැත.")
+        # 2. Database එකේ තියෙන තීරු විතරක් තෝරාගන්නවා
+        available_log_cols = [c for c in log_cols if c in df_f.columns]
+        
+        # 3. දත්ත Sort කිරීම (අලුත්ම ඒක උඩට)
+        display_log = df_f[available_log_cols].sort_values(by='Date', ascending=False).copy()
+        
+        # 4. Numeric දත්ත වලට format එක දීම (Errors එන එක නවත්තන්න fillna(0) කළා)
+        format_dict = {}
+        if "Amount" in display_log.columns: 
+            display_log["Amount"] = pd.to_numeric(display_log["Amount"], errors='coerce').fillna(0)
+            format_dict["Amount"] = "{:,.2f}"
+        if "Qty_Cubes" in display_log.columns: 
+            display_log["Qty_Cubes"] = pd.to_numeric(display_log["Qty_Cubes"], errors='coerce').fillna(0)
+            format_dict["Qty_Cubes"] = "{:,.2f}"
+        if "Fuel_Ltr" in display_log.columns:
+            display_log["Fuel_Ltr"] = pd.to_numeric(display_log["Fuel_Ltr"], errors='coerce').fillna(0)
+            format_dict["Fuel_Ltr"] = "{:,.2f}"
+        if "Hours" in display_log.columns: 
+            display_log["Hours"] = pd.to_numeric(display_log["Hours"], errors='coerce').fillna(0)
+            format_dict["Hours"] = "{:,.2f}"
 
+        # 5. Table එක පෙන්වීම
+        st.dataframe(
+            display_log.style.format(format_dict), 
+            use_container_width=True,
+            height=500,
+            hide_index=True
+        )
+        
+        # CSV Download Button
+        csv = display_log.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Export Full Log as CSV",
+            data=csv,
+            file_name=f"Detailed_Log.csv",
+            mime='text/csv',
+        )
+    else:
+        st.info("දත්ත කිසිවක් වාර්තා වී නැත.")
+        
     # --- TAB 4: SHED REPORT (FUEL & PAYMENTS) ---
     with r4:
         st.subheader("⛽ Fuel & Shed Settlement Analysis")
         
-        # 1. Fuel සහ Shed වලට අදාළ දත්ත විතරක් පෙරීම
-        # Regex=True dala thawa categories add kala thawa safe wenna
-        shed_f = df_f[df_f["Category"].str.contains(r"Fuel|Shed", na=False, case=False, regex=True)].copy()
+        # 1. දත්ත පෙරීම (තව ටිකක් විශ්වාසවන්ත විදියට)
+        # Category එකේ තියෙන spaces අයින් කරලා චෙක් කරනවා
+        if not df_f.empty:
+            # Category column එක string එකක් විදියට අරන් දෙපැත්තේ spaces අයින් කරනවා
+            temp_df = df_f.copy()
+            temp_df["Category_Clean"] = temp_df["Category"].astype(str).str.strip()
+            
+            # 'Fuel' හෝ 'Shed' අඩංගු දත්ත විතරක් ගන්නවා
+            shed_f = temp_df[temp_df["Category_Clean"].str.contains(r"Fuel|Shed", case=False, na=False)].copy()
+            
+            if not shed_f.empty:
+                # Amount එක numeric වලට හරවනවා
+                if 'Amount' in shed_f.columns:
+                    shed_f['Amount'] = pd.to_numeric(shed_f['Amount'].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
         
-        if not shed_f.empty:
-            # Columns clean kireema
-            if 'Amount' in shed_f.columns:
-                shed_f['Amount'] = pd.to_numeric(shed_f['Amount'].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
-    
-            # 2. Amount එක වෙන් වෙන්ව ගැනීම
-            # Fuel entries (Bill eka)
-            f_mask = shed_f["Category"].str.contains(r"Fuel", case=False, na=False, regex=True)
-            f_bill = shed_f[f_mask]["Amount"].sum()
-            
-            # Shed Payments (අපි ගෙවපු සල්ලි) - "Shed" kiyana word eka thiyena okkoma gannawa
-            p_mask = shed_f["Category"].str.contains(r"Shed", case=False, na=False, regex=True)
-            p_paid = shed_f[p_mask]["Amount"].sum()
-            
-            # 3. Metrics පෙන්වීම
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Total Fuel Bill", f"Rs. {f_bill:,.2f}")
-            c2.metric("Total Paid to Shed", f"Rs. {p_paid:,.2f}")
-            
-            debt = f_bill - p_paid
-            # Debt eka pennana widiya
-            c3.metric("Shed Debt (Balance)", f"Rs. {debt:,.2f}", delta=f"{-debt:,.2f}", delta_color="inverse")
-            
-            st.divider()
-            
-            # 4. Table එක
-            st.write("**Fuel & Payment History:**")
-            display_cols = ['Date', 'Category', 'Entity', 'Qty_Cubes', 'Amount', 'Note']
-            actual_cols = [c for c in display_cols if c in shed_f.columns]
-            
-            # Table eka display kireema
-            st.dataframe(
-                shed_f[actual_cols].sort_values(by='Date', ascending=False), 
-                use_container_width=True
-            )
-            
-            # 5. Shed PDF එක
-            if st.button("📄 Download Shed Statement"):
-                try:
-                    summary = {
-                        "Report Type": "Fuel & Shed Settlement Analysis",
-                        "Total Fuel Bill": f"Rs. {f_bill:,.2f}",
-                        "Total Paid": f"Rs. {p_paid:,.2f}",
-                        "Outstanding Debt": f"Rs. {debt:,.2f}"
-                    }
-                    fn = create_pdf("Shed_Report", shed_f, summary)
-                    with open(fn, "rb") as f:
-                        st.download_button("⬇️ Download PDF", f, file_name=f"Shed_Statement_{f_d}.pdf")
-                except Exception as e:
-                    st.error(f"Error generating PDF: {e}")
+                # 2. Fuel Bill සහ Paid Amount වෙන් කරගැනීම
+                # "Fuel Entry" කියන Category එකට අදාළ ඒවා Bill එකට ගන්නවා
+                f_bill = shed_f[shed_f["Category_Clean"].str.contains("Fuel", case=False, na=False)]["Amount"].sum()
+                
+                # "Shed Payment" කියන Category එකට අදාළ ඒවා Paid එකට ගන්නවා
+                p_paid = shed_f[shed_f["Category_Clean"].str.contains("Shed", case=False, na=False)]["Amount"].sum()
+                
+                # 3. Metrics පෙන්වීම
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Total Fuel Bill", f"Rs. {f_bill:,.2f}")
+                c2.metric("Total Paid to Shed", f"Rs. {p_paid:,.2f}")
+                
+                debt = f_bill - p_paid
+                # ණය තියෙනවා නම් රතු පාටින් පෙන්වන්න (delta_color="normal" and delta is negative)
+                c3.metric("Shed Debt (Balance)", f"Rs. {debt:,.2f}", delta=f"{-debt:,.2f}", delta_color="inverse")
+                
+                st.divider()
+                
+                # 4. Table එක
+                st.write("**Fuel & Payment History:**")
+                # මෙතන 'Fuel_Ltr' එකත් තිබුණොත් පෙන්වන්න දාන්නම්
+                display_cols = ['Date', 'Category', 'Entity', 'Qty_Cubes', 'Fuel_Ltr', 'Amount', 'Note']
+                actual_cols = [c for c in display_cols if c in shed_f.columns]
+                
+                st.dataframe(
+                    shed_f[actual_cols].sort_values(by='Date', ascending=False), 
+                    use_container_width=True,
+                    hide_index=True
+                )
+                
+                # 5. Shed PDF එක
+                if st.button("📄 Download Shed Statement"):
+                    try:
+                        summary = {
+                            "Report Type": "Fuel & Shed Settlement Analysis",
+                            "Total Fuel Bill": f"Rs. {f_bill:,.2f}",
+                            "Total Paid": f"Rs. {p_paid:,.2f}",
+                            "Outstanding Debt": f"Rs. {debt:,.2f}"
+                        }
+                        fn = create_pdf("Shed_Report", shed_f[actual_cols], summary)
+                        with open(fn, "rb") as f:
+                            st.download_button("⬇️ Download PDF", f, file_name=f"Shed_Statement.pdf")
+                    except Exception as e:
+                        st.error(f"Error generating PDF: {e}")
+            else:
+                st.info("තෝරාගත් දින පරාසය තුළ ඉන්ධන (Fuel) හෝ ෂෙඩ් (Shed) ගෙවීම් වාර්තා වී නැත.")
         else:
-            st.info("තෝරාගත් දින පරාසය තුළ ඉන්ධන හෝ ෂෙඩ් ගෙවීම් වාර්තා වී නැත. (Category එක 'Fuel' හෝ 'Shed' ලෙස තිබේදැයි බලන්න)")
-
+            st.info("දත්ත කිසිවක් වාර්තා වී නැත.")
+        
 # --- 10. SYSTEM SETUP (මේ කොටස අලුතින් ඇතුළත් කරන්න) ---
 elif menu == "⚙️ System Setup":
         st.markdown("<h2 style='color: #2E86C1;'>⚙️ System Configuration</h2>", unsafe_allow_html=True)
