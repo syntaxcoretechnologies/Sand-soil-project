@@ -755,6 +755,7 @@ elif menu == "📊 Dashboard":
                         real_income = 0
 
                     # --- 3. TOTAL EXPENSES (INWARD + EXCAVATOR + OTHER) ---
+                    # --- 3. TOTAL EXPENSES (INWARD + EXCAVATOR + OTHER) ---
                     expense_categories = [
                         "Food", "Fuel", "Repair", "Advance", "Rent", "Office", 
                         "Misc", "Utility", "Payroll", "Wage", "Salary", 
@@ -762,27 +763,35 @@ elif menu == "📊 Dashboard":
                         "Inward", "Stock In", "Excavator"
                     ]
                     exp_pattern = "|".join(expense_categories)
-
+                    
                     expense_mask = (
                         (filtered_df["Amount"] < 0) |
                         (filtered_df["Type"].str.strip().str.capitalize() == "Expense") |
                         (filtered_df["Category"].str.contains(exp_pattern, case=False, na=False))
                     )
-
+                    
                     all_exp_df = filtered_df[expense_mask].copy()
-
+                    
                     if not all_exp_df.empty:
                         all_exp_df["Note"] = all_exp_df["Note"].astype(str).fillna("")
-                        # Actual Expenses (Payments නොවන ඒවා)
-                        actual_exp_mask = ~all_exp_df["Note"].str.contains("Payment|Settle", case=False, na=False)
+                        all_exp_df["Category"] = all_exp_df["Category"].astype(str).fillna("")
+                    
+                        # 1. ACTUAL EXPENSES (මෙතනින් Shed Payment කියන Category එක සම්පූර්ණයෙන්ම අයින් කරනවා)
+                        # Note එකේ Payment තිබුණත් නැතත් Category එකේ "Shed Payment" තිබ්බොත් ඒක වියදමකට ගන්නේ නැහැ
+                        actual_exp_mask = (
+                            (~all_exp_df["Note"].str.contains("Payment|Settle", case=False, na=False)) & 
+                            (~all_exp_df["Category"].str.contains("Shed Payment", case=False, na=False))
+                        )
                         raw_expenses = pd.to_numeric(all_exp_df[actual_exp_mask]["Amount"], errors='coerce').abs().fillna(0).sum()
                         
-                        # Shed Payments (වියදමෙන් අඩු විය යුතු ඒවා)
-                        shed_payment_mask = (all_exp_df["Category"].str.contains("Shed", case=False, na=False)) & \
-                                           (all_exp_df["Note"].str.contains("Payment|Settle", case=False, na=False))
+                        # 2. SHED PAYMENTS (වියදමෙන් අනිවාර්යයෙන්ම අයින් විය යුතු කොටස)
+                        # Category එකේ "Shed Payment" තියෙන හැමදේම මෙතනට අහුවෙනවා
+                        shed_payment_mask = (all_exp_df["Category"].str.contains("Shed Payment", case=False, na=False))
                         
                         total_shed_payments = pd.to_numeric(all_exp_df[shed_payment_mask]["Amount"], errors='coerce').abs().fillna(0).sum()
-                        total_expenses = raw_expenses - total_shed_payments
+                        
+                        # අවසාන වියදම = ඔක්කොම වියදම් - ෂෙඩ් එකට ගෙවපු සල්ලි
+                        total_expenses = raw_expenses 
                     else:
                         total_expenses = 0
 
