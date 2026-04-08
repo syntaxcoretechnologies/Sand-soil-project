@@ -1169,12 +1169,15 @@ elif menu == "📑 Reports Center":
         # 1. Clean columns
         df_f.columns = [str(c).strip() for c in df_f.columns]
         
-        # 2. Filtering for Sales, Expenses, r_inc, Excavator, Stock Inward & Fuel
+        # Expense keywords list (Shed summary calculation ekedi ain karanna ona nisa wenama gaththa)
+        exp_keywords = r"Food|Fuel|Repair|Advance|Rent|Office|Misc|Utility|Excavator|Work|Inward|Stock In"
+        
+        # 2. Filtering for All Relevant Records (Table eke pennanna Shed records gannawa)
         daily_report_data = df_f[
             (df_f["Category"].str.contains(r"Sales Out|Outward|r_inc", case=False, na=False, regex=True)) | 
             (df_f["Type"].str.strip().str.capitalize() == "Expense") |
             (df_f["Type"].str.contains(r"r_inc", case=False, na=False, regex=True)) |
-            (df_f["Category"].str.contains(r"Food|Fuel|Repair|Shed|Advance|Rent|Office|Misc|Utility|Excavator|Work|Inward|Stock In", case=False, na=False, regex=True))
+            (df_f["Category"].str.contains(exp_keywords + r"|Shed", case=False, na=False, regex=True))
         ].copy()
         
         if not daily_report_data.empty:
@@ -1185,14 +1188,14 @@ elif menu == "📑 Reports Center":
             pdf_ready_df = daily_report_data.copy()
             display_combined = daily_report_data.copy()
             
-            # --- SUMMARY LOGIC ---
+            # --- SUMMARY LOGIC (FIXED FOR FUEL & SHED) ---
             
             # 1. Gross Sales
             sales_mask = (
                 (daily_report_data["Amount"] > 0) &
                 (daily_report_data["Category"].str.contains(r"Sales Out|Outward", case=False, na=False, regex=True)) & 
                 (daily_report_data["Type"].str.strip().str.capitalize() != "Expense") &
-                (~daily_report_data["Category"].str.contains(r"Food|Fuel|Repair|Shed|Advance|Rent|Office|Misc|Utility|r_inc|Excavator|Work|Inward|Stock In", case=False, na=False, regex=True))
+                (~daily_report_data["Category"].str.contains(exp_keywords + r"|Shed|r_inc", case=False, na=False, regex=True))
             )
             total_sales = daily_report_data[sales_mask]['Amount'].sum()
 
@@ -1203,11 +1206,13 @@ elif menu == "📑 Reports Center":
             )
             total_r_inc = daily_report_data[r_inc_mask]['Amount'].sum()
 
-            # 3. Total Expenses (Excavator, Stock Inward, Fuel & Shed Payments okkoma methanadi adu wenawa)
+            # 3. Total Expenses (Fuel, Excavator etc. includes | Shed Payments EXCLUDED)
+            # Methanadi Category eke 'Shed' thibunoth eka summary wiyadam walata ekathu wenne naha
             expense_mask = (
-                (daily_report_data["Amount"] < 0) |
-                (daily_report_data["Type"].str.strip().str.capitalize() == "Expense") |
-                (daily_report_data["Category"].str.contains(r"Food|Fuel|Repair|Shed|Advance|Rent|Office|Misc|Utility|Excavator|Work|Inward|Stock In", case=False, na=False, regex=True))
+                ((daily_report_data["Amount"] < 0) | 
+                 (daily_report_data["Type"].str.strip().str.capitalize() == "Expense") |
+                 (daily_report_data["Category"].str.contains(exp_keywords, case=False, na=False, regex=True))) &
+                (~daily_report_data["Category"].str.contains(r"Shed", case=False, na=False, regex=True))
             )
             total_expenses = daily_report_data[expense_mask]['Amount'].abs().sum()
             
