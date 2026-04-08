@@ -1169,8 +1169,7 @@ elif menu == "📑 Reports Center":
         # 1. Clean columns
         df_f.columns = [str(c).strip() for c in df_f.columns]
         
-        # 2. Filtering for Sales, Expenses, r_inc, Excavator & Stock Inward
-        # 'r' prefix eka saha regex=True dammahama ara warning eka nathi wenawa
+        # 2. Filtering for Sales, Expenses, r_inc, Excavator, Stock Inward & Fuel
         daily_report_data = df_f[
             (df_f["Category"].str.contains(r"Sales Out|Outward|r_inc", case=False, na=False, regex=True)) | 
             (df_f["Type"].str.strip().str.capitalize() == "Expense") |
@@ -1188,7 +1187,7 @@ elif menu == "📑 Reports Center":
             
             # --- SUMMARY LOGIC ---
             
-            # 1. Gross Sales (Sales Out pamanai - Stock Inward/Excavator meken ain kala)
+            # 1. Gross Sales
             sales_mask = (
                 (daily_report_data["Amount"] > 0) &
                 (daily_report_data["Category"].str.contains(r"Sales Out|Outward", case=False, na=False, regex=True)) & 
@@ -1204,7 +1203,7 @@ elif menu == "📑 Reports Center":
             )
             total_r_inc = daily_report_data[r_inc_mask]['Amount'].sum()
 
-            # 3. Total Expenses (Excavator Work, Stock Inward saha anith wiyadam okkoma)
+            # 3. Total Expenses (Excavator, Stock Inward, Fuel & Shed Payments okkoma methanadi adu wenawa)
             expense_mask = (
                 (daily_report_data["Amount"] < 0) |
                 (daily_report_data["Type"].str.strip().str.capitalize() == "Expense") |
