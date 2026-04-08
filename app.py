@@ -1170,11 +1170,12 @@ elif menu == "📑 Reports Center":
         df_f.columns = [str(c).strip() for c in df_f.columns]
         
         # 2. Filtering for Sales, Expenses, r_inc & Excavator Work
+        # regex=True dammahama ara "interpretation error" eka enne na
         daily_report_data = df_f[
-            (df_f["Category"].str.contains("Sales Out|Outward|r_inc", case=False, na=False)) | 
+            (df_f["Category"].str.contains("Sales Out|Outward|r_inc", case=False, na=False, regex=True)) | 
             (df_f["Type"].str.strip().str.capitalize() == "Expense") |
-            (df_f["Type"].str.contains("r_inc", case=False, na=False)) |
-            (df_f["Category"].str.contains("Food|Fuel|Repair|Shed|Advance|Rent|Office|Misc|Utility|Excavator|Work", case=False, na=False))
+            (df_f["Type"].str.contains("r_inc", case=False, na=False, regex=True)) |
+            (df_f["Category"].str.contains("Food|Fuel|Repair|Shed|Advance|Rent|Office|Misc|Utility|Excavator|Work", case=False, na=False, regex=True))
         ].copy()
         
         if not daily_report_data.empty:
@@ -1190,24 +1191,24 @@ elif menu == "📑 Reports Center":
             # 1. Gross Sales
             sales_mask = (
                 (daily_report_data["Amount"] > 0) &
-                (daily_report_data["Category"].str.contains("Sales Out|Outward", case=False, na=False)) & 
+                (daily_report_data["Category"].str.contains("Sales Out|Outward", case=False, na=False, regex=True)) & 
                 (daily_report_data["Type"].str.strip().str.capitalize() != "Expense") &
-                (~daily_report_data["Category"].str.contains("Food|Fuel|Repair|Shed|Advance|Rent|Office|Misc|Utility|r_inc|Excavator|Work", case=False, na=False))
+                (~daily_report_data["Category"].str.contains("Food|Fuel|Repair|Shed|Advance|Rent|Office|Misc|Utility|r_inc|Excavator|Work", case=False, na=False, regex=True))
             )
             total_sales = daily_report_data[sales_mask]['Amount'].sum()
 
             # 2. Retention Income (r_inc)
             r_inc_mask = (
-                (daily_report_data["Category"].str.contains("r_inc", case=False, na=False)) |
-                (daily_report_data["Type"].str.contains("r_inc", case=False, na=False))
+                (daily_report_data["Category"].str.contains("r_inc", case=False, na=False, regex=True)) |
+                (daily_report_data["Type"].str.contains("r_inc", case=False, na=False, regex=True))
             )
             total_r_inc = daily_report_data[r_inc_mask]['Amount'].sum()
 
-            # 3. Total Expenses
+            # 3. Total Expenses (Excavator Work saha anith ewa)
             expense_mask = (
                 (daily_report_data["Amount"] < 0) |
                 (daily_report_data["Type"].str.strip().str.capitalize() == "Expense") |
-                (daily_report_data["Category"].str.contains("Food|Fuel|Repair|Shed|Advance|Rent|Office|Misc|Utility|Excavator|Work", case=False, na=False))
+                (daily_report_data["Category"].str.contains("Food|Fuel|Repair|Shed|Advance|Rent|Office|Misc|Utility|Excavator|Work", case=False, na=False, regex=True))
             )
             total_expenses = daily_report_data[expense_mask]['Amount'].abs().sum()
             
@@ -1256,8 +1257,8 @@ elif menu == "📑 Reports Center":
                     st.download_button("📩 Click to Download PDF", f, file_name=f"Settlement_Report_{f_d}.pdf")
 
         else:
-            # Methana 'else' eka hariyatama main 'if' ekata align kara
             st.warning("තෝරාගත් දින පරාසය තුළ දත්ත (Sales, Expenses හෝ r_inc) කිසිවක් නැත.")
+            
     # --- TAB: PROFIT/LOSS ANALYSIS ---
     with r_prof:
         st.subheader("📊 Daily Profit & Loss Analysis")
