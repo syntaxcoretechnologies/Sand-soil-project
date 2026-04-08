@@ -1171,6 +1171,8 @@ elif menu == "📑 Reports Center":
         
         # 2. Filtering for Sales, Expenses, r_inc & Excavator Work
         # regex=True dammahama ara "interpretation error" eka enne na
+        # 2. Filtering for Sales, Expenses, r_inc & Excavator Work
+        # regex=True dammahama ara UserWarning (interpretation error) eka enne na
         daily_report_data = df_f[
             (df_f["Category"].str.contains("Sales Out|Outward|r_inc", case=False, na=False, regex=True)) | 
             (df_f["Type"].str.strip().str.capitalize() == "Expense") |
