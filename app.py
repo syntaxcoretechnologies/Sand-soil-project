@@ -1745,15 +1745,23 @@ elif menu == "📑 Reports Center":
     with r4:
         st.subheader("⛽ Fuel & Shed Settlement Analysis")
         
-        # 1. Fuel සහ Shed වලට අදාළ දත්ත විතරක් පෙරීම (Case-insensitive)
-        shed_f = df_f[df_f["Category"].str.contains("Fuel|Shed", na=False, case=False)].copy()
+        # 1. Fuel සහ Shed වලට අදාළ දත්ත විතරක් පෙරීම
+        # Regex=True dala thawa categories add kala thawa safe wenna
+        shed_f = df_f[df_f["Category"].str.contains(r"Fuel|Shed", na=False, case=False, regex=True)].copy()
         
         if not shed_f.empty:
-            # 2. Amount එක numeric කරලා sum එක ගැනීම (Variable names ඔයාගේ ඒවාමයි)
-            # Fuel Entry = අපිට ආපු බිල් එක (ණය)
-            # Shed Payment = අපි ෂෙඩ් එකට ගෙවපු සල්ලි
-            f_bill = pd.to_numeric(shed_f[shed_f["Category"].str.contains("Fuel", case=False, na=False)]["Amount"], errors='coerce').sum()
-            p_paid = pd.to_numeric(shed_f[shed_f["Category"].str.contains("Shed Payment|Shed Pay", case=False, na=False)]["Amount"].astype(str).str.replace(',', ''), errors='coerce').sum()
+            # Columns clean kireema
+            if 'Amount' in shed_f.columns:
+                shed_f['Amount'] = pd.to_numeric(shed_f['Amount'].astype(str).str.replace(',', ''), errors='coerce').fillna(0)
+    
+            # 2. Amount එක වෙන් වෙන්ව ගැනීම
+            # Fuel entries (Bill eka)
+            f_mask = shed_f["Category"].str.contains(r"Fuel", case=False, na=False, regex=True)
+            f_bill = shed_f[f_mask]["Amount"].sum()
+            
+            # Shed Payments (අපි ගෙවපු සල්ලි) - "Shed" kiyana word eka thiyena okkoma gannawa
+            p_mask = shed_f["Category"].str.contains(r"Shed", case=False, na=False, regex=True)
+            p_paid = shed_f[p_mask]["Amount"].sum()
             
             # 3. Metrics පෙන්වීම
             c1, c2, c3 = st.columns(3)
@@ -1761,37 +1769,38 @@ elif menu == "📑 Reports Center":
             c2.metric("Total Paid to Shed", f"Rs. {p_paid:,.2f}")
             
             debt = f_bill - p_paid
-            # ණය ප්‍රමාණය රතු පාටින් පෙන්වන්න inverse delta එකක් දැම්මා
+            # Debt eka pennana widiya
             c3.metric("Shed Debt (Balance)", f"Rs. {debt:,.2f}", delta=f"{-debt:,.2f}", delta_color="inverse")
             
             st.divider()
             
-            # 4. Table එක (Sorting එකක් එක්ක)
+            # 4. Table එක
             st.write("**Fuel & Payment History:**")
             display_cols = ['Date', 'Category', 'Entity', 'Qty_Cubes', 'Amount', 'Note']
             actual_cols = [c for c in display_cols if c in shed_f.columns]
             
+            # Table eka display kireema
             st.dataframe(
-                shed_f[actual_cols].sort_values(by='Date', ascending=False).style.format({"Amount": "{:,.2f}"}), 
+                shed_f[actual_cols].sort_values(by='Date', ascending=False), 
                 use_container_width=True
             )
             
-            # 5. Shed PDF එකක් ඕනේ නම් (Optional)
+            # 5. Shed PDF එක
             if st.button("📄 Download Shed Statement"):
                 try:
                     summary = {
-                        "Shed Name": "Shed Account",
-                        "Total Bill": f"Rs. {f_bill:,.2f}",
+                        "Report Type": "Fuel & Shed Settlement Analysis",
+                        "Total Fuel Bill": f"Rs. {f_bill:,.2f}",
                         "Total Paid": f"Rs. {p_paid:,.2f}",
                         "Outstanding Debt": f"Rs. {debt:,.2f}"
                     }
                     fn = create_pdf("Shed_Report", shed_f, summary)
                     with open(fn, "rb") as f:
-                        st.download_button("⬇️ Download PDF", f, file_name="Shed_Report.pdf")
+                        st.download_button("⬇️ Download PDF", f, file_name=f"Shed_Statement_{f_d}.pdf")
                 except Exception as e:
-                    st.error(f"Error: {e}")
+                    st.error(f"Error generating PDF: {e}")
         else:
-            st.info("තෝරාගත් දින පරාසය තුළ ඉන්ධන හෝ ෂෙඩ් ගෙවීම් වාර්තා වී නැත.")
+            st.info("තෝරාගත් දින පරාසය තුළ ඉන්ධන හෝ ෂෙඩ් ගෙවීම් වාර්තා වී නැත. (Category එක 'Fuel' හෝ 'Shed' ලෙස තිබේදැයි බලන්න)")
 
 # --- 10. SYSTEM SETUP (මේ කොටස අලුතින් ඇතුළත් කරන්න) ---
 elif menu == "⚙️ System Setup":
