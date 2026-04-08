@@ -1705,51 +1705,51 @@ elif menu == "📑 Reports Center":
                 
     # --- TAB 3: DAILY LOG (FULL AUDIT TRAIL) ---
     with r3:
-    st.subheader("📋 Detailed Transaction Log")
+        st.subheader("📋 Detailed Transaction Log")
+        
+        if not df_f.empty:
+            # 1. පෙන්විය යුතු තීරු (Fuel_Ltr එකත් මම ඇතුළත් කළා තෙල් විස්තර පේන්න ඕන නිසා)
+            log_cols = ['Date', 'Type', 'Category', 'Entity', 'Qty_Cubes', 'Fuel_Ltr', 'Hours', 'Amount', 'Note']
+            
+            # 2. Database එකේ තියෙන තීරු විතරක් තෝරාගන්නවා
+            available_log_cols = [c for c in log_cols if c in df_f.columns]
+            
+            # 3. දත්ත Sort කිරීම (අලුත්ම ඒක උඩට)
+            display_log = df_f[available_log_cols].sort_values(by='Date', ascending=False).copy()
+            
+            # 4. Numeric දත්ත වලට format එක දීම (Errors එන එක නවත්තන්න fillna(0) කළා)
+            format_dict = {}
+            if "Amount" in display_log.columns: 
+                display_log["Amount"] = pd.to_numeric(display_log["Amount"], errors='coerce').fillna(0)
+                format_dict["Amount"] = "{:,.2f}"
+            if "Qty_Cubes" in display_log.columns: 
+                display_log["Qty_Cubes"] = pd.to_numeric(display_log["Qty_Cubes"], errors='coerce').fillna(0)
+                format_dict["Qty_Cubes"] = "{:,.2f}"
+            if "Fuel_Ltr" in display_log.columns:
+                display_log["Fuel_Ltr"] = pd.to_numeric(display_log["Fuel_Ltr"], errors='coerce').fillna(0)
+                format_dict["Fuel_Ltr"] = "{:,.2f}"
+            if "Hours" in display_log.columns: 
+                display_log["Hours"] = pd.to_numeric(display_log["Hours"], errors='coerce').fillna(0)
+                format_dict["Hours"] = "{:,.2f}"
     
-    if not df_f.empty:
-        # 1. පෙන්විය යුතු තීරු (Fuel_Ltr එකත් මම ඇතුළත් කළා තෙල් විස්තර පේන්න ඕන නිසා)
-        log_cols = ['Date', 'Type', 'Category', 'Entity', 'Qty_Cubes', 'Fuel_Ltr', 'Hours', 'Amount', 'Note']
-        
-        # 2. Database එකේ තියෙන තීරු විතරක් තෝරාගන්නවා
-        available_log_cols = [c for c in log_cols if c in df_f.columns]
-        
-        # 3. දත්ත Sort කිරීම (අලුත්ම ඒක උඩට)
-        display_log = df_f[available_log_cols].sort_values(by='Date', ascending=False).copy()
-        
-        # 4. Numeric දත්ත වලට format එක දීම (Errors එන එක නවත්තන්න fillna(0) කළා)
-        format_dict = {}
-        if "Amount" in display_log.columns: 
-            display_log["Amount"] = pd.to_numeric(display_log["Amount"], errors='coerce').fillna(0)
-            format_dict["Amount"] = "{:,.2f}"
-        if "Qty_Cubes" in display_log.columns: 
-            display_log["Qty_Cubes"] = pd.to_numeric(display_log["Qty_Cubes"], errors='coerce').fillna(0)
-            format_dict["Qty_Cubes"] = "{:,.2f}"
-        if "Fuel_Ltr" in display_log.columns:
-            display_log["Fuel_Ltr"] = pd.to_numeric(display_log["Fuel_Ltr"], errors='coerce').fillna(0)
-            format_dict["Fuel_Ltr"] = "{:,.2f}"
-        if "Hours" in display_log.columns: 
-            display_log["Hours"] = pd.to_numeric(display_log["Hours"], errors='coerce').fillna(0)
-            format_dict["Hours"] = "{:,.2f}"
-
-        # 5. Table එක පෙන්වීම
-        st.dataframe(
-            display_log.style.format(format_dict), 
-            use_container_width=True,
-            height=500,
-            hide_index=True
-        )
-        
-        # CSV Download Button
-        csv = display_log.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="📥 Export Full Log as CSV",
-            data=csv,
-            file_name=f"Detailed_Log.csv",
-            mime='text/csv',
-        )
-    else:
-        st.info("දත්ත කිසිවක් වාර්තා වී නැත.")
+            # 5. Table එක පෙන්වීම
+            st.dataframe(
+                display_log.style.format(format_dict), 
+                use_container_width=True,
+                height=500,
+                hide_index=True
+            )
+            
+            # CSV Download Button
+            csv = display_log.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Export Full Log as CSV",
+                data=csv,
+                file_name=f"Detailed_Log.csv",
+                mime='text/csv',
+            )
+        else:
+            st.info("දත්ත කිසිවක් වාර්තා වී නැත.")
         
     # --- TAB 4: SHED REPORT (FUEL & PAYMENTS) ---
     with r4:
