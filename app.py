@@ -1203,7 +1203,7 @@ elif menu == "📑 Reports Center":
             )
             total_r_inc = daily_report_data[r_inc_mask]['Amount'].sum()
 
-            # 3. Total Expenses (Excavator Work saha anith ewa)
+            # 3. Total Expenses
             expense_mask = (
                 (daily_report_data["Amount"] < 0) |
                 (daily_report_data["Type"].str.strip().str.capitalize() == "Expense") |
@@ -1256,9 +1256,8 @@ elif menu == "📑 Reports Center":
                     st.download_button("📩 Click to Download PDF", f, file_name=f"Settlement_Report_{f_d}.pdf")
 
         else:
-            # Anna me 'else' eka thama 'if not daily_report_data.empty:' ekata samana wenna ona.
+            # Methana 'else' eka hariyatama main 'if' ekata align kara
             st.warning("තෝරාගත් දින පරාසය තුළ දත්ත (Sales, Expenses හෝ r_inc) කිසිවක් නැත.")
-            
     # --- TAB: PROFIT/LOSS ANALYSIS ---
     with r_prof:
         st.subheader("📊 Daily Profit & Loss Analysis")
